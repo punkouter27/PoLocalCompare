@@ -42,9 +42,18 @@
             </ErrorBoundary>
         </article>
     </main>
+
+    <footer class="build-stamp" aria-label="Build version">@BuildVersion</footer>
 </div>
 
 @code {
+    private static readonly string BuildVersion =
+        typeof(MainLayout).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .OfType<System.Reflection.AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "BuildStamp")?.Value
+        ?? DateTimeOffset.UtcNow.ToString("yyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+
     private async Task FocusMainAsync() => await JS.InvokeVoidAsync("focusElement", "main-content");
 
     private ErrorBoundary? _errorBoundary;

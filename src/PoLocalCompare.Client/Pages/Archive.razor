@@ -75,6 +75,13 @@
                                             <span aria-hidden="true">🤝</span> Tie
                                         </span>
                                     }
+                                    else if (d.Verdict == DuelVerdict.Voided)
+                                    {
+                                        <span class="archive__verdict archive__verdict--voided"
+                                              title="Neither model produced usable output. No rating moved.">
+                                            <span aria-hidden="true">⊘</span> Voided
+                                        </span>
+                                    }
                                     else if (d.Verdict == DuelVerdict.Pending)
                                     {
                                         <a class="po-btn po-btn--sm po-btn--primary archive__judge-btn"

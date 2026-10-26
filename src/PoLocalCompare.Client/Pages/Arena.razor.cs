@@ -760,8 +760,8 @@ public partial class Arena
 
         // Only on the transition into a settled verdict. Re-adopting the same verdict happens
         // on every reconcile and poll, and replaying the celebration each time would turn the
-        // payoff moment into a stutter.
-        if (!wasAlreadyFinal)
+        // payoff moment into a stutter. A voided duel has nothing to celebrate.
+        if (!wasAlreadyFinal && verdict != DuelVerdict.Voided)
         {
             _revealVerdict = true;
             _ = CelebrateVerdictAsync(verdict);
@@ -776,6 +776,8 @@ public partial class Arena
     {
         try
         {
+            if (verdict == DuelVerdict.Voided) return;
+
             if (verdict == DuelVerdict.Tie)
             {
                 await AudioService.PlayTieAsync();
@@ -881,6 +883,7 @@ public partial class Arena
     {
         if (_duel is null || _verdictRecorded || _autoJudgeCts is not null) return;
         if (_duel.Verdict != DuelVerdict.Pending) return;
+        if (BothSidesFailed()) return;
         if (_duel.AutoJudgeDelaySeconds <= 0) return;
 
         // The server started counting at CompletedAt, so a page opened late must not restart
@@ -954,12 +957,12 @@ public partial class Arena
     private async Task<bool> RefreshVerdictFromServerAsync()
     {
         var fresh = await ApiClient.GetDuelAsync(_duelId);
-        // A tie is terminal but carries no winner id, so it has to pass this gate on the verdict
-        // alone — otherwise the poll below never stops and the page waits out all 45 attempts on
-        // a duel that was decided on the first one.
+        // A tie or a void is terminal but carries no winner id, so both have to pass this gate
+        // on the verdict alone — otherwise the poll below never stops and the page waits out all
+        // 45 attempts on a duel that was decided on the first one.
         if (fresh is null
             || fresh.Verdict == DuelVerdict.Pending
-            || (fresh.Verdict != DuelVerdict.Tie && fresh.WinnerModelId is null))
+            || (fresh.Verdict is not (DuelVerdict.Tie or DuelVerdict.Voided) && fresh.WinnerModelId is null))
             return false;
 
         _duel = fresh;

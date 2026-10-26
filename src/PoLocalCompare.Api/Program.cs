@@ -33,11 +33,20 @@ try
     var keyVaultUri = builder.Configuration["KeyVault:Uri"];
     if (!string.IsNullOrEmpty(keyVaultUri))
     {
-        var credential = new DefaultAzureCredential();
-        builder.Configuration.AddAzureKeyVault(
-            new Uri(keyVaultUri),
-            credential,
-            new PrefixKeyVaultSecretManager("PoLocalCompare"));
+        try
+        {
+            var credential = new DefaultAzureCredential();
+            builder.Configuration.AddAzureKeyVault(
+                new Uri(keyVaultUri),
+                credential,
+                new PrefixKeyVaultSecretManager("PoLocalCompare"));
+        }
+        catch (Exception ex) when (builder.Environment.IsDevelopment()
+            && ex is CredentialUnavailableException or AuthenticationFailedException or Azure.RequestFailedException)
+        {
+            Log.Warning("Key Vault ({KeyVaultUri}) is unavailable in Development ({Reason}); continuing with local configuration.",
+                keyVaultUri, ex.GetType().Name);
+        }
     }
 
     // ─── Serilog (T018) — now has KV-provided connection strings ────────────

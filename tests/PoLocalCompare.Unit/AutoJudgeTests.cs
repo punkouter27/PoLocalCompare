@@ -178,7 +178,9 @@ public class AutoJudgeTests
             [MakeFailure(duel.DuelId, ModelId.From("left-aj"), "OOM"), MakeFailure(duel.DuelId, ModelId.From("right-aj"), "Watchdog timeout")],
             new JudgeDecision(DuelVerdict.Left, "should never be used"));
 
-        await harness.Judge.RunAsync(duel.DuelId, CancellationToken.None);
+        // Pass a positive delay override to prove a both-failed duel skips the grace window
+        // instead of holding the duel in awaiting-verdict for DelaySeconds.
+        await harness.Judge.RunAsync(duel.DuelId, CancellationToken.None, delaySecondsOverride: 60).WaitAsync(TimeSpan.FromSeconds(2));
 
         // Both-failed was the original "leave Pending and stand down" branch (PRD §9 item 9).
         // That left the duel haunting the lobby's awaiting-judgment counter forever — nothing

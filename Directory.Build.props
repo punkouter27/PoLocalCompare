@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="all" />
+    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
   </ItemGroup>
 </Project>

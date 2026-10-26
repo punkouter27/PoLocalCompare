@@ -44,6 +44,20 @@ article.app-content {
     overflow-x: clip;
 }
 
+/* AGENT.MD §12 Rule 21: YYMMDD build version in the bottom-right corner. */
+.build-stamp {
+    position: fixed;
+    right: max(var(--space-sm), env(safe-area-inset-right));
+    bottom: max(var(--space-2xs), env(safe-area-inset-bottom));
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    opacity: 0.65;
+    pointer-events: none;
+    user-select: none;
+    z-index: 10;
+}
+
 
 
 /* ── Responsive ──────────────────────────────────────────────────────────────

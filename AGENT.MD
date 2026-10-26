@@ -444,3 +444,11 @@ When asked to make changes to this codebase:
 18. **UI changes get a before/after screenshot:** Take an annotated screenshot showing the old and
     new UI with the changes marked up, place the image in the `SCREENSHOTS/` folder inside an HTML
     file, and give the valid full path.
+19. **Three-tier change summary:** For code changes over 20 lines, include exactly one sentence per
+    audience: "Toddler" for the core intuition, "Child" for the behavior, and "Adult" for the
+    technical or architectural details.
+20. **Follow-up questions for large changes:** After a code change over 100 lines, when the prompt
+    contains no other questions, offer three optional high-level questions about the app's purpose
+    that could guide further changes.
+21. **Deployment build version:** Display the deployment build version in the app's bottom-right
+    corner as `YYMMDD`, generated automatically from the current date or Git commit date.

@@ -427,7 +427,7 @@ public sealed class RecordVerdictHandler
         duel.CompletedAt ??= DateTimeOffset.UtcNow;
         await _duelRepository.UpdateAsync(duel);
 
-        return new VerdictResponseDto
+        var response = new VerdictResponseDto
         {
             DuelId = duel.DuelId,
             Verdict = DuelVerdict.Voided,
@@ -439,5 +439,19 @@ public sealed class RecordVerdictHandler
             JudgeRationale = command.JudgeRationale,
             JudgeAnalysis = command.JudgeAnalysis,
         };
+
+        if (_lobby is not null)
+        {
+            var leftModel = await _modelRepository.GetByIdAsync(duel.LeftModelId);
+            var rightModel = await _modelRepository.GetByIdAsync(duel.RightModelId);
+            await _lobby.VerdictRecordedAsync(
+                duel,
+                leftModel?.DisplayName ?? duel.LeftModelId.ToString(),
+                rightModel?.DisplayName ?? duel.RightModelId.ToString(),
+                winnerModelName: null,
+                response);
+        }
+
+        return response;
     }
 }

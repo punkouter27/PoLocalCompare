@@ -103,13 +103,6 @@ public sealed class AutoJudge
 
         try
         {
-            var configuredDelay = delaySecondsOverride ?? _options.DelaySeconds;
-            // Floor at 0 because a tournament legitimately wants 0 ("decide immediately, no human
-            // is watching"). Negative values come from misconfigured appsettings and would
-            // skip the delay entirely, which is benign but ugly in the logs.
-            var delaySeconds = Math.Clamp(configuredDelay, 0, 3600);
-            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-
             var duel = await _duelRepository.GetByIdAsync(duelId);
             if (duel is null)
             {
@@ -127,6 +120,36 @@ public sealed class AutoJudge
             var results = await _duelResultRepository.GetByDuelIdAsync(duelId);
             var left = results.FirstOrDefault(r => r.ModelId == duel.LeftModelId);
             var right = results.FirstOrDefault(r => r.ModelId == duel.RightModelId);
+
+            // A duel where both models produced nothing can never be judged by a human —
+            // RecordVerdictHandler rejects any vote on it with 422 — so there is no grace
+            // window to wait out. Void it immediately rather than leaving it in the
+            // awaiting-verdict list for DelaySeconds.
+            var leftOk = left is not null && !left.IsFailure && !string.IsNullOrWhiteSpace(left.HtmlOutputRaw);
+            var rightOk = right is not null && !right.IsFailure && !string.IsNullOrWhiteSpace(right.HtmlOutputRaw);
+            var configuredDelay = (!leftOk && !rightOk) ? 0 : (delaySecondsOverride ?? _options.DelaySeconds);
+            // Floor at 0 because a tournament legitimately wants 0 ("decide immediately, no human
+            // is watching"). Negative values come from misconfigured appsettings and would
+            // skip the delay entirely, which is benign but ugly in the logs.
+            var delaySeconds = Math.Clamp(configuredDelay, 0, 3600);
+            if (delaySeconds > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+
+                duel = await _duelRepository.GetByIdAsync(duelId);
+                if (duel is null)
+                {
+                    AutoJudgeLog.StoodDown(_logger, duelId, "duel not found");
+                    return;
+                }
+
+                // The human picked inside the window — their decision stands, no second opinion.
+                if (duel.Verdict != DuelVerdict.Pending)
+                {
+                    AutoJudgeLog.StoodDown(_logger, duelId, $"already judged ({duel.Verdict})");
+                    return;
+                }
+            }
 
             JudgeDecision? decision;
             string? standDownReason = null;

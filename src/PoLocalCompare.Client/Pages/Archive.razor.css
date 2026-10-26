@@ -49,6 +49,13 @@
     border: 1px solid var(--accent-blue);
 }
 
+/* A voided duel is terminal with no evidence — muted so it does not compete with real wins or ties. */
+.archive__verdict--voided {
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border-strong);
+}
+
 /* Layout only — the button's look is .po-btn's. Sized to sit inside a table cell without
    stretching the row, and it never wraps mid-label. */
 .archive__judge-btn {
