@@ -142,9 +142,6 @@ public sealed class DuelExecutionService
                 return;
             }
 
-            var lobby = services.GetRequiredService<LobbyNotifier>();
-            await lobby.DuelStartedAsync(duel, leftModel.DisplayName, rightModel.DisplayName, cancellationToken);
-
             // Watchdog — was a hardcoded 900 s while appsettings shipped Duel:TimeLimitSeconds =
             // 300 that nothing read, so the two numbers disagreed with each other and with every
             // DTO that echoed one or the other. One knob now rules them all: the config value,
@@ -195,8 +192,6 @@ public sealed class DuelExecutionService
                     OwnerId = duel.OwnerId,
                     VerdictBy = duel.VerdictBy,
                 });
-
-            await lobby.DuelCompletedAsync(duel, leftModel.DisplayName, rightModel.DisplayName, cancellationToken);
 
             // Hand off to the auto-judge, which waits out the grace window before deciding.
             //

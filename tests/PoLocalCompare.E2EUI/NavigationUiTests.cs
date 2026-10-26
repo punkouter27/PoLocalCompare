@@ -21,9 +21,8 @@ public sealed class NavigationUiTests : UiTestBase
     {
         // The header's items are nowrap. Any that is allowed to shrink is squeezed narrower
         // than its own label, the label spills out of the box, and the next item paints on top
-        // of it — which is how the two ticker chips ended up printed over each other. Nothing
-        // else in the suite looks at geometry, so this is the only place that can catch it.
-        // Note the live ticker only takes part when duels are actually running.
+        // of it. Nothing else in the suite looks at geometry, so this is the only place that can
+        // catch it.
         var page = await SignedInPageAsync(width, height);
 
         // Standards §4 layout contract: Left (branding) | Centre (actions) | Right (session).
@@ -42,8 +41,7 @@ public sealed class NavigationUiTests : UiTestBase
         var problems = await page.EvaluateAsync<string[]>(
             """
             () => {
-                const sel = '.navmenu__brand, .navmenu__mock-chip, .navmenu__link,'
-                          + ' .navmenu__ticker-pill, .navmenu__menu-trigger';
+                const sel = '.navmenu__brand, .navmenu__mock-chip, .navmenu__link, .navmenu__menu-trigger';
                 const els = [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
                 const label = e => (e.textContent || e.className).trim().slice(0, 24);
                 const bad = [];

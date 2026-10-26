@@ -7,6 +7,13 @@ namespace PoLocalCompare.Api.Features.Judging;
 public sealed record JudgeCalibrationRow(string DuelId, DuelVerdict Human, DuelVerdict? Judge, string? Rationale);
 
 /// <param name="AgreementRate">Agreed / Decided, or null when the judge decided nothing.</param>
+/// <param name="Kappa">
+/// Cohen's κ over the decided rows: agreement corrected for what the two raters' own Left / Right /
+/// Tie frequencies would produce by chance. Raw agreement flatters a judge on a lopsided sample —
+/// if humans picked Left 80% of the time, a judge that always says Left agrees 80% and is
+/// worthless (κ = 0). Read it as ≥ 0.6 substantial, 0.4–0.6 moderate, below that weak. Null when
+/// nothing was decided or chance agreement is total (every label the same).
+/// </param>
 public sealed record JudgeCalibrationReport(
     string JudgeModel,
     bool Vision,
@@ -14,6 +21,7 @@ public sealed record JudgeCalibrationReport(
     int Decided,
     int Agreed,
     double? AgreementRate,
+    double? Kappa,
     double? JudgeCostUsd,
     IReadOnlyList<JudgeCalibrationRow> Rows);
 
@@ -92,7 +100,22 @@ public sealed class JudgeCalibrationHandler(
             useVision,
             rows.Count, judged, agreed,
             judged == 0 ? null : Math.Round((double)agreed / judged, 3),
+            Kappa(rows.Where(r => r.Judge is not null).Select(r => (r.Human, r.Judge!.Value)).ToList()),
             cost > 0 ? Math.Round(cost, 6) : null,
             rows);
+    }
+
+    /// <summary>
+    /// Cohen's κ = (p_o − p_e) / (1 − p_e): observed agreement against the agreement two raters
+    /// with these label frequencies would reach by chance. See <see cref="JudgeCalibrationReport.Kappa"/>.
+    /// </summary>
+    internal static double? Kappa(IReadOnlyList<(DuelVerdict Human, DuelVerdict Judge)> pairs)
+    {
+        if (pairs.Count == 0) return null;
+        double n = pairs.Count;
+        var observed = pairs.Count(p => p.Human == p.Judge) / n;
+        var chance = pairs.Select(p => p.Human).Concat(pairs.Select(p => p.Judge)).Distinct()
+            .Sum(v => pairs.Count(p => p.Human == v) / n * (pairs.Count(p => p.Judge == v) / n));
+        return chance >= 1 ? null : Math.Round((observed - chance) / (1 - chance), 3);
     }
 }

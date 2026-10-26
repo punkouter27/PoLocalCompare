@@ -150,3 +150,6 @@ browser-test-status.tsv
 
 ## docs/ holds PRD_Master.md only — the generated HTML reports and Mermaid
 ## sources were removed in the 2026-08-13 prune. Nothing here is ignored.
+
+## Local tool caches (code-graph indexer)
+.aura/

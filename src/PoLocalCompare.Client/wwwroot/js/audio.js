@@ -19,7 +19,9 @@
 
 let ctx = null;
 let master = null;
-let muted = false;
+// Sound is opt-in, like every other extra (Settings). Only an explicit 'false' — stored when
+// the user turns sound on — makes it audible.
+let muted = true;
 
 const MUTE_KEY = 'polocalcompare.muted';
 
@@ -57,9 +59,9 @@ function ensureCtx() {
 }
 
 try {
-    muted = window.localStorage.getItem(MUTE_KEY) === 'true';
+    muted = window.localStorage.getItem(MUTE_KEY) !== 'false';
 } catch {
-    // Storage blocked (private mode). Default to audible.
+    // Storage blocked (private mode). Stay silent.
 }
 
 export function isMuted() {

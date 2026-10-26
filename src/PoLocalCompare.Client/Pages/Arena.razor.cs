@@ -304,83 +304,16 @@ public partial class Arena
 
     private string DisplayName(Side side) => side == Side.Left ? LeftDisplayName : RightDisplayName;
 
-    /// <summary>
-    /// Where a side's marker sits on its HUD track. Scaled to whoever is ahead so both move as
-    /// the leader advances, rather than creeping toward a fixed token target neither may reach;
-    /// the leader sits at 88% so it keeps visibly moving instead of looking finished.
-    /// </summary>
-    private double RaceProgress(Side side)
-    {
-        var metrics = _sides[(int)side];
-        if (metrics.Status is DuelStatus.Done or DuelStatus.Failed) return 100;
-        const double leaderPosition = 88;
-        var frontRunner = Math.Max(_sides[(int)Side.Left].TokenCount, _sides[(int)Side.Right].TokenCount);
-        return frontRunner <= 0 ? 0 : Math.Clamp(metrics.TokenCount / (double)frontRunner * leaderPosition, 0, leaderPosition);
-    }
+    // The race's words and marker positions are RaceCommentary (Shared/Presentation), where the
+    // Unit tier can reach them; these only hand it this page's state.
+    private double RaceProgress(Side side) =>
+        RaceCommentary.Progress(side, _sides[(int)Side.Left], _sides[(int)Side.Right]);
 
-    private static bool IsFinished(SideMetrics metrics) => metrics.Status is DuelStatus.Done or DuelStatus.Failed;
+    private string RaceTicker =>
+        RaceCommentary.Ticker(_sides[(int)Side.Left], _sides[(int)Side.Right], LeftDisplayName, RightDisplayName);
 
-    /// <summary>One sentence on the race for the status band — who is ahead, or who finished.</summary>
-    private string RaceTicker
-    {
-        get
-        {
-            var l = _sides[(int)Side.Left];
-            var r = _sides[(int)Side.Right];
-            var leftDone = IsFinished(l);
-            var rightDone = IsFinished(r);
-
-            // DuelComplete, not "both done", ends the race: the results are still being read.
-            if (leftDone && rightDone) return "Both finished — loading the results…";
-            if (leftDone) return $"{LeftDisplayName} finished first — {RightDisplayName} still generating";
-            if (rightDone) return $"{RightDisplayName} finished first — {LeftDisplayName} still generating";
-
-            var left = l.TokenVelocity ?? 0;
-            var right = r.TokenVelocity ?? 0;
-            if (left <= 0 && right <= 0) return "Warming up — waiting for the first tokens…";
-
-            var inv = System.Globalization.CultureInfo.InvariantCulture;
-            // Speed comparison only means something once both have a real rate; before that a
-            // "10× faster" reading is just one model having started earlier.
-            if (left > 0 && right > 0)
-            {
-                var ratio = left >= right ? left / right : right / left;
-                if (ratio >= 1.15)
-                    return $"{(left >= right ? LeftDisplayName : RightDisplayName)} is {ratio.ToString("F1", inv)}× faster right now";
-
-                var gap = Math.Abs(l.TokenCount - r.TokenCount);
-                if (gap == 0) return "Neck and neck";
-                return $"Dead heat on pace — {(l.TokenCount > r.TokenCount ? LeftDisplayName : RightDisplayName)} leads by {gap:N0} tokens";
-            }
-
-            return left > 0
-                ? $"{LeftDisplayName} away first at {left.ToString("F0", inv)} tok/s"
-                : $"{RightDisplayName} away first at {right.ToString("F0", inv)} tok/s";
-        }
-    }
-
-    /// <summary>
-    /// What the status band's live region says during the race. <see cref="RaceTicker"/>
-    /// re-words itself on every coalesced render ("1.3× faster", "1.4× faster"…), and a polite
-    /// region re-reads the whole sentence each time. This changes only when the story does:
-    /// warm-up, a lead change (<see cref="_leader"/>, already held for 3 s against jitter), a
-    /// side finishing.
-    /// </summary>
-    private string RaceAnnouncement
-    {
-        get
-        {
-            var leftDone = IsFinished(_sides[(int)Side.Left]);
-            var rightDone = IsFinished(_sides[(int)Side.Right]);
-            if (leftDone && rightDone) return "Both finished — loading the results…";
-            if (leftDone) return $"{LeftDisplayName} finished first — {RightDisplayName} still generating";
-            if (rightDone) return $"{RightDisplayName} finished first — {LeftDisplayName} still generating";
-            if (_leader is { } ahead) return $"{DisplayName(ahead)} is ahead";
-            return (_sides[(int)Side.Left].TokenVelocity ?? 0) > 0 || (_sides[(int)Side.Right].TokenVelocity ?? 0) > 0
-                ? "Neck and neck"
-                : "Warming up — waiting for the first tokens…";
-        }
-    }
+    private string RaceAnnouncement =>
+        RaceCommentary.Announcement(_sides[(int)Side.Left], _sides[(int)Side.Right], LeftDisplayName, RightDisplayName, _leader);
 
     // Owns running a WebGPU model in this tab and posting its result back. Per-Arena, because
     // its replay guard is per-duel bookkeeping.
@@ -1182,7 +1115,7 @@ public partial class Arena
     {
         var left = _sides[(int)Side.Left];
         var right = _sides[(int)Side.Right];
-        var done = (IsFinished(left), IsFinished(right));
+        var done = (left.IsFinished, right.IsFinished);
         var now = DateTimeOffset.UtcNow;
         if (done == _raceDoneCued && now - _lastRaceCueAt < RaceCueInterval) return;
 
@@ -1193,18 +1126,13 @@ public partial class Arena
 
     /// <summary>
     /// Tracks who is ahead on tok/s for <see cref="RaceAnnouncement"/>. A lead must be clear
-    /// (10% of the combined rate) and last 3 s before it changes hands, so jitter is not news.
+    /// (<see cref="RaceCommentary.Leader"/>) and last 3 s before it changes hands, so jitter is not news.
     /// </summary>
     private void NoteLead()
     {
-        var left = _sides[(int)Side.Left].TokenVelocity ?? 0;
-        var right = _sides[(int)Side.Right].TokenVelocity ?? 0;
-        if (left + right <= 0) return;
-
-        var lead = (left - right) / (left + right);
         var now = DateTimeOffset.UtcNow;
-        Side? leader = lead > 0.1 ? Side.Left : lead < -0.1 ? Side.Right : null;
-        if (leader is not { } ahead || ahead == _leader || now - _leaderChangedAt < TimeSpan.FromSeconds(3)) return;
+        if (RaceCommentary.Leader(_sides[(int)Side.Left], _sides[(int)Side.Right]) is not { } ahead
+            || ahead == _leader || now - _leaderChangedAt < TimeSpan.FromSeconds(3)) return;
 
         _leader = ahead;
         _leaderChangedAt = now;
@@ -1318,7 +1246,7 @@ public partial class Arena
         {
             var now = DateTimeOffset.UtcNow;
             for (var i = 0; i < _sides.Length; i++)
-                _sides[i].StallDetail = StallDetail(_sides[i], now, DisplayName((Side)i));
+                _sides[i].StallDetail = RaceCommentary.StallDetail(_sides[i], now, DisplayName((Side)i));
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -1332,20 +1260,6 @@ public partial class Arena
     {
         _stallTimer?.Dispose();
         _stallTimer = null;
-    }
-
-    /// <summary>
-    /// Explains pre-first-token silence for browser models. Server-side models stream steadily,
-    /// so an empty return here is the normal case and the note simply does not render.
-    /// </summary>
-    private static string? StallDetail(SideMetrics metrics, DateTimeOffset now, string name)
-    {
-        if (!metrics.IsBrowserModel || metrics.Status != DuelStatus.Generating || metrics.TokenCount > 0) return null;
-
-        var secondsSince = (int)(now - metrics.LastLocalUpdateAt).TotalSeconds;
-        if (secondsSince < 3) return null;   // suppress for the first few seconds
-
-        return $"⏳ {name}: GPU compiling shaders / pre-filling — last worker signal {secondsSince}s ago. Waiting for first token…";
     }
 
     // ── Browser-model inference ───────────────────────────────────────────────

@@ -58,8 +58,7 @@ public abstract class UiTestBase : IAsyncLifetime
     }
 
     /// <summary>
-    /// Opens the nav's user menu — a native &lt;details&gt; holding the theme and sound toggles,
-    /// Catalog and Logout. There is no phone drawer to open first any more: since 2026-10-11
+    /// Opens the nav's user menu — a native &lt;details&gt; holding Settings, Catalog and Logout. There is no phone drawer to open first any more: since 2026-10-11
     /// the links and the session controls sit on the bar at every width.
     /// </summary>
     protected static async Task OpenUserMenuAsync(IPage page)

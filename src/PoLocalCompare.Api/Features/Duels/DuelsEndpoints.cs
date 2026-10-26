@@ -308,26 +308,6 @@ public static class DuelsEndpoints
         .Produces<IReadOnlyList<DuelSummaryDto>>(StatusCodes.Status200OK)
         .ProducesValidationProblem();
 
-        // The nav ticker wants one thing: which finished duels are still unjudged, so it can
-        // show a badge. It used to get that by pulling 25 full duel summaries — prompt text,
-        // model names and all — and counting the rows, which was both a redundant request (Home
-        // fetches the same list) and far more payload than a count needs.
-        group.MapGet("/awaiting-verdict", async (
-            [FromServices] ListDuelsHandler handler) =>
-        {
-            // Same window the ticker used, but only the ids cross the wire.
-            var recent = await handler.HandleAsync(25);
-            var ids = recent
-                .Where(d => d.Verdict == DuelVerdict.Pending && d.CompletedAt.HasValue)
-                .Select(d => d.DuelId)
-                .ToList();
-
-            return Results.Ok(ids);
-        })
-        .WithName("ListDuelsAwaitingVerdict")
-        .WithSummary("Ids of finished duels that still have no verdict — drives the nav badge.")
-        .Produces<IReadOnlyList<DuelId>>(StatusCodes.Status200OK);
-
         return app;
     }
 }

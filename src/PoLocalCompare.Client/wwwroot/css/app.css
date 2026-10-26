@@ -230,6 +230,10 @@
     --space-xl: 2rem;
     --space-2xl: 3rem;
 
+    /* A single-column form (Settings): wide enough for a label, a hint and its control on
+       one row, narrow enough that the control stays near the words it belongs to. */
+    --measure-form: 45rem;
+
     /* ── Typography scale ────────────────────────────────────────────────
        There were no typography tokens at all, and 31 distinct font-size values —
        thirteen of them inside the 0.7–0.95rem band (0.7, 0.72, 0.74, 0.75, 0.78,

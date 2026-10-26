@@ -137,24 +137,21 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.NotNull(response.Headers.Location);
     }
 
-    [Theory]
-    [InlineData("", HttpStatusCode.BadRequest)]                    // empty prompt
-    [InlineData("Build an HTML calculator.", HttpStatusCode.NotFound)] // unknown opponent
-    public async Task Commence_RejectsTheRequestWhenValidationOrCatalogFails(
-        string promptText, HttpStatusCode expectedStatus)
+    // The empty-prompt 400 is Integration's PostDuel_EmptyPrompt_Returns400 (deduplicated 2026-10-26).
+    [Fact]
+    public async Task Commence_UnknownOpponent_Returns404()
     {
         using var client = app.CreateAuthenticatedClient();
         var left = await RegisterModelAsync("Left For Reject");
-        var right = await RegisterModelAsync("Right For Reject");
 
         var response = await client.PostAsJsonAsync("/api/duels", new
         {
             LeftModelId = left,
-            RightModelId = promptText == string.Empty ? right : "01NOTAREALMODELID00000000",
-            PromptText = promptText,
+            RightModelId = "01NOTAREALMODELID00000000",
+            PromptText = "Build an HTML calculator.",
         });
 
-        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -237,23 +234,8 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Equal("Human", duel.GetProperty("verdictSource").GetString());
     }
 
-    [Fact]
-    public async Task Verdict_Twice_Returns409()
-    {
-        // ELO must move exactly once per duel; a second verdict would double-count it.
-        using var client = app.CreateAuthenticatedClient();
-        var (duelId, _, _) = await CommenceAsync(client);
-
-        await WaitForBothResultsAsync(client, duelId);
-
-        // The first verdict must land, or the second one's 409 proves nothing.
-        var first = await client.PostAsJsonAsync($"/api/duels/{duelId}/verdict", new { Verdict = "Left" });
-        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-
-        var second = await client.PostAsJsonAsync($"/api/duels/{duelId}/verdict", new { Verdict = "Right" });
-
-        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-    }
+    // A second verdict's 409 is Integration's PostVerdict_DuplicateVerdict_Returns409
+    // (deduplicated 2026-10-26).
 
     // ── Local (browser) result ingest ──────────────────────────────────────
 

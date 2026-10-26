@@ -29,8 +29,8 @@ namespace PoLocalCompare.Client.Services;
 /// </remarks>
 public sealed class FxService(IJSRuntime js) : IAsyncDisposable
 {
-    private const string ModulePath = "/js/fx.js?v=10";
-    private const string GpuModulePath = "/js/gpu-fx.js?v=2";
+    private const string ModulePath = "/js/fx.js?v=11";
+    private const string GpuModulePath = "/js/gpu-fx.js?v=3";
 
     private Task<IJSObjectReference>? _module;
     private Task<IJSObjectReference>? _gpuModule;

@@ -80,7 +80,8 @@ public sealed class HomeUiTests : UiTestBase
     {
         // A9: one click picks the pair the leaderboard learns most from. Both slots fill, the
         // button goes (there is nothing left for it to fill), and the picker's status line —
-        // a live region — explains the choice.
+        // a live region — explains the choice. Shown with every setting at its default: it is
+        // free, and settling ratings is the app's job.
         var page = await SignedInPageAsync(width, height);
 
         var suggest = page.Locator(".home__picker-actions .po-btn", new() { HasText = "Suggest matchup" });

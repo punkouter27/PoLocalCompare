@@ -19,6 +19,9 @@ public sealed class SideMetrics
 {
     public DuelStatus Status { get; set; } = DuelStatus.Initializing;
 
+    /// <summary>Done or failed — either way this side's race is over.</summary>
+    public bool IsFinished => Status is DuelStatus.Done or DuelStatus.Failed;
+
     public int TokenCount { get; set; }
 
     public double? TokenVelocity { get; set; }

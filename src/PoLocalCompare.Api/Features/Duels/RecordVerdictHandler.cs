@@ -14,7 +14,6 @@ public sealed class RecordVerdictHandler
     private readonly IEloHistoryRepository _eloHistoryRepository;
     private readonly IDuelResultRepository? _duelResultRepository;
     private readonly HybridCache? _cache;
-    private readonly LobbyNotifier? _lobby;
     private readonly double _kFactor;
 
     /// <param name="cache">
@@ -23,13 +22,8 @@ public sealed class RecordVerdictHandler
     /// the HTTP endpoint — <see cref="AutoJudge"/> calls this handler directly, bypassing the
     /// endpoint, and would otherwise leave a stale leaderboard behind.
     /// </param>
-    /// <param name="lobby">
-    /// Optional for the same reason. Announcing from here rather than from the two callers is
-    /// what makes the activity ticker complete: this handler is the only path by which ELO
-    /// moves, so a verdict that reaches storage cannot fail to reach the ticker.
-    /// </param>
     /// <param name="duelResultRepository">
-    /// Optional for the same reason as the two above. Supplied under DI, where it enforces the
+    /// Optional for the same reason. Supplied under DI, where it enforces the
     /// no-evidence rule described on <see cref="HandleAsync"/>.
     /// </param>
     public RecordVerdictHandler(
@@ -38,7 +32,6 @@ public sealed class RecordVerdictHandler
         IEloHistoryRepository eloHistoryRepository,
         double kFactor = 32.0,
         HybridCache? cache = null,
-        LobbyNotifier? lobby = null,
         IDuelResultRepository? duelResultRepository = null)
     {
         _duelRepository = duelRepository;
@@ -46,7 +39,6 @@ public sealed class RecordVerdictHandler
         _eloHistoryRepository = eloHistoryRepository;
         _kFactor = kFactor;
         _cache = cache;
-        _lobby = lobby;
         _duelResultRepository = duelResultRepository;
     }
 
@@ -258,14 +250,6 @@ public sealed class RecordVerdictHandler
             JudgeAnalysis = command.JudgeAnalysis,
         };
 
-        // Announced last, after everything durable has landed. LobbyNotifier swallows its own
-        // failures, so a broken ticker cannot undo a recorded verdict.
-        if (_lobby is not null)
-        {
-            await _lobby.VerdictRecordedAsync(
-                duel, leftModel.DisplayName, rightModel.DisplayName, winner.DisplayName, response);
-        }
-
         return response;
     }
 
@@ -355,12 +339,6 @@ public sealed class RecordVerdictHandler
             JudgeAnalysis = command.JudgeAnalysis,
         };
 
-        if (_lobby is not null)
-        {
-            await _lobby.VerdictRecordedAsync(
-                duel, leftModel.DisplayName, rightModel.DisplayName, winnerModelName: null, response);
-        }
-
         return response;
     }
 
@@ -439,18 +417,6 @@ public sealed class RecordVerdictHandler
             JudgeRationale = command.JudgeRationale,
             JudgeAnalysis = command.JudgeAnalysis,
         };
-
-        if (_lobby is not null)
-        {
-            var leftModel = await _modelRepository.GetByIdAsync(duel.LeftModelId);
-            var rightModel = await _modelRepository.GetByIdAsync(duel.RightModelId);
-            await _lobby.VerdictRecordedAsync(
-                duel,
-                leftModel?.DisplayName ?? duel.LeftModelId.ToString(),
-                rightModel?.DisplayName ?? duel.RightModelId.ToString(),
-                winnerModelName: null,
-                response);
-        }
 
         return response;
     }

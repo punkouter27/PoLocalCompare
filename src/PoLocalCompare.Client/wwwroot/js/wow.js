@@ -14,7 +14,9 @@
  * Everything respects prefers-reduced-motion by not animating at all.
  */
 window.poWow = (() => {
+    // Off unless Settings → Visual effects is on (prefs.js stamps <html data-fx="on">).
     const reduced = () => {
+        if (document.documentElement.dataset.fx !== 'on') return true;
         try {
             return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         } catch {

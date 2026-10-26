@@ -101,8 +101,9 @@ touching UI markup.
 AGENT.MD §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
-onto whichever tier is easiest to write. **E2EAPI and E2EUI sit exactly at the cap and Unit has
-one case spare** (99/43/25/25 as of 2026-10-26) and `SCRIPTS/check-clean.ps1` fails when a tier
+onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has five
+cases spare** (100/44/20/25 as of 2026-10-26, after five E2EAPI duplicates of Integration cases
+were cut) and `SCRIPTS/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
@@ -186,7 +187,8 @@ protects. A rule with no obvious reason usually has an expensive one.
   (`GET /api/leaderboard/{id}/scouting-report`, cached per newest analysed duel, 204 below three
   AI-judged duels).
 - **`POST /api/dev/judge-calibration`** (`take`, `deployment`, `vision`) replays the judge over
-  human-decided duels and never writes a verdict. It needs human-decided duels to mean anything.
+  human-decided duels, reports raw agreement and Cohen's κ, and never writes a verdict. It needs
+  human-decided duels to mean anything — κ is the number to watch, raw agreement flatters.
 - **The Arena's scorecard must never feed ELO.**
 
 ### Prompts, models and money
@@ -202,8 +204,7 @@ protects. A rule with no obvious reason usually has an expensive one.
   deployment to the reasoning shape on its first `max_tokens`/`temperature` 400; costs price by
   the reported `ServedModel`; `/diag` flags the mismatch. Never infer the model from the name alone.
 - **Cost is `TokenCost.Compute`** (`TokenCost.OfCompletion` for one-shot calls). xAI reports
-  reasoning tokens outside `completion_tokens` (`ReportsReasoningSeparately`). `POST /api/dev/reprice-costs` recomputes stored costs; it stays
-  until production has been re-priced.
+  reasoning tokens outside `completion_tokens` (`ReportsReasoningSeparately`).
 - **Non-streaming Foundry calls go through `FoundryChatClient.PostAsync`** (the two-route
   fallback, Gemini included). `FoundryInferenceProxy` keeps its own streaming version.
 - **The model catalog is spread across three files that must agree:** `ModelSeeder.cs`,
@@ -240,7 +241,8 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **The leaderboard's `±N` is a Bradley–Terry interval,** read-side only; ranking is `CurrentElo`.
   **"First token" is a median.** The value chart is `ValueChart` over `ValueChartLayout`.
 - **Integration tests share one Azurite,** so scope assertions to the models the test created.
-- **The `/api/dev/*` endpoints require a session** as well as Development.
+- **`/api/dev/judge-calibration` is the only `/api/dev/*` endpoint,** Development-only and behind a
+  session (reset and cost repricing were removed 2026-10-26).
 - **Observability is Serilog and nothing else,** with one App Insights sink.
 - **Model health lives on `/diag`, in vanilla JS,** because `/diag` must work when the WASM client
   is the broken thing.
@@ -255,6 +257,12 @@ protects. A rule with no obvious reason usually has an expensive one.
   the `.razor` file, where alone they compile.
 - **The Arena's status band is one region driven by one enum** (`ArenaPhaseResolver` →
   `ArenaStatusBand`). `.arena-band__box--verdict` is sticky; do not restate `position` on the base.
+- **Optional features are off until /settings turns them on** — decoration and paid extras only:
+  visual effects, sound, Arena telemetry, the leaderboard chart, and the paid AI helpers (Sharpen
+  prompt, scouting report). What makes ratings converge (the ±, Suggest matchup, tournaments) is
+  never optional — the app is a benchmark. `prefs.js` reads a missing key as off and stamps `<html data-fx="on">`, which
+  `fx.js`, `gpu-fx.js` and `wow.js` read; Blazor asks `PreferencesService.IsOn`. A new extra is one
+  entry in `Preferences.All` (Shared) and an `IsOn` check where it renders — never on by default.
 - **Every surface owns exactly one BEM block, named after its file.**
 - **Scoped CSS is per-`.razor`-file, and nothing warns when it isn't.** Moving markup into a child
   component means moving its rules too. `check-clean.ps1` cannot catch this.
@@ -294,14 +302,14 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Fonts load from `index.html`, not from an `@import` in `app.css`.**
 - **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
   2026-10-26): the verdict nebula (WebGPU, WebGL2 fallback, 1.9 s) and the champion storm (WebGPU
-  compute, 100k particles, 7.2 s). Both start only when the GPU lease is free, tear down mid-frame
+  compute, 100k particles, 7.2 s). Both start only with Settings → Visual effects on and the GPU lease free, tear down mid-frame
   the moment a worker takes it, and destroy their device afterwards. No other render loop, no
   Three.js, PixiJS or Rapier, no backdrop — a WebGL backdrop has been added and removed twice.
   The confetti is one-shot and stands down while the GPU lease is held. The verdict reveal plays
   once, and the loser returns to full opacity.
 - **Audio is synthesised, never a file** — including the race sonification and the judge's
   deliberation drone, which `DetachFromDuel` must always stop.
-- **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12)
+- **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12, -10-26)
   without a user-facing reason: HISTORY.md lists each one. The Archive's outcome chips came back
   on 2026-10-26 with one (U4).
 

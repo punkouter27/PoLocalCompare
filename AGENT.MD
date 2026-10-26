@@ -111,18 +111,18 @@ PoLocalCompare.slnx
 │   │   └── Presentation/               ← view-models, enums and helpers the .razor files lean
 │   │                                     on (ArenaPhase, ModelTypeGroup, FailureReasonText,
 │   │                                     HealthBadgeText, ArenaFormatting, SideMetrics,
-│   │                                     RenderCoalescer). Moved out of Client/ so the Unit
-│   │                                     tier can reach them at all.
+│   │                                     RenderCoalescer, RaceCommentary, Preference). Moved
+│   │                                     out of Client/ so the Unit tier can reach them at all.
 │   └── PoLocalCompare.Client/          ← Blazor WASM (hosted by Api)
 │       ├── Pages/                      ← Home, Arena, Leaderboard, Archive, Catalog, Tournament,
-│       │                                 ModelProfile, Login, NotFound
+│       │                                 ModelProfile, Settings, Login, NotFound
 │       │                                 (model health moved to the /diag Razor Page 2026-08-23)
 │       │                                 (Arena both streams a running duel and judges it)
 │       ├── Components/                 ← incl. PromptPicker, SandboxedViewport, ModelCard,
 │       │                                 ArenaViewportPanel, ArenaVoteButtons, ArenaStatusBand,
 │       │                                 ArenaFailureCard, TelemetryHud, ValueChart
 │       ├── Services/                   ← DuelApiClient, BffAuthenticationStateProvider,
-│       │                                 WebLlmService, SignalRDuelClient, LobbyTickerService,
+│       │                                 WebLlmService, SignalRDuelClient, PreferencesService,
 │       │                                 LocalInferenceDriver, AudioService, FxService,
 │       │                                 WebGpuCapability, CorrelationHandler, ThemeService
 │       └── Layout/
@@ -207,17 +207,13 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
   from Key Vault / App Service settings. Issuer is validated against `AllowedTenants`.
 
 ### 4.5 Real-Time (SignalR)
-- `DuelHub` at `/hubs/duel`, with two groups: `duel:{id}` (per-duel, joined by `JoinDuel`) and
-  `lobby` (app-wide activity, joined by `JoinLobby`). Both hub methods only *subscribe* — every
-  server→client push goes through `IHubContext`, so no client can inject into another duel's feed.
-- Clients: `SignalRDuelClient.cs` (per duel, transient) and `LobbyTickerService.cs` (one connection
-  for the whole app session, feeding the nav-bar ticker).
+- `DuelHub` at `/hubs/duel`, one group per duel: `duel:{id}`, joined by `JoinDuel`. The hub method
+  only *subscribes* — every server→client push goes through `IHubContext`, so no client can inject
+  into another duel's feed.
+- Client: `SignalRDuelClient.cs` (per duel, transient). The app-wide `lobby` group, its
+  `LobbyNotifier` and the nav-bar activity ticker were removed on 2026-10-26 — the Archive shows
+  the same running and unjudged duels.
 - Token streaming and model status updates flow through SignalR.
-- Lobby events are published by `LobbyNotifier`. The verdict event is raised from inside
-  `RecordVerdictHandler` — the single path by which ELO moves — so the feed is complete by
-  construction. The notifier swallows its own failures: the ticker must never fail a duel.
-- The lobby ticker starts only after `/auth/me` resolves an authenticated session. Login pages do
-  not probe protected duel or hub endpoints.
 
 ### 4.6 Judge and tournament UX
 - Vision judging renders both outputs with network blocked, captures motion frames, then activates
@@ -329,7 +325,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-10-26): **99 unit / 43 integration / 25 E2E-API / 25 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-10-26): **100 unit / 44 integration / 20 E2E-API / 25 E2E-UI**,
 all passing, and `SCRIPTS/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 

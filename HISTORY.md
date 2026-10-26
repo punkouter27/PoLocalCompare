@@ -5,6 +5,64 @@ file since well before it existed — it was never committed (`git log --all -- 
 empty as of 2026-10-26), so the incidents behind the older rules live only in code comments and
 commit messages. Add an entry whenever a rule is added, changed or broken on purpose.
 
+## 2026-10-26 — C1–C10: clean, simplify, settings
+
+**Asked for:** ten cleanup options (prune, consolidate, cap tests, settings page, advanced features
+toggleable and off by default) — then "do all".
+
+**Already true before this pass** (so not options): central package management with no versions in
+any csproj; the 100/50/25/25 caps enforced by `check-clean.ps1`; no dead or unused CSS, no
+unreferenced types, every asset cache-busted.
+
+**What shipped:**
+- **C1/C2 Settings, simple by default.** `/settings` holds theme (three chips, replacing the menu's
+  cycle), sound, and the extras in `Preferences.All`: visual effects, Arena telemetry, the
+  leaderboard chart and ±, and the AI helpers (Suggest matchup, Sharpen prompt, scouting report).
+  All start off. `prefs.js` reads a missing key as off — one rule instead of a defaults table kept
+  in step across JS and C# — and stamps `<html data-fx="on">`, which the three effect scripts read
+  through the reduced-motion check they already had. Sound defaults to muted too. The user menu is
+  Settings, Catalog, Logout; signed out, the gear is a plain link. **This reverses a default from
+  earlier the same day:** the G1–G10 shaders, confetti and sound were asked for and shipped on.
+  They are intact, one switch away. Side effect worth knowing: with effects off, `wow.js` skips
+  liquid glass as well, and the scouting report is never requested, so it costs nothing.
+- **C3 not done — already done.** The option claimed the 89 MB Playwright driver shipped to Azure.
+  It is in the Debug output only; `PlaywrightPlatform=none` already keeps it out of a Release
+  publish (0.9 MB DLL). Measured, not changed.
+- **C4** Every `Microsoft.AspNetCore.*` package reads one `$(AspNetCoreVersion)` (10.0.13). The test
+  host was on `10.0.0-preview.3` and OIDC on 10.0.0. `Microsoft.Extensions.*` version separately.
+- **C5** `/api/dev/reset`, `/api/dev/judge-calibration` and `/api/dev/reprice-costs` removed, with
+  `JudgeCalibrationHandler`, `RepriceCostsHandler` and the judge's calibration-only overload. No
+  caller in the app, tests or scripts. **Open question:** whether production was re-priced first
+  was never confirmed (`git show 2b03a3d:src/PoLocalCompare.Api/Features/Duels/RepriceCostsHandler.cs`). Judge calibration was restored the same day — below.
+- **C6** The race commentary (HUD positions, ticker sentence, live announcement, lead rule, stall
+  note) moved from `Arena.razor.cs` to `Shared/Presentation/RaceCommentary`, with one unit test.
+  The two sentences had duplicated their finish-line branch; they share it now.
+- **C7 not done — already done.** An empty `AiJudge:EscalationDeployment` already switches that
+  rung off. Left on: it is what keeps most splits off the gpt-5.4 tie-break.
+- **C8** Every screenshot re-encoded PNG → WebP (13.3 MB → 2.7 MB in the tree; history keeps the
+  PNGs). `.aura/` (a 19 MB code-graph cache) is git-ignored.
+- **C9** The nav activity ticker is gone, and with it everything that only fed it: the hub's
+  `lobby` group, `LobbyNotifier`, `LobbyEventDto`, `LobbyTickerService` and
+  `GET /api/duels/awaiting-verdict`. It repeated the Archive and held a second SignalR connection
+  open for the whole session.
+- **C10** Five E2EAPI cases were exact or near duplicates of Integration cases (unknown tournament
+  404, duplicate verdict 409, empty prompt 400, two draw-validation cases); cut, and the
+  short-prompt case restored to Integration's draw theory, which had lost it. Now 100/44/20/25.
+
+**Same day, after the owner stated the purpose** — benchmark model quality on simple tasks with ELO
+that converges over time; tournaments core; judge quality by best practice:
+- **The ± and Suggest matchup are core again.** How settled a rating is, and the duel that settles
+  it fastest (free — `MatchupPicker` runs in the browser), are the benchmark itself, not extras. The
+  optional list is now decoration and paid calls only; "AI helpers" became "Paid AI helpers"
+  (Sharpen prompt, scouting report).
+- **Judge calibration restored** (C5 reversed for that one endpoint), and it now reports **Cohen's κ**
+  beside raw agreement: humans who mostly pick Left make a judge that always says Left look 80%
+  right while κ is 0. One unit test pins that; the 4096-byte case of the SSE split-reads theory
+  (the ordinary whole-frame path the happy-path test already reads) made way.
+- **Not run, on purpose:** the store holds three human-decided duels, all Left — κ is undefined on
+  one label and the calls cost money. The judge decides nearly every duel inside the 10-second
+  window, so human labels barely accumulate; calibration is only as good as that sample.
+
 ## 2026-10-26 — A1–A10: AI pipeline, judge quality and cost
 
 **Asked for:** ten AI options from an audit of the inference, judge and cost paths — then "do all".

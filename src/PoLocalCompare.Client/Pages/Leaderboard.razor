@@ -8,6 +8,7 @@
 <PageTitle>Leaderboard — PoLocalCompare</PageTitle>
 
 @inject DuelApiClient ApiClient
+@inject PreferencesService Prefs
 @inject AudioService AudioService
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -53,7 +54,7 @@
            instead — the board and the "why" on one page. The chart steps aside while it is
            open; closing the panel brings it back. *@
         <div class="leaderboard__layout @(PanelOpen ? "leaderboard__layout--panel" : null)">
-        @if (!PanelOpen)
+        @if (!PanelOpen && ShowChart)
         {
             <div class="leaderboard__chart">
                 <ValueChart Entries="_displayedEntries" />
@@ -140,18 +141,16 @@
                             @* The ± is the half-width of a 95% interval from a Bradley–Terry fit
                                over every judged duel (server: BradleyTerry). It is the evidence
                                behind the number: two models 30 points apart with ±120 each are
-                               not meaningfully ranked, and nothing on the row said so before. *@
+                               not meaningfully ranked, and nothing on the row said so before.
+                               Never optional: how settled a rating is, is what this board is for. *@
                             <td data-label="ELO" class="leaderboard__elo">
                                 <span class="leaderboard__record">@((int)Math.Round(entry.CurrentElo))</span>
-                                @if (move?.NarrowedFrom is double wasWide)
-                                {
-                                    <span class="leaderboard__ci leaderboard__ci--narrowed"
-                                          title="@($"{IntervalTitle(entry)} Narrowed from ±{wasWide:F0} since you last looked.")">±@((int)Math.Round(entry.RatingInterval))</span>
+                                @{
+                                    var narrowed = move?.NarrowedFrom is double wasWide
+                                        ? $" Narrowed from ±{wasWide:F0} since you last looked." : null;
                                 }
-                                else
-                                {
-                                    <span class="leaderboard__ci" title="@IntervalTitle(entry)">±@((int)Math.Round(entry.RatingInterval))</span>
-                                }
+                                <span class="leaderboard__ci @(narrowed is null ? null : "leaderboard__ci--narrowed")"
+                                      title="@(IntervalTitle(entry) + narrowed)">±@((int)Math.Round(entry.RatingInterval))</span>
                                 @if (entry.IsProvisional)
                                 {
                                     <span class="leaderboard__provisional" title="Fewer than 10 judged duels — this rating will still move a lot.">provisional</span>
@@ -259,13 +258,16 @@
     /// <summary>Set after load: whether the value chart has anything to plot.</summary>
     private bool _chartHasData;
 
+    /// <summary>The chart is switched on in Settings and has something to plot.</summary>
+    private bool ShowChart => _chartHasData && Prefs.IsOn(Preference.LeaderboardChart);
+
     /// <summary>
-    /// The model in the panel: the one picked, or — from 1024px, when the chart has nothing
-    /// to plot (no priced duels yet) — the leader, so the right column is never just empty.
+    /// The model in the panel: the one picked, or — from 1024px, when there is no chart
+    /// (switched off, or no priced duels yet) — the leader, so the right column is never just empty.
     /// </summary>
     private string? PanelModel =>
         RouteIdShape.IsPlausible(SelectedModel) ? SelectedModel
-        : _wide && !_chartHasData && _displayedEntries.Count > 0 ? _displayedEntries[0].ModelId.Value
+        : _wide && !ShowChart && _displayedEntries.Count > 0 ? _displayedEntries[0].ModelId.Value
         : null;
 
     private bool PanelOpen => PanelModel is not null;

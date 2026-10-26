@@ -11,22 +11,9 @@ namespace PoLocalCompare.Api.Features.Duels;
 /// </remarks>
 public sealed class DuelHub : Hub
 {
-    /// <summary>The app-wide activity group, as opposed to a single duel's group.</summary>
-    public const string LobbyGroup = "lobby";
-
     /// <summary>Client calls this to join a duel's broadcast group.</summary>
     public async Task JoinDuel(DuelId duelId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, $"duel:{duelId}");
-    }
-
-    /// <summary>
-    /// Joins the global activity feed. Carries no arguments and grants no ability to push —
-    /// like <see cref="JoinDuel"/>, this only subscribes; broadcasts come from
-    /// <see cref="LobbyNotifier"/> via <c>IHubContext</c>.
-    /// </summary>
-    public async Task JoinLobby()
-    {
-        await Groups.AddToGroupAsync(Context.ConnectionId, LobbyGroup);
     }
 }

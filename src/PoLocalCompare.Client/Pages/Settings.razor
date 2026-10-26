@@ -1,0 +1,92 @@
+@page "/settings"
+@attribute [AllowAnonymous]
+
+@inject ThemeService Theme
+@inject AudioService Audio
+@inject PreferencesService Prefs
+
+<PageTitle>Settings — PoLocalCompare</PageTitle>
+
+@* ── Settings ─────────────────────────────────────────────────────────────
+   Everything optional, in one place. Theme and sound used to be the user menu's two toggles;
+   the extras below are the features that made the default app busier than its job (pick two
+   models, run a prompt, see who won). Each is off until switched on here — prefs.js reads a
+   missing key as off — and the list itself is Preferences.All, so a new extra registers there,
+   not here. Anonymous on purpose: theme and sound were reachable signed out, and still are.
+   Saved per browser; nothing here reaches the server. *@
+<div class="po-page settings">
+    <PageHeader Title="Settings"
+                Subtitle="Saved in this browser. The extras are off until you turn them on." />
+
+    <section class="po-section" aria-labelledby="settings-look-heading">
+        <h2 id="settings-look-heading" class="po-section-title">Look and sound</h2>
+        <div class="settings__list">
+            <div class="settings__row">
+                <span class="settings__text">
+                    <span id="settings-theme-label" class="settings__label">Theme</span>
+                    <span class="po-hint settings__hint">Auto follows your system's light or dark setting.</span>
+                </span>
+                <div class="settings__theme" role="group" aria-labelledby="settings-theme-label">
+                    @foreach (var (theme, label) in ThemeChoices)
+                    {
+                        <button type="button" class="po-btn po-btn--chip"
+                                aria-pressed="@(_theme == theme ? "true" : "false")"
+                                @onclick="() => SetThemeAsync(theme)">@label</button>
+                    }
+                </div>
+            </div>
+            <label class="settings__row settings__toggle">
+                <span class="settings__text">
+                    <span class="settings__label">Sound</span>
+                    <span class="po-hint settings__hint">Short synthesised cues when a duel starts, finishes and is judged.</span>
+                </span>
+                <input type="checkbox" class="settings__switch" checked="@_soundOn" @onchange="SetSoundAsync" />
+            </label>
+        </div>
+    </section>
+
+    <section class="po-section" aria-labelledby="settings-extras-heading">
+        <h2 id="settings-extras-heading" class="po-section-title">Optional features</h2>
+        <div class="settings__list">
+            @foreach (var pref in Preferences.All)
+            {
+                <label class="settings__row settings__toggle">
+                    <span class="settings__text">
+                        <span class="settings__label">@pref.Label</span>
+                        <span class="po-hint settings__hint">@pref.Description</span>
+                    </span>
+                    <input type="checkbox" class="settings__switch" data-pref="@pref.StorageKey"
+                           checked="@Prefs.IsOn(pref.Key)"
+                           @onchange="e => Prefs.SetAsync(pref.Key, e.Value is true)" />
+                </label>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private static readonly (AppTheme Theme, string Label)[] ThemeChoices =
+    [
+        (AppTheme.System, "Auto"),
+        (AppTheme.Light, "Light"),
+        (AppTheme.Dark, "Dark"),
+    ];
+
+    private AppTheme _theme = AppTheme.System;
+    private bool _soundOn;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _theme = await Theme.GetAsync();
+        _soundOn = !await Audio.IsMutedAsync();
+    }
+
+    private async Task SetThemeAsync(AppTheme theme)
+    {
+        _theme = theme;
+        await Theme.SetAsync(theme);
+    }
+
+    private async Task SetSoundAsync(ChangeEventArgs e) =>
+        _soundOn = !await Audio.SetMutedAsync(e.Value is not true);
+}

@@ -1,0 +1,71 @@
+/* ── Settings ───────────────────────────────────────────────────────────────
+   Two grouped lists of rows: what it is on the left, its control on the right. A whole row is
+   the <label> for its checkbox, so the target is the row, not the 24px box. */
+
+/* Narrower than .po-page: on a wide screen a checkbox 1200px from its label is lost. */
+.settings {
+    max-width: var(--measure-form);
+}
+
+.settings__list {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;           /* keeps a hovered first/last row inside the rounded corners */
+}
+
+.settings__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-sm) var(--space-md);
+    padding: var(--space-smd) var(--space-md);
+}
+
+.settings__row + .settings__row {
+    border-top: 1px solid var(--border);
+}
+
+.settings__toggle {
+    flex-wrap: nowrap;
+    cursor: pointer;
+}
+
+.settings__toggle:hover {
+    background: var(--surface-2);
+}
+
+.settings__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    min-width: 0;
+}
+
+.settings__label {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+}
+
+.settings__hint {
+    margin: 0;
+}
+
+.settings__theme {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+/* Native checkbox, sized up from the 13px default so it reads as the row's control. */
+.settings__switch {
+    flex: 0 0 auto;
+    width: var(--space-mlg);
+    height: var(--space-mlg);
+    margin: 0;
+    cursor: pointer;
+}

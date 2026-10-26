@@ -137,8 +137,7 @@
        four), then brand + session on one row and the links on a second — 100px of every phone
        screen. Now it is one 3.5rem row: the brand's mark without its wordmark, the four links
        with short forms for the two long labels, and the identity badge as an initial. That is
-       ~324px of content, so it fits a 360px phone with its 16px gutters. The ticker gives way,
-       as it already did between 768 and 992; the Archive it links to is one tap away. */
+       ~324px of content, so it fits a 360px phone with its 16px gutters. */
     .navmenu__inner {
         gap: var(--space-xs);
     }
@@ -148,7 +147,6 @@
     }
 
     ::deep .navmenu__brand .brand-mark__label,
-    .navmenu__ticker,
     .navmenu__link-text--long,
     .navmenu__user-badge-name,
     .navmenu__user-badge-domain {
@@ -303,7 +301,8 @@
 }
 
 /* ── User menu (<details>) ─────────────────────────────────────────────────────
-   Theme, sound, Catalog and Logout behind the identity badge (a gear when signed out).
+   Settings, Catalog and Logout behind the identity badge. Signed out, the gear is a plain
+   link to /settings (.navmenu__settings-link) — a menu of one item is a detour.
    Focus rings and the 24px/44px target floor for button and summary come from app.css;
    only the NavLink anchor needs the floor restated. */
 .navmenu__menu {
@@ -330,6 +329,15 @@
 
 .navmenu__menu-trigger:hover {
     background: var(--surface-1);
+}
+
+/* The signed-out gear is an anchor, which app.css's 24px floor for button and summary
+   does not cover. */
+.navmenu__settings-link {
+    justify-content: center;
+    min-block-size: var(--target-min);
+    min-inline-size: var(--target-min);
+    text-decoration: none;
 }
 
 .navmenu__menu-caret {
@@ -399,109 +407,15 @@
     line-height: 1;
 }
 
-.navmenu__menu-state {
-    margin-inline-start: auto;
-    padding-inline-start: var(--space-md);
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-}
-
-/* E2E-UI hook (ThemeUiTests) — styled entirely by .navmenu__menu-item. */
-.navmenu__theme-toggle {
-}
-
-
-/* ── Live activity ticker ─────────────────────────────────────────────────── */
-
-/* The strip gives up width before the links or the auth controls do (flex: 0 1 auto),
-   and clips rather than letting a pill escape its box — see the pill rule below. */
-.navmenu__ticker {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    min-width: 0;
-    flex: 0 1 auto;
-    overflow: hidden;
-    margin-inline: var(--space-sm);
-    font-size: var(--text-xs);
-}
-
-/* One grouped chip — running and awaiting-judgment counts side by side in the same pill.
-   flex: 0 0 auto so it cannot be squeezed narrower than its nowrap label. */
-.navmenu__ticker-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    flex: 0 0 auto;
-    max-width: 100%;
-    min-height: 1.5rem;        /* 24px touch target (SC 2.5.8) */
-    padding: var(--space-2xs) var(--space-sm);
-    border-radius: 9999px;
-    font-weight: 700;
-    white-space: nowrap;
-    text-decoration: none;
-    border: 1px solid transparent;
-}
-
-.navmenu__ticker-pill--combined {
-    color: var(--accent-cyan);
-    border-color: var(--cyan-border);
-    background: var(--cyan-surface);
-}
-
-.navmenu__ticker-pill--combined:hover {
-    background: color-mix(in srgb, var(--accent-cyan) 22%, var(--surface-1));
-    text-decoration: none;
-}
-
-.navmenu__ticker-pill--combined:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-}
-
-.navmenu__ticker-sep {
-    margin-inline: var(--space-2xs);
-    opacity: 0.5;
-}
-
-.navmenu__ticker-count {
-    font-variant-numeric: tabular-nums;
-}
-
-/* Motion is the point — it says "right now" — but it is paired with the count, so a user
-   with reduced motion loses nothing but the animation. */
-.navmenu__ticker-pulse {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-    background: currentColor;
-    animation: navmenu-ticker-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes navmenu-ticker-pulse {
-    0%, 100% { opacity: 1; }
-    50%      { opacity: 0.25; }
-}
-
 /* ── Tablet crowding ────────────────────────────────────────────────────────
-   Between the hamburger and 992px the bar carries brand + four links + ticker + the menu
-   trigger on one row. The ticker (duplicated on /archive) and the wordmark drop out; the
+   Between 768 and 992px the bar carries brand + four links + the menu trigger on one row.
+   The wordmark drops out; the
    anchor's name comes from its aria-label, so hiding the text costs a screen reader nothing.
    The theme-label, link-padding and badge-width trims that used to live here up to 1280px
    went with the right-hand cluster, which is now a single trigger. */
 @media (min-width: 768px) and (max-width: 991.98px) {
-    .navmenu__ticker {
-        display: none;
-    }
-
     ::deep .navmenu__brand .brand-mark__label {
         display: none;
     }
 }
 
-
-@media (prefers-reduced-motion: reduce) {
-    .navmenu__ticker-pulse {
-        animation: none;
-    }
-}

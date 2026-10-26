@@ -29,10 +29,7 @@ try
     builder.Services.AddScoped<AudioService>();
     builder.Services.AddScoped<ThemeService>();
     builder.Services.AddScoped<FxService>();
-    // Scoped, which under a WebAssembly host is one instance for the whole app session: the
-    // ticker holds a single lobby SignalR connection that must survive page navigation rather
-    // than reconnect on each one. (Singleton is not an option — it depends on HttpClient.)
-    builder.Services.AddScoped<LobbyTickerService>();
+    builder.Services.AddScoped<PreferencesService>();
     builder.Services.AddScoped<WebLlmService>();
     builder.Services.AddTransient<SignalRDuelClient>();
 

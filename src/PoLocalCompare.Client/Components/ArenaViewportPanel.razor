@@ -1,5 +1,6 @@
 @using PoLocalCompare.Shared.DTOs
 @using PoLocalCompare.Shared.Ids
+@inject PreferencesService Prefs
 
 @* One side of the Arena's viewports. Was previously inlined twice in Arena.razor with the
    only differences being the field name on the page (`_leftResult` vs `_rightResult`),
@@ -46,9 +47,13 @@
             EloRolled="@EloRolled"
             />
 
-        <div class="arena-panel__hud">
-            <TelemetryHud Result="Result" Live="Live" Progress="Progress" />
-        </div>
+        @* Off unless Settings → Arena telemetry is on. *@
+        @if (Prefs.IsOn(Preference.ArenaDetails))
+        {
+            <div class="arena-panel__hud">
+                <TelemetryHud Result="Result" Live="Live" Progress="Progress" />
+            </div>
+        }
 
         @if (!string.IsNullOrEmpty(Result?.HtmlOutputRaw))
         {

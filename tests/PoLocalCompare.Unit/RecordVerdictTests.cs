@@ -148,15 +148,7 @@ public class RecordVerdictTests
         var left = MakeLocalModel(ModelId.From("left-v"));
         var right = MakeLocalModel(ModelId.From("right-v"));
         var duel = MakePendingDuel(DuelId.From("duel-v"), left.ModelId, right.ModelId);
-        var (duelRepo, modelRepo, eloRepo, _) = MakeHandler(duel.DuelId, left, right, duel);
-
-        var lobbyProxy = new Mock<Microsoft.AspNetCore.SignalR.IClientProxy>();
-        var clients = new Mock<Microsoft.AspNetCore.SignalR.IHubClients>();
-        clients.Setup(c => c.Group(DuelHub.LobbyGroup)).Returns(lobbyProxy.Object);
-        var hub = new Mock<Microsoft.AspNetCore.SignalR.IHubContext<DuelHub>>();
-        hub.Setup(h => h.Clients).Returns(clients.Object);
-        var lobby = new LobbyNotifier(hub.Object, Microsoft.Extensions.Logging.Abstractions.NullLogger<LobbyNotifier>.Instance);
-        var handler = new RecordVerdictHandler(duelRepo.Object, modelRepo.Object, eloRepo.Object, kFactor: 32, lobby: lobby);
+        var (_, _, eloRepo, handler) = MakeHandler(duel.DuelId, left, right, duel);
 
         var result = await handler.HandleAsync(new RecordVerdictCommand(
             duel.DuelId, DuelVerdict.Voided, VerdictSource.Constraint, "Abandoned before every model reported.", JudgeModel: null));
@@ -171,14 +163,6 @@ public class RecordVerdictTests
         Assert.Equal(1200, right.CurrentElo);
         // No history rows written for a void.
         eloRepo.Verify(r => r.SaveAsync(It.IsAny<EloRecord>()), Times.Never);
-        // Must notify the lobby ticker so the awaiting-verdict badge clears.
-        lobbyProxy.Verify(p => p.SendCoreAsync(
-            "LobbyEvent",
-            It.Is<object?[]>(args => args.Length == 1
-                && args[0] is PoLocalCompare.Shared.DTOs.LobbyEventDto
-                && ((PoLocalCompare.Shared.DTOs.LobbyEventDto)args[0]!).Kind == LobbyEventKind.VerdictRecorded
-                && ((PoLocalCompare.Shared.DTOs.LobbyEventDto)args[0]!).Verdict == DuelVerdict.Voided),
-            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── A void is the no-evidence terminal, so it dispatches before the guard below — the

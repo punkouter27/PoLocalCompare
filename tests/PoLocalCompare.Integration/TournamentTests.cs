@@ -154,6 +154,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// failure — both pass through the same validation path, so they share the assertion.
     /// </summary>
     [Theory]
+    [InlineData("hi", false)]   // prompt under minimum length
     [InlineData(null, true)]    // one of the model ids is unknown to the catalog
     public async Task Draw_RejectsARequestThatFailsBasicValidation(string? badPrompt, bool useUnknownModelId)
     {

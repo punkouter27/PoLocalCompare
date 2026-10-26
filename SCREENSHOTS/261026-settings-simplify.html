@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings and simple defaults - before and after</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #0b0f14;
+      color: #e8eef5;
+    }
+    body {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, p { margin-top: 0; }
+    h2 { margin-top: 32px; }
+    .pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+      align-items: start;
+    }
+    .pair--phone {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 390px);
+    }
+    figure {
+      position: relative;
+      margin: 0;
+      padding: 12px;
+      background: #121923;
+      border: 1px solid #2d3a49;
+      border-radius: 12px;
+    }
+    .shot { position: relative; }
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+    figcaption {
+      padding-top: 10px;
+      color: #b8c7d9;
+    }
+    .tag {
+      position: absolute;
+      top: 22px;
+      right: 22px;
+      z-index: 1;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #111827;
+      border: 2px solid #f59e0b;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 2px 12px #000;
+    }
+    .after .tag { border-color: #22c55e; }
+    /* Callout boxes, positioned as percentages of a 1440x900 capture. */
+    .mark {
+      position: absolute;
+      border: 3px solid #f59e0b;
+      border-radius: 8px;
+      box-shadow: 0 0 0 2px #0008;
+    }
+    .after .mark { border-color: #22c55e; }
+    .note { color: #8fa3ba; }
+    table { border-collapse: collapse; margin-bottom: 24px; }
+    th, td { border: 1px solid #2d3a49; padding: 6px 10px; text-align: left; }
+    th { background: #121923; }
+    @media (max-width: 900px) {
+      .pair, .pair--phone { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Settings page and simple-by-default (C1, C2, C9)</h1>
+  <p>2026-10-26. Captured with Playwright Chromium (headless) against the local app, light theme, reduced motion,
+     signed in as the dev guest, 1440×900 unless marked. "Before" is commit 2b03a3d run from a worktree; "after" is
+     the working tree, with nothing switched on in Settings — what a first visit gets.</p>
+
+  <table>
+    <tr><th>Optional feature</th><th>Before</th><th>After (default)</th></tr>
+    <tr><td>Visual effects (page transitions, confetti, verdict nebula, champion storm, liquid glass)</td><td>always on</td><td>off</td></tr>
+    <tr><td>Sound</td><td>on</td><td>off</td></tr>
+    <tr><td>Arena telemetry (tok/s, time, cost under each panel)</td><td>always on</td><td>off</td></tr>
+    <tr><td>Leaderboard value chart</td><td>always on</td><td>off</td></tr>
+    <tr><td>Paid AI helpers (Sharpen prompt, scouting report)</td><td>always on</td><td>off</td></tr>
+    <tr><td>± ranges, Suggest matchup, Tournament (rating convergence: core)</td><td>always on</td><td>always on</td></tr>
+    <tr><td>Nav activity ticker (N running · M awaiting)</td><td>on when duels were live</td><td>removed (C9)</td></tr>
+  </table>
+
+  <h2>Compare page and the user menu</h2>
+  <div class="pair">
+    <figure>
+      <span class="tag">Before</span>
+      <div class="shot">
+        <img src="settings-simplify/before-home-menu-1440.webp" alt="Compare page with the user menu open showing Theme, Sound, Catalog and Logout; Suggest matchup and Sharpen prompt buttons visible">
+        <span class="mark" style="left: 88%; top: 4.6%; width: 10.6%; height: 16.4%"></span>
+        <span class="mark" style="left: 70.8%; top: 39.6%; width: 11%; height: 3.2%"></span>
+      </div>
+      <figcaption>The menu carried Theme (a three-state cycle) and Sound. Sharpen prompt, a paid call, sat in the main
+        flow.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="settings-simplify/after-home-menu-1440.webp" alt="Compare page with the user menu open showing Settings, Catalog and Logout; Suggest matchup kept, no Sharpen prompt">
+        <span class="mark" style="left: 90.4%; top: 4.6%; width: 8.2%; height: 12.6%"></span>
+      </div>
+      <figcaption>The menu is Settings, Catalog, Logout. Suggest matchup stays — it is free and picks the duel that
+        settles ratings fastest. The prompt box goes straight to the library. Signed out, the gear is a plain link to /settings.</figcaption>
+    </figure>
+  </div>
+
+  <h2>The Settings page (new)</h2>
+  <div class="pair pair--phone">
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="settings-simplify/after-settings-1440.webp" alt="Settings page: Look and sound (theme chips, sound checkbox) and Optional features (four unchecked checkboxes)">
+        <span class="mark" style="left: 24.8%; top: 37.9%; width: 50.4%; height: 36.2%"></span>
+      </div>
+      <figcaption>/settings, 45rem wide. Theme is three chips (Auto, Light, Dark) instead of a cycle you had to click
+        through. Each row is the &lt;label&gt; for its checkbox, so the whole row is the target. Everything starts
+        off; the list is <code>Preferences.All</code>, so a new extra registers in one place.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After · 390</span>
+      <div class="shot">
+        <img src="settings-simplify/after-settings-390.webp" alt="Settings page on a phone, one column, theme chips wrapping under their label">
+      </div>
+      <figcaption>Full page on a 390px phone. The theme chips wrap under their label; the checkboxes stay at the
+        right edge.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Leaderboard</h2>
+  <div class="pair">
+    <figure>
+      <span class="tag">Before</span>
+      <div class="shot">
+        <img src="settings-simplify/before-leaderboard-1440.webp" alt="Leaderboard with plus-minus ranges beside each ELO and the rating-for-the-money chart on the right">
+        <span class="mark" style="left: 60.2%; top: 15.6%; width: 38.4%; height: 36.8%"></span>
+      </div>
+      <figcaption>The value-for-money scatter in the right column.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="settings-simplify/after-leaderboard-1440.webp" alt="Leaderboard with its plus-minus ranges, no chart; the leader's profile fills the right column">
+        <span class="mark" style="left: 60.4%; top: 16%; width: 38.2%; height: 83.4%"></span>
+      </div>
+      <figcaption>No chart. From 1024px the right column takes the page's existing no-chart fallback — the
+        leader's profile. The ± stays on every row: how settled a rating is, is what the board is for.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Arena</h2>
+  <div class="pair">
+    <figure>
+      <span class="tag">Before</span>
+      <div class="shot">
+        <img src="settings-simplify/before-arena-1440.webp" alt="Arena with a telemetry block under each preview: token velocity, total time, API cost, More metrics">
+        <span class="mark" style="left: 9.2%; top: 72%; width: 40.4%; height: 15%"></span>
+        <span class="mark" style="left: 50.4%; top: 71.4%; width: 40.4%; height: 15%"></span>
+      </div>
+      <figcaption>A telemetry block under each panel.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="settings-simplify/after-arena-1440.webp" alt="Arena with the two previews, View Source, duel cost and New duel; no telemetry blocks">
+      </div>
+      <figcaption>The two outputs, the verdict and the duel's total cost. The page is 136px shorter. (The right
+        preview differs because the page is a live, self-playing game.)</figcaption>
+    </figure>
+  </div>
+
+  <p class="note">Also in this change: the screenshots on every page in this folder were re-encoded from PNG to WebP
+     (13.3 MB → 2.7 MB, C8).</p>
+</body>
+</html>

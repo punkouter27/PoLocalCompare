@@ -8,6 +8,7 @@
 @inject DuelApiClient ApiClient
 @inject AudioService AudioService
 @inject FxService Fx
+@inject PreferencesService Prefs
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject WebGpuCapability WebGpu
@@ -81,7 +82,8 @@
                     }
                     @* Picks the duel the leaderboard learns most from (MatchupPicker); with one
                        slot filled, the best opponent for it. Hidden once both are, like the
-                       starter duel — there is nothing left for it to fill. *@
+                       starter duel — there is nothing left for it to fill. Always shown: it is
+                       free (MatchupPicker runs here) and settling ratings is the app's job. *@
                     @if (_leftModel is null || _rightModel is null)
                     {
                         <button type="button" class="po-btn po-btn--sm po-btn--secondary"
@@ -261,7 +263,10 @@
                     @* One cheap model call that rewrites a rough prompt ("spinning bipeds") into a
                        brief with explicit, checkable requirements. The result lands in the box
                        above — both contestants and the judge then read the same target — and
-                       Undo puts the original back. Never automatic: it changes what is asked. *@
+                       Undo puts the original back. Never automatic: it changes what is asked.
+                       Off unless Settings → Paid AI helpers is on. *@
+                    @if (Prefs.IsOn(Preference.Assistants))
+                    {
                     <div class="home__sharpen">
                         <button type="button" class="po-btn po-btn--sm po-btn--secondary"
                                 title="Rewrites your prompt into a short brief with explicit requirements, so both models and the judge aim at the same thing"
@@ -276,6 +281,7 @@
                         @* Always mounted — a live region inserted already filled is not announced. *@
                         <span class="po-hint home__sharpen-note" role="status">@_sharpenNote</span>
                     </div>
+                    }
 
                     <PromptPicker CurrentPrompt="@_prompt"
                                   OnPromptSelected="ApplyPromptAsync" />

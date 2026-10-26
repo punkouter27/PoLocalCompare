@@ -12,7 +12,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CommenceDuelHandler>();
         services.AddScoped<SpendGuard>();
         services.AddSingleton<SpendLedger>();
-        services.AddScoped<RepriceCostsHandler>();
         services.AddScoped<RefinePromptHandler>();
         services.AddScoped<GetDuelHandler>();
         services.AddScoped<GetLeaderboardHandler>();
@@ -28,7 +27,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LocalResultSignal>();
         services.AddScoped<AutoJudge>();
         services.AddScoped<JudgeCalibrationHandler>();
-        services.AddScoped<LobbyNotifier>();
         services.AddScoped<DuelRecoverySweeper>();
         services.AddHostedService<TournamentResumeService>();
         services.AddScoped<CreateTournamentHandler>();
@@ -50,7 +48,6 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<IEloHistoryRepository>(),
                 kFactor,
                 sp.GetRequiredService<HybridCache>(),
-                sp.GetRequiredService<LobbyNotifier>(),
                 sp.GetRequiredService<IDuelResultRepository>());
         });
 

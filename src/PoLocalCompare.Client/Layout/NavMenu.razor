@@ -54,36 +54,6 @@
                    reachable at every width including phones. *@
             </ul>
 
-            @* ── Live activity ticker ──────────────────────────────────────
-               Polite, not assertive: duels finish while the user is reading, and an assertive
-               region would interrupt them every time one did. One grouped chip — "N running ·
-               M awaiting" — linking to the Archive, where an unjudged duel carries its own Judge
-               button. Nothing to say renders nothing at all. *@
-            @if (Ticker.RunningCount > 0 || Ticker.AwaitingVerdictCount > 0)
-            {
-                <div class="navmenu__ticker" role="status" aria-live="polite" aria-label="Live duel activity">
-                    <a href="archive" class="navmenu__ticker-pill navmenu__ticker-pill--combined"
-                       title="@TickerSummaryTitle()">
-                        @if (Ticker.RunningCount > 0)
-                        {
-                            <span class="navmenu__ticker-pulse" aria-hidden="true"></span>
-                            <span class="navmenu__ticker-count">@Ticker.RunningCount</span>
-                            <span class="visually-hidden">running</span>
-                        }
-                        @if (Ticker.RunningCount > 0 && Ticker.AwaitingVerdictCount > 0)
-                        {
-                            <span class="navmenu__ticker-sep" aria-hidden="true">·</span>
-                        }
-                        @if (Ticker.AwaitingVerdictCount > 0)
-                        {
-                            <span aria-hidden="true">⚖</span>
-                            <span class="navmenu__ticker-count">@Ticker.AwaitingVerdictCount</span>
-                            <span class="visually-hidden">awaiting judgment</span>
-                        }
-                    </a>
-                </div>
-            }
-
             @* ── User identity / auth (standards §6) ── *@
             @* Nothing until the session is known. The first render ran before /auth/me answered,
                so a signed-in visitor saw Sign in + Guest flash and then swap for their badge —
@@ -105,76 +75,53 @@
 
                 @* ── One menu for everything session-shaped ──
                    Native <details>/<summary>: keyboard operable with no script, and it works the
-                   same inside the phone drawer as on the desktop bar — which is what makes
-                   /catalog reachable below 768px. Theme and sound stay available signed out;
-                   the trigger is the identity badge when signed in and a gear when not.
-                   Closing: Escape (OnMenuKeyDown) and any navigation (Catalog) re-key the
-                   element, which recreates it closed. The two toggles deliberately leave it
-                   open so the new state is visible where it was changed. *@
-                @if (_identityResolved)
+                   same at every width — which is what makes /catalog reachable below 768px.
+                   Theme, sound and the optional features live on /settings since 2026-10-26.
+                   Closing: Escape (OnMenuKeyDown) and any navigation re-key the element, which
+                   recreates it closed. Signed out there is only Settings, so the gear is a
+                   plain link rather than a menu of one. *@
+                @if (_identityResolved && _identity is null)
+                {
+                    <a class="navmenu__menu-trigger navmenu__settings-link" href="settings" aria-label="Settings">
+                        <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
+                    </a>
+                }
+                else if (_identityResolved)
                 {
                 <details class="navmenu__menu" @key="_menuKey" @onkeydown="OnMenuKeyDown">
-                    <summary class="navmenu__menu-trigger" @ref="_menuTrigger" aria-label="@MenuLabel">
-                        @if (_identity is not null)
-                        {
-                            @* Split at the '@' so the badge can drop the DOMAIN on a narrow screen
-                               instead of ellipsising mid-string; the local part is the identifying
-                               half. The full value stays in the title either way. *@
-                            @* The initial replaces the name below 768px; the summary's aria-label
-                               carries the full identity at every width. *@
-                            <span class="navmenu__user-badge @(_isGuest ? "navmenu__user-badge--guest" : "navmenu__user-badge--oauth")"
-                                  title="@(_identity + (_isGuest ? " (guest session)" : " (signed in via Microsoft)"))">
-                                <span class="navmenu__user-initial" aria-hidden="true">@IdentityInitial</span><span class="navmenu__user-badge-name">@IdentityLocalPart</span>@if (IdentityDomain is not null)
-                                {
-                                    <span class="navmenu__user-badge-domain">@IdentityDomain</span>
-                                }
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
-                        }
+                    <summary class="navmenu__menu-trigger" @ref="_menuTrigger" aria-label="@($"Account menu for {_identity}")">
+                        @* Split at the '@' so the badge can drop the DOMAIN on a narrow screen
+                           instead of ellipsising mid-string; the local part is the identifying
+                           half. The full value stays in the title either way. *@
+                        @* The initial replaces the name below 768px; the summary's aria-label
+                           carries the full identity at every width. *@
+                        <span class="navmenu__user-badge @(_isGuest ? "navmenu__user-badge--guest" : "navmenu__user-badge--oauth")"
+                              title="@(_identity + (_isGuest ? " (guest session)" : " (signed in via Microsoft)"))">
+                            <span class="navmenu__user-initial" aria-hidden="true">@IdentityInitial</span><span class="navmenu__user-badge-name">@IdentityLocalPart</span>@if (IdentityDomain is not null)
+                            {
+                                <span class="navmenu__user-badge-domain">@IdentityDomain</span>
+                            }
+                        </span>
                         <span class="navmenu__menu-caret" aria-hidden="true">▾</span>
                     </summary>
 
                     <div class="navmenu__menu-panel">
-                        @* Cycles System → Light → Dark. The accessible name carries the state; the
-                           visible state word is aria-hidden so it is not read twice. *@
+                        <NavLink class="navmenu__menu-item" href="settings"
+                                 title="Theme, sound and optional features">
+                            <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
+                            <span>Settings</span>
+                        </NavLink>
+                        <NavLink class="navmenu__menu-item" href="catalog"
+                                 title="Add browser or Ollama models to the catalog">
+                            <span class="navmenu__menu-glyph" aria-hidden="true">🧪</span>
+                            <span>Catalog</span>
+                        </NavLink>
                         <button type="button"
-                                class="navmenu__menu-item navmenu__theme-toggle"
-                                @onclick="CycleThemeAsync"
-                                title="@ThemeTitle"
-                                aria-label="@ThemeTitle">
-                            <span class="navmenu__menu-glyph" aria-hidden="true">@ThemeGlyph</span>
-                            <span>Theme</span>
-                            <span class="navmenu__menu-state" aria-hidden="true">@ThemeLabel</span>
+                                class="navmenu__menu-item navmenu__menu-item--logout"
+                                @onclick="LogoutAsync">
+                            <span class="navmenu__menu-glyph" aria-hidden="true">⎋</span>
+                            <span>Logout</span>
                         </button>
-
-                        @* aria-pressed = sound on. The name stays "Sound" so the pressed state is
-                           the only thing that changes. *@
-                        <button type="button"
-                                class="navmenu__menu-item"
-                                @onclick="ToggleSoundAsync"
-                                aria-pressed="@(_soundOn ? "true" : "false")">
-                            <span class="navmenu__menu-glyph" aria-hidden="true">@(_soundOn ? "🔊" : "🔇")</span>
-                            <span>Sound</span>
-                            <span class="navmenu__menu-state" aria-hidden="true">@(_soundOn ? "On" : "Off")</span>
-                        </button>
-
-                        @if (_identity is not null)
-                        {
-                            <NavLink class="navmenu__menu-item" href="catalog"
-                                     title="Add browser or Ollama models to the catalog">
-                                <span class="navmenu__menu-glyph" aria-hidden="true">🧪</span>
-                                <span>Catalog</span>
-                            </NavLink>
-                            <button type="button"
-                                    class="navmenu__menu-item navmenu__menu-item--logout"
-                                    @onclick="LogoutAsync">
-                                <span class="navmenu__menu-glyph" aria-hidden="true">⎋</span>
-                                <span>Logout</span>
-                            </button>
-                        }
                     </div>
                 </details>
                 }
@@ -189,9 +136,6 @@
     [Inject] private HttpClient Http { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = default!;
     [Inject] private Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnvironment { get; set; } = default!;
-    [Inject] private ThemeService Theme { get; set; } = default!;
-    [Inject] private LobbyTickerService Ticker { get; set; } = default!;
-    [Inject] private AudioService Audio { get; set; } = default!;
 
     private const string MockDataText =
         "USING MOCK DATA — Features:UseRealAi is off. Remote and Ollama responses are simulated.";
@@ -202,9 +146,7 @@
     private int _menuKey;
     private bool _refocusTrigger;
     private ElementReference _menuTrigger;
-    private bool _soundOn = true;
 
-    private string MenuLabel => _identity is null ? "Settings" : $"Account menu for {_identity}";
     private string? _identity;
     private bool _isGuest;
 
@@ -234,43 +176,6 @@
             : null;
     private bool _usingMockData;
     private bool _allowGuest;
-    private AppTheme _theme = AppTheme.System;
-
-
-    // Rendered as a string, not a bool: Blazor treats a bool-valued attribute as an HTML
-    // boolean attribute and omits it entirely when false, which would leave the collapsed
-    // menu with no aria-expanded at all.
-
-    private string ThemeGlyph => _theme switch
-    {
-        AppTheme.Light => "☀",   // sun
-        AppTheme.Dark => "☽",    // moon
-        _ => "◑",                // half-filled circle: following the system
-    };
-
-    private string ThemeLabel => _theme switch
-    {
-        AppTheme.Light => "Light",
-        AppTheme.Dark => "Dark",
-        _ => "Auto",
-    };
-
-    private string ThemeTitle => $"Theme: {ThemeLabel}. Activate to switch.";
-
-    // ── Live ticker ──────────────────────────────────────────────────────────
-
-    /// <summary>Tooltip for the grouped activity pill. A screen reader hears both counts
-    /// from the visually-hidden labels; the tooltip is the same sentence for sighted users.</summary>
-    private string TickerSummaryTitle()
-    {
-        var parts = new List<string>();
-        if (Ticker.RunningCount > 0) parts.Add($"{Ticker.RunningCount} running");
-        if (Ticker.AwaitingVerdictCount > 0) parts.Add($"{Ticker.AwaitingVerdictCount} awaiting judgment");
-        return string.Join(" — ", parts);
-    }
-
-    private void OnTickerChanged() => InvokeAsync(StateHasChanged);
-
 
     // ── User menu ────────────────────────────────────────────────────────────
 
@@ -295,19 +200,6 @@
         await _menuTrigger.FocusAsync();
     }
 
-    private async Task ToggleSoundAsync() => _soundOn = !await Audio.SetMutedAsync(_soundOn);
-
-    private async Task CycleThemeAsync()
-    {
-        _theme = _theme switch
-        {
-            AppTheme.System => AppTheme.Light,
-            AppTheme.Light => AppTheme.Dark,
-            _ => AppTheme.System,
-        };
-        await Theme.SetAsync(_theme);
-    }
-
     protected override async Task OnInitializedAsync()
     {
         AuthState.AuthenticationStateChanged += OnAuthStateChanged;
@@ -317,22 +209,10 @@
         _allowGuest = allowGuestByConfig && !isProduction;
 
         await RefreshIdentityAsync();
-
-        // theme.js already painted before Blazor booted; this only syncs the button's label
-        // to what it chose, so the two cannot disagree.
-        _theme = await Theme.GetAsync();
-        _soundOn = !await Audio.IsMutedAsync();
         Nav.LocationChanged += OnLocationChanged;
 
         var useRealAi = Config["Features:UseRealAi"];
         _usingMockData = !bool.TryParse(useRealAi, out var flag) || !flag;
-
-        // Not awaited: connecting the hub and seeding the pending count must not hold up the
-        // nav bar, which is the first thing rendered on every page. It starts only after the
-        // BFF identity resolves; anonymous startup previously emitted an expected 401 for both
-        // the seed request and SignalR negotiation on every visit to the login page.
-        Ticker.OnChanged += OnTickerChanged;
-        StartTickerWhenAuthenticated();
     }
 
     /// <summary>Resolves the current identity from the BFF session (/auth/me via the state provider).</summary>
@@ -370,12 +250,6 @@
     private void LoginAsGuestAsync()
         => Nav.NavigateTo($"auth/login/fake?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
 
-    private void StartTickerWhenAuthenticated()
-    {
-        if (_identity is not null)
-            _ = Ticker.EnsureStartedAsync(Nav.BaseUri);
-    }
-
     private async Task LogoutAsync()
     {
         try { await Http.PostAsync("auth/logout", null); }
@@ -388,14 +262,12 @@
         => InvokeAsync(async () =>
         {
             await RefreshIdentityAsync();
-            StartTickerWhenAuthenticated();
             StateHasChanged();
         });
 
     public void Dispose()
     {
         AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
-        Ticker.OnChanged -= OnTickerChanged;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }

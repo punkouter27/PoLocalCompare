@@ -53,7 +53,10 @@ function gpuBusy() {
     }
 }
 
+// Effects are opt-in (Settings → Visual effects; prefs.js stamps <html data-fx="on">). Off,
+// they stand down exactly as they do under reduced motion.
 function prefersReducedMotion() {
+    if (document.documentElement.dataset.fx !== 'on') return true;
     try {
         return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     } catch {

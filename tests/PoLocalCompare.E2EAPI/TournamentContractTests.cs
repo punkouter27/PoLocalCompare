@@ -76,35 +76,9 @@ public sealed class TournamentContractTests(ApiAppFixture app)
         Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("tournamentId").GetString()));
     }
 
-    [Theory]
-    [InlineData(3, "Build a click counter.")]   // wrong field size
-    [InlineData(2, "hi")]                       // prompt under minimum length
-    public async Task Draw_RejectsARequestThatFailsBasicValidation(int fieldSize, string prompt)
-    {
-        using var client = app.CreateAuthenticatedClient();
-
-        var ids = new List<string>();
-        for (var i = 0; i < fieldSize; i++)
-            ids.Add(await RegisterModelAsync($"T Bad{fieldSize}"));
-
-        var response = await client.PostAsJsonAsync("/api/tournaments", new
-        {
-            ModelIds = ids,
-            PromptText = prompt,
-        });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Get_UnknownTournament_Returns404()
-    {
-        using var client = app.CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/tournaments/01NOSUCHTOURNAMENTIDXXXXXX");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
+    // Draw validation (bad field size, short prompt) and the unknown-id 404 moved to
+    // Integration's TournamentTests on 2026-10-26: each is one request and one status code, with
+    // no journey for this tier to add.
 
     // ── Challenge surface — removed 2026-09-10 ────────────────────────────
     // Challenge mode (a duel carrying a ChallengeKind + budget) was reachable only by posting

@@ -29,6 +29,4 @@ public static class ArenaFormatting
         Math.Abs(value - Math.Round(value)) < 0.05
             ? ((int)Math.Round(value)).ToString()
             : value.ToString("F1");
-
-    /// <summary>The label painted on each view-mode button in the Arena's view switcher.</summary>
 }
