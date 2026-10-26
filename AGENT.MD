@@ -10,10 +10,12 @@
 
 **PoLocalCompare** is a real-time LLM benchmarking platform that pits **local browser-based LLMs** (WebLLM / WebGPU) against **remote cloud models** (Azure AI Foundry) and **Ollama local models** in timed HTML-generation duels. A human judge picks the winner. An Elo (K=32) rating system tracks relative model performance across all duels.
 
-- **Live URL:** https://app-polocalcompare-win.azurewebsites.net (the App Service name is
-  `app-polocalcompare-win`; the shorter `polocalcompare.azurewebsites.net` has **no DNS record at
-  all** and never was the real host, so do not probe it — a smoke test against it looks exactly
-  like a total outage. `AZURE_WEBAPP_NAME` in deploy.yml is the source of truth.)
+- **Live URL:** `https://app-polocalcompare-<suffix>.azurewebsites.net` in the punkouter27@gmail.com
+  subscription since 2026-10-25 (§9). The `<suffix>` is derived per subscription by
+  `infra/main.bicep`; the repo variable `AZURE_WEBAPP_NAME` is the source of truth. The previous
+  host, `app-polocalcompare-win` in the punkouter26@outlook.com subscription, keeps running until
+  it is deleted by hand. `polocalcompare.azurewebsites.net` has **no DNS record at all** and never
+  was the real host, so do not probe it — a smoke test against it looks exactly like an outage.
 - **Solution file:** `PoLocalCompare.slnx`
 - **Master prefix rule:** Every namespace, Azure resource, and Aspire resource uses `PoLocalCompare` as its prefix.
 
@@ -44,8 +46,8 @@
 | **Real-time** | SignalR (`DuelHub`) |
 | **Storage (local)** | Azurite Docker container (10000 blob, 10002 table) |
 | **Storage (Azure)** | Azure Table Storage |
-| **Secrets** | Azure Key Vault (`kv-poshared`, shared, **access-policy mode**) + App Service settings fallback |
-| **Identity** | System-assigned Managed Identity (per §5.4); Bicep grants Storage Table/Blob RBAC + kv-poshared access |
+| **Secrets** | Azure Key Vault (`kv-poshared-<suffix>` in `PoShared`, **RBAC mode**) + App Service settings fallback |
+| **Identity** | System-assigned Managed Identity (per §5.4); Bicep grants Storage Table/Blob RBAC + Key Vault Secrets User |
 | **Auth** | Microsoft OAuth (Prod) + GUEST mode (Dev/Test) |
 | **Logging** | Serilog → Console (all envs) + rolling File (Development only) |
 | **Telemetry** | Serilog only; one App Insights sink for the shared sign-in record (OTel removed 2026-08-23) |
@@ -160,7 +162,7 @@ PoLocalCompare.slnx
 "UseDevelopmentStorage=true"
 
 // Azure → Azure Table Storage via Key Vault
-ConnectionStrings__AzureTableStorage = kv-poshared secret
+AzureStorage__AccountName = polocalcompare<suffix>   // managed identity, set by Bicep
 ```
 Dynamic switching is automatic based on `ASPNETCORE_ENVIRONMENT`.
 
@@ -348,27 +350,44 @@ dotnet test tests/PoLocalCompare.E2EUI         # Playwright (app must be running
 
 ## 9. Deployment (Azure)
 
-```bash
-# Validate and preview
-azd provision --preview
+```powershell
+# Provision (subscription owner, once per subscription; re-runnable)
+pwsh SCRIPTS/provision-azure.ps1
 
-# Deploy
-azd up
+# Deploy code: push to master — deploy.yml builds, tests and zip-deploys
 ```
 
-- **App resources RG:** `PoLocalCompare` (`westus2`) — holds storage `polocalcomparedevsa` and the F1 plan `asp-PoLocalCompare-f1`.
-- **Shared platform RG:** `PoShared` — Key Vault `kv-poshared`, App Insights, and the shared identity live here.
-- **Key Vault:** `kv-poshared` (shared across Po* projects). **Authorization mode: access policies, not RBAC.**
-- **Managed Identity:** **System-assigned** on the App Service (standards §5.4, reconciled 2026-07-06). Bicep grants it Storage Table/Blob Data Contributor on `polocalcomparedevsa` (the app connects via `AzureStorage__AccountName`, no shared-key string) and both a `Key Vault Secrets User` role assignment and a get/list access policy on `kv-poshared` (`infra/keyvault-access.bicep`) — the policy is what authorizes today; the role becomes effective if the vault ever moves to RBAC mode. `AZURE_CLIENT_ID` is no longer set.
-- **App-scoped secrets** use the `PoLocalCompare--` prefix (e.g. `PoLocalCompare--AzureAiFoundry--ApiKey`, `PoLocalCompare--ConnectionStrings--AzureTableStorage`); `PrefixKeyVaultSecretManager("PoLocalCompare")` strips the prefix. **A `PoLocalCompare--AzureAd--ClientSecret` must be added for BFF OIDC** (only the unprefixed shared `AzureAd--ClientSecret` exists today, which the prefix manager won't load).
-
-> **Bicep status (reconciled 2026-07-06):** `infra/main.bicep` creates a Windows App Service
-> (`app-polocalcompare-win`, .NET 10, **SystemAssigned** identity) on the existing `asp-PoLocalCompare-f1`
-> plan, assigns Storage Table/Blob Data Contributor on `polocalcomparedevsa`, and grants Key Vault access
-> via the `infra/keyvault-access.bicep` module in `PoShared`. Two operational notes: (1) the CI workflow
-> only runs Bicep when the App Service is missing — the identity switch needs a **one-time manual**
-> `az deployment group create -g PoLocalCompare --template-file infra/main.bicep`; (2) add the
-> `PoLocalCompare--AzureAd--ClientSecret` secret to `kv-poshared` for BFF OIDC.
+- **Subscription:** punkouter27@gmail.com since 2026-10-25. The original punkouter26@outlook.com
+  deployment (`app-polocalcompare-win`, `polocalcomparedevsa`, `kv-poshared`) is left running and is
+  no longer deployed to; delete it by hand once the new host is verified.
+- **`infra/main.bicep` is subscription-scoped and creates everything** — nothing is `existing`
+  any more. It creates two resource groups (`westus2`):
+  - `PoShared` (`infra/shared.bicep`) — Key Vault `kv-poshared-<suffix>` (**RBAC mode**),
+    App Insights `appi-poshared` over Log Analytics `log-poshared`.
+  - `PoLocalCompare` (`infra/app.bicep`) — storage `polocalcompare<suffix>` (shared-key auth off),
+    F1 plan `asp-PoLocalCompare-f1`, App Service `app-polocalcompare-<suffix>`.
+- **`<suffix>` is `take(uniqueString(subscription().id), 6)`.** Web app hosts, storage accounts and
+  vaults are global names and the outlook account still holds the unsuffixed ones.
+- **Managed Identity:** system-assigned on the App Service. Bicep grants Storage Table/Blob Data
+  Contributor on the account (the app connects via `AzureStorage__AccountName`, no shared-key
+  string) and Key Vault Secrets User on the vault (`infra/keyvault-access.bicep`). There is no
+  access-policy fallback because the vault is RBAC-only.
+- **CI identity:** app registration `PoLocalCompare-GitHub` with a federated credential for
+  `repo:punkouter27/PoLocalCompare:ref:refs/heads/master`, holding **Website Contributor on the
+  `PoLocalCompare` RG only**. That is enough to deploy and deliberately not enough to run the
+  template, so deploy.yml fails with a pointer to the script instead of provisioning. The script
+  sets the repo variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and
+  `AZURE_WEBAPP_NAME`.
+- **App-scoped secrets** use the `PoLocalCompare--` prefix (e.g. `PoLocalCompare--AzureAiFoundry--ApiKey`);
+  `PrefixKeyVaultSecretManager("PoLocalCompare")` strips the prefix. The script copies every
+  `PoLocalCompare--*` secret from the outlook `kv-poshared` except `ConnectionStrings--*`, which
+  point at the old storage. **BFF OIDC needs `PoLocalCompare--AzureAd--ClientSecret`**; it is copied
+  only if the old vault had it.
+- **Sign-in redirect URIs:** the `AzureAd:ClientId` app registration stays where it is; the script
+  adds the new host's redirect URIs to it from whichever signed-in account can see it.
+- **Local dev reads the same vault.** The script repoints `KeyVault:Uri` in both appsettings files
+  and leaves the Azure CLI on the gmail account, whose user holds Key Vault Secrets Officer.
+  `DefaultAzureCredential` uses the CLI's active account.
 
 ---
 

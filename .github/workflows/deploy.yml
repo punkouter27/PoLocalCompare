@@ -11,7 +11,9 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  AZURE_WEBAPP_NAME: app-polocalcompare-win
+  # Set by SCRIPTS/provision-azure.ps1 along with the three AZURE_* login variables. The name
+  # carries a per-subscription suffix (infra/main.bicep), so it cannot be written down here.
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
   AZURE_RESOURCE_GROUP: PoLocalCompare
   API_PROJECT_PATH: src/PoLocalCompare.Api/PoLocalCompare.Api.csproj
 
@@ -121,7 +123,7 @@ jobs:
     needs: build
     timeout-minutes: 20
     steps:
-      # Checkout is required so the infra template is available to the deploy step.
+      # Checkout is required so the freshness check can read this commit's index.html.
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -132,20 +134,16 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      # Ensure the App Service exists before pushing code. Steady-state: skip — the CI identity
-      # is scoped to this RG, and the template also writes role assignments on the shared Key
-      # Vault in PoShared, which it cannot converge. If the site is missing, recreate it from
-      # the template; that recovery needs a principal with rights on PoShared too.
+      # CI deploys code only. Its identity holds Website Contributor on this RG and nothing else,
+      # so it cannot run infra/main.bicep (subscription scope, role assignments) — provisioning is
+      # SCRIPTS/provision-azure.ps1, run by a subscription owner.
       - name: Ensure infrastructure
         run: |
-          if az webapp show -n "$AZURE_WEBAPP_NAME" -g "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
-            echo "App Service '$AZURE_WEBAPP_NAME' already exists — skipping provisioning."
-          else
-            echo "App Service '$AZURE_WEBAPP_NAME' not found — provisioning from infra/main.bicep."
-            az deployment group create \
-              -g "$AZURE_RESOURCE_GROUP" \
-              -n "provision-${{ github.sha }}" \
-              --template-file infra/main.bicep
+          if [ -z "$AZURE_WEBAPP_NAME" ]; then
+            echo "::error::AZURE_WEBAPP_NAME repo variable is not set — run SCRIPTS/provision-azure.ps1"; exit 1
+          fi
+          if ! az webapp show -n "$AZURE_WEBAPP_NAME" -g "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
+            echo "::error::App Service '$AZURE_WEBAPP_NAME' not found in '$AZURE_RESOURCE_GROUP' — run SCRIPTS/provision-azure.ps1"; exit 1
           fi
       - run: cd publish && zip -r ../webapp.zip . && cd ..
       - uses: azure/webapps-deploy@v3

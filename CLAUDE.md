@@ -54,6 +54,7 @@ dotnet run --project src/PoLocalCompare.Api --launch-profile https   # app at ht
 dotnet build PoLocalCompare.slnx                                # whole solution
 docker compose down -v; docker compose up -d azurite            # wipe local tables (the only way to force a re-seed)
 python SCRIPTS/download-models.py                               # vendor browser-model assets (~5 GB; MODELS=small ≈ 1 GB)
+pwsh SCRIPTS/provision-azure.ps1                                # provision Azure + wire GitHub OIDC (once per subscription)
 ```
 
 Ports **5000/5001 are fixed** — never change them without explicit instruction. The API hosts the
