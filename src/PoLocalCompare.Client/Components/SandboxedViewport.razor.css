@@ -117,6 +117,39 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* ── ELO odometer ────────────────────────────────────────────────────────────
+   Each digit is a 1em window onto a strip of 0–9 twice over; the page moves --reel from 0 to
+   the digit + 10, and the transform transition is the roll. Later (rightward) reels spin
+   longer, like the real thing. Starts after the badge's stamp has landed. Compositor-only. */
+.sandboxed-viewport__odometer {
+    display: inline-flex;
+    line-height: 1;
+    vertical-align: text-bottom;
+}
+
+.sandboxed-viewport__reel {
+    display: inline-block;
+    height: 1em;
+    overflow: hidden;
+}
+
+.sandboxed-viewport__reel-strip {
+    display: flex;
+    flex-direction: column;
+    transform: translateY(calc(var(--reel, 0) * -1em));
+    transition: transform calc(700ms + var(--reel-index, 0) * 180ms) cubic-bezier(.15, .85, .25, 1) 350ms;
+}
+
+.sandboxed-viewport__reel-strip > span {
+    height: 1em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sandboxed-viewport__reel-strip {
+        transition: none;
+    }
+}
+
 /* --on-accent, not #fff: white on --accent-red measured 3.76:1 in the dark theme. */
 .sandboxed-viewport__badge--loser {
     background: var(--accent-red);

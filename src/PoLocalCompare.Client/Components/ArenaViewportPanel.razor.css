@@ -21,6 +21,8 @@
    and the two sides line up because both frames resolve to the same box — a floor here just
    pushed the verdict below the fold. A failed side is one small card and needs no reserve. */
 .arena-panel__box {
+    /* The containing block for the first-token spark and the UPSET stamp. */
+    position: relative;
     display: flex;
     flex-direction: column;
     /* Pack to the top and let every child keep its own height. Without this the children
@@ -107,8 +109,93 @@
     to   { transform: none; }
 }
 
+/* ── First token ──────────────────────────────────────────────────────────────
+   A band of light crosses the panel's top edge once and the edge glows and fades. Both are
+   pseudo-elements animating transform and opacity only, because this plays while a browser
+   model may be generating on the GPU. Left mounted afterwards, invisible. */
+.arena-panel__spark {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    pointer-events: none;
+}
+
+.arena-panel__spark::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 45%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+    transform: translateX(-100%);
+    animation: arena-panel-streak 900ms cubic-bezier(.3, .6, .3, 1) both;
+}
+
+.arena-panel__spark::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+        inset 0 0 0 2px var(--accent-cyan),
+        0 0 24px color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+    opacity: 0;
+    animation: arena-panel-flash 1100ms ease-out both;
+}
+
+@keyframes arena-panel-streak {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(230%); }
+}
+
+@keyframes arena-panel-flash {
+    from { opacity: 0; }
+    20%  { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+/* ── Upset ────────────────────────────────────────────────────────────────────
+   A stamp over the winner's corner. A solid surface under the text so its contrast does not
+   depend on whatever the model's page painted behind it. */
+.arena-panel__upset {
+    position: absolute;
+    top: calc(-1 * var(--space-sm));
+    right: calc(-1 * var(--space-xs));
+    z-index: 2;
+    padding: var(--space-2xs) var(--space-sm);
+    color: var(--accent-yellow);
+    background: var(--surface-1);
+    border: 2px solid var(--accent-yellow);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transform: rotate(-6deg);
+    pointer-events: none;
+}
+
+/* Lands after the odometer settles, with the stinger (playUpset's 1.2 s). */
+.arena-panel__upset--reveal {
+    animation: arena-panel-stamp 380ms cubic-bezier(.2, .9, .3, 1.4) 1200ms both;
+}
+
+@keyframes arena-panel-stamp {
+    from { opacity: 0; transform: rotate(-6deg) scale(2.4); }
+    to   { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .arena-panel__box--reveal {
+    .arena-panel__box--reveal,
+    .arena-panel__upset--reveal {
         animation: none;
+    }
+
+    .arena-panel__spark {
+        display: none;
     }
 }

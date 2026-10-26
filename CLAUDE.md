@@ -27,7 +27,8 @@ a rule is being violated.
 
 - **[AGENT.MD](AGENT.MD) §12 is a checklist for every task, not background.** The ones that are
   easy to miss, because nothing fails when you skip them: a UI change gets an annotated
-  before/after page in `SCREENSHOTS/` and you give its full path (rule 18); an answer over 100
+  before/after page at `SCREENSHOTS/YYMMDD-feature-name.html` and you give its full path (rule 18);
+  a changed dependency, config key or major endpoint updates `README.md` in the same change (10); an answer over 100
   words ends with a 20-word TLDR (13); a git sync commits with a short message in casual
   American slang (12); say so when a change removes more than 100 lines (17); run only the
   tests related to the change (14); give one Pro and one Con for a major change (2). A whole
@@ -260,10 +261,15 @@ protects. A rule with no obvious reason usually has an expensive one.
   item under the stat tiles; **`/catalog` shows one list at a time** and its browser list needs a
   definite height to virtualise.
 - **Fonts load from `index.html`, not from an `@import` in `app.css`.**
-- **Motion is compositor-only.** No Three.js, PixiJS, Rapier, WebGL or WebGPU render loop — a
-  WebGL backdrop has been added and removed twice. The confetti is one-shot and stands down while
-  the GPU lease is held. The verdict reveal plays once, and the loser returns to full opacity.
-- **Audio is synthesised cues, never a file.**
+- **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
+  2026-10-26): the verdict nebula (WebGPU, WebGL2 fallback, 1.9 s) and the champion storm (WebGPU
+  compute, 100k particles, 7.2 s). Both start only when the GPU lease is free, tear down mid-frame
+  the moment a worker takes it, and destroy their device afterwards. No other render loop, no
+  Three.js, PixiJS or Rapier, no backdrop — a WebGL backdrop has been added and removed twice.
+  The confetti is one-shot and stands down while the GPU lease is held. The verdict reveal plays
+  once, and the loser returns to full opacity.
+- **Audio is synthesised, never a file** — including the race sonification and the judge's
+  deliberation drone, which `DetachFromDuel` must always stop.
 - **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12)
   without a user-facing reason: HISTORY.md lists each one.
 

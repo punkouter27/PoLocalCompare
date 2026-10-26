@@ -124,6 +124,10 @@
                                    href="@matchUrl"
                                    aria-label="@MatchAriaLabel(match)"
                                    @key="@($"{match.Round}-{match.Index}")">
+                                    @if (onPath)
+                                    {
+                                        <span class="tourney__glint" aria-hidden="true"></span>
+                                    }
                                     @RenderSlot(match, isSlotA: true)
                                     @RenderSlot(match, isSlotA: false)
 

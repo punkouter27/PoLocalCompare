@@ -70,6 +70,37 @@
     align-items: start;
     gap: var(--space-md);
     margin-bottom: var(--space-md);
+    /* The containing block for the VS slam, which is absolutely positioned and so takes no
+       grid cell. */
+    position: relative;
+}
+
+/* ── The versus slam ──────────────────────────────────────────────────
+   Once, as a live duel opens: the mark drops in from three times its size out of a blur,
+   overshoots, settles, holds and fades. The impact frame (~560 ms) is where playVersus puts
+   its thump. scale, opacity and filter only — all compositor-animatable. */
+.arena__vs {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 3;
+    translate: -50% -50%;
+    color: var(--accent-cyan);
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-extrabold);
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent-cyan) 60%, transparent));
+    animation: arena-vs-slam 1500ms cubic-bezier(.2, .8, .3, 1) 250ms both;
+}
+
+@keyframes arena-vs-slam {
+    from { opacity: 0; scale: 3; filter: blur(10px); }
+    20%  { opacity: 1; scale: 0.9; filter: blur(0); }
+    28%  { scale: 1.06; }
+    36%  { scale: 1; }
+    72%  { opacity: 1; scale: 1; }
+    to   { opacity: 0; scale: 1.15; }
 }
 
 /* Side by side is the whole point of the page — the two outputs only mean anything read
@@ -231,6 +262,24 @@
     animation-delay: 0.8s;
 }
 
+/* The AI judge itself deciding: it reads the pair in both orders, so the beams run in
+   opposite directions, in step — and the panels frost under the reticle. The frost is the
+   one backdrop-filter here, so it stands down whenever the GPU lease is held. */
+.arena__viewports--deliberating .arena__viewport-slot--right::after {
+    animation-delay: 0s;
+    animation-direction: reverse;
+}
+
+.arena__viewports--deliberating .arena__viewport-slot::before {
+    border-radius: var(--radius-md);
+    background-color: color-mix(in srgb, var(--glass-bg) 30%, transparent);
+    backdrop-filter: blur(1.5px) saturate(1.2);
+}
+
+html[data-gpu="busy"] .arena__viewports--deliberating .arena__viewport-slot::before {
+    backdrop-filter: none;
+}
+
 @keyframes arena-reticle {
     from { opacity: 0.45; }
     to   { opacity: 1; }
@@ -290,6 +339,10 @@
     .arena__viewports--judging .arena__viewport-slot::before,
     .arena__judge-eye {
         animation: none;
+    }
+
+    .arena__vs {
+        display: none;
     }
 
     /* The beam IS motion; the static corner brackets still say "being judged". */

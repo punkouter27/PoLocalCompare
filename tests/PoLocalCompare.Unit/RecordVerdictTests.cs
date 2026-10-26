@@ -2,7 +2,7 @@ using Moq;
 using PoLocalCompare.Api.Features.Duels;
 using PoLocalCompare.Api.Features.Leaderboard;
 using PoLocalCompare.Api.Features.Models;
-
+using PoLocalCompare.Shared.DTOs;
 using PoLocalCompare.Shared.Enums;
 
 using PoLocalCompare.Shared.Ids;

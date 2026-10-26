@@ -19,6 +19,21 @@
     }
     else
     {
+        @* First token: a band of light crosses the panel's top edge once. Transform and
+           opacity only — this plays while a browser model may be generating. *@
+        @if (Spark)
+        {
+            <span class="arena-panel__spark" aria-hidden="true"></span>
+        }
+
+        @* A win over a model rated higher going in. Text, not decoration: it is a fact about
+           the result, so it stays in the accessibility tree. *@
+        @if (UpsetGap is { } gap && IsVerdictRecorded && WinnerModelId == PanelModelId)
+        {
+            <span class="arena-panel__upset @(Reveal ? "arena-panel__upset--reveal" : "")"
+                  title="@($"Beat a model rated {gap:N0} points higher")">Upset · +@gap.ToString("N0")</span>
+        }
+
         <SandboxedViewport
             HtmlContent="@(StreamingHtml ?? Result?.HtmlOutputRaw ?? string.Empty)"
             ModelName="@DisplayName"
@@ -27,7 +42,8 @@
             IsAwaitingResult="@(StreamingHtml is null && Result is null)"
             IsStreaming="@(Result is null)"
             Reveal="@Reveal"
-            EloShift="@EloShiftDisplay"
+            EloShift="@EloShift"
+            EloRolled="@EloRolled"
             />
 
         <div class="arena-panel__hud">
@@ -76,8 +92,17 @@
     /// can compare it to the loser / winner ids without holding its own copy.</summary>
     [Parameter, EditorRequired] public ModelId PanelModelId { get; set; }
 
-    /// <summary>The ELO shift to display (already animated by the page).</summary>
-    [Parameter] public double? EloShiftDisplay { get; set; }
+    /// <summary>This side's ELO shift, once the server has said what it was.</summary>
+    [Parameter] public double? EloShift { get; set; }
+
+    /// <summary>The badge's odometer shows the real digits (else zeros, the frame it rolls from).</summary>
+    [Parameter] public bool EloRolled { get; set; }
+
+    /// <summary>How far the loser was rated above the winner going in; stamped on the winner only.</summary>
+    [Parameter] public double? UpsetGap { get; set; }
+
+    /// <summary>This side's first token has arrived: play the light streak.</summary>
+    [Parameter] public bool Spark { get; set; }
 
     /// <summary>This side's streaming telemetry while the duel runs; null once it has finished.</summary>
     [Parameter] public SideMetrics? Live { get; set; }

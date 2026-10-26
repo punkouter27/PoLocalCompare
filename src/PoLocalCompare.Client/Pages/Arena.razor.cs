@@ -97,10 +97,42 @@ public partial class Arena
     /// </summary>
     private bool _revealVerdict;
 
-    // Animated ELO readouts. The badge counts up to the real shift instead of snapping.
-    private double _eloDisplayLeft;
-    private double _eloDisplayRight;
+    // ELO odometer. The badges render their reels at zero for one frame, then at the real
+    // digits; the CSS transition between the two is the roll (SandboxedViewport.razor.css).
+    // This replaced a 24-step count-up that re-rendered the whole page every 16 ms.
+    private bool _eloRolled;
     private CancellationTokenSource? _eloAnimationCts;
+
+    /// <summary>
+    /// How far the loser was rated above the winner before this duel, when it was — the UPSET
+    /// stamp. Only known from a verdict this page received (the response carries the after
+    /// ratings); a duel opened already decided does not stamp.
+    /// </summary>
+    private double? _upsetGap;
+
+    /// <summary>
+    /// Below this the "upset" is noise: a 3-point gap stamped UPSET on screen during
+    /// verification. 25 points is a winner the formula gave ~46% going in.
+    /// </summary>
+    private const double UpsetMinimumGap = 25;
+
+    // ── Moments (G1–G7, 2026-10-26) ──────────────────────────────────────────
+    /// <summary>The duel was live when the page opened it: the VS mark slams once.</summary>
+    private bool _versusSlam;
+
+    /// <summary>Each side's first token has arrived — its panel's light streak plays once.</summary>
+    private readonly bool[] _spark = new bool[2];
+
+    /// <summary>The race sonification is told at most this often, plus whenever a side finishes.</summary>
+    private static readonly TimeSpan RaceCueInterval = TimeSpan.FromMilliseconds(250);
+    private DateTimeOffset _lastRaceCueAt;
+    private (bool Left, bool Right) _raceDoneCued;
+
+    /// <summary>
+    /// Every model's type, read once per page, for the winner's motif voice. The duel row does
+    /// not carry types; null until the catalog lands, and the motif then falls back.
+    /// </summary>
+    private Dictionary<ModelId, ModelType>? _modelTypes;
 
     // ── Auto-judge ────────────────────────────────────────────────────────────
     // The server owns the real clock (it starts when the duel completes); this countdown
@@ -163,6 +195,17 @@ public partial class Arena
     /// the selector above: fx.js treats a selector that matches nothing as "no surfaces".
     /// </summary>
     private const string VerdictColliderSelector = ".arena-panel__box";
+
+    /// <summary>
+    /// The winning panel, where the shockwave and the nebula start. Another CSS class used as a
+    /// JS selector (ArenaViewportPanel.razor): a rename leaves both effects with no origin.
+    /// </summary>
+    private const string WinnerPanelSelector = ".arena-panel__box--winner";
+
+    /// <summary>The winner's side of the stereo field; centred when there is no winner.</summary>
+    private double WinnerPan =>
+        _duel is null || _winnerModelId is null ? 0
+        : _winnerModelId == _duel.LeftModelId ? -0.6 : 0.6;
 
     /// <summary>The grace window is running or the AI judge is deciding: the reticle is up.</summary>
     private bool JudgeIsLooking => ArenaPhaseResolver.JudgeIsLooking(Phase);
@@ -391,6 +434,7 @@ public partial class Arena
         }
 
         _ = LoadTournamentMatchLabelAsync();
+        _ = LoadModelTypesAsync();
 
         var loading = DuelIdText;
         try
@@ -420,6 +464,9 @@ public partial class Arena
         _streamRender?.Dispose();
         _streamRender = null;
         WebLlm.OnStatusUpdate -= OnLocalStatusUpdate;
+        // Both idempotent in audio.js: silent when nothing is playing.
+        _ = AudioService.StopRaceAsync();
+        _ = AudioService.StopDeliberationAsync();
 
         var hub = _signalR;
         _signalR = null;
@@ -462,8 +509,8 @@ public partial class Arena
         _loserModelId = null;
         _eloShiftLeft = null;
         _eloShiftRight = null;
-        _eloDisplayLeft = 0;
-        _eloDisplayRight = 0;
+        _eloRolled = false;
+        _upsetGap = null;
         _judgeEyeUnavailable = false;
 
         _duelStillRunning = false;
@@ -474,6 +521,35 @@ public partial class Arena
         _sides[(int)Side.Right] = new SideMetrics();
         _leader = null;
         _leaderChangedAt = default;
+
+        _versusSlam = false;
+        _spark[(int)Side.Left] = false;
+        _spark[(int)Side.Right] = false;
+        _lastRaceCueAt = default;
+        _raceDoneCued = default;
+    }
+
+    /// <summary>Reads every model's type once for the winner's motif. Decoration: failure is silence.</summary>
+    private async Task LoadModelTypesAsync()
+    {
+        if (_modelTypes is not null) return;
+        try
+        {
+            var models = await ApiClient.GetModelsAsync();
+            _modelTypes = models?.DistinctBy(m => m.ModelId).ToDictionary(m => m.ModelId, m => m.ModelType);
+        }
+        catch (Exception)
+        {
+            // The motif falls back to the bell voice.
+        }
+    }
+
+    /// <summary>The winner's type, from the catalog or — for a browser model watched live — from the race.</summary>
+    private ModelType? WinnerType()
+    {
+        if (_winnerModelId is not { } winner) return null;
+        if (_modelTypes?.TryGetValue(winner, out var type) == true) return type;
+        return _sides[(int)SideOf(winner)].IsBrowserModel ? ModelType.Local : null;
     }
 
     /// <summary>
@@ -537,6 +613,11 @@ public partial class Arena
                 if (_duel.CompletedAt is null && (_leftResult is null || _rightResult is null))
                 {
                     _duelStillRunning = true;
+
+                    // The duel is live: the VS mark slams once between the panels, on the
+                    // sound's thump (arena__vs in Arena.razor.css, playVersus in audio.js).
+                    _versusSlam = true;
+                    _ = AudioService.PlayVersusAsync();
 
                     // A side that already finished will send no more status updates, so seed
                     // the race from its stored row rather than leaving it at Initializing.
@@ -683,6 +764,7 @@ public partial class Arena
             {
                 AdoptVerdict(response.Verdict, response.WinnerModelId, response.LoserModelId, response.Source, response.JudgeRationale, response.JudgeAnalysis);
                 ApplyEloShifts(response.WinnerModelId, response.EloShiftWinner, response.EloShiftLoser);
+                NoteUpset(response);
                 await AnimateEloAsync();
             }
             else
@@ -742,6 +824,8 @@ public partial class Arena
         _revealVerdict = false;
         _eloShiftLeft = null;
         _eloShiftRight = null;
+        _eloRolled = false;
+        _upsetGap = null;
         StartAutoJudgeCountdown();
     }
 
@@ -769,28 +853,35 @@ public partial class Arena
     }
 
     /// <summary>
-    /// The duel's payoff: a burst over the verdict banner and a cue that matches the outcome.
-    /// Safe here because generation has finished — the burst is Canvas2D and one-shot.
+    /// The duel's payoff. A running deliberation resolves first (its beating slides into unison,
+    /// or a third voice for a tie); then, on the sound's impact, the shockwave rings, the shader
+    /// nebula and the confetti all start from the winner. Safe here because generation has
+    /// finished — and gpu-fx.js still checks the GPU lease itself.
     /// </summary>
     private async Task CelebrateVerdictAsync(DuelVerdict verdict)
     {
         try
         {
-            if (verdict == DuelVerdict.Voided) return;
-
-            if (verdict == DuelVerdict.Tie)
+            if (verdict == DuelVerdict.Voided)
             {
-                await AudioService.PlayTieAsync();
+                await AudioService.StopDeliberationAsync();
                 return;
             }
 
-            // The arpeggio comes from the winner's side of the stereo field. A voided duel or
-            // one with no winner id stays centred.
-            var pan = _duel is null || _winnerModelId is null ? 0
-                : _winnerModelId == _duel.LeftModelId ? -0.6 : 0.6;
-            _ = AudioService.PlaySuccessAsync(pan);
-            // A CSS class used as a JS selector: fx.js answers a selector that matches nothing
-            // by doing nothing at all, so a rename of the band's class silently kills this.
+            if (verdict == DuelVerdict.Tie)
+            {
+                await AudioService.PlayVerdictAsync(tie: true, pan: 0, winner: null, winnerType: null);
+                return;
+            }
+
+            // The winner's own motif, from its side of the stereo field.
+            var leadMs = await AudioService.PlayVerdictAsync(tie: false, WinnerPan, _winnerModelId, WinnerType());
+            if (leadMs > 0) await Task.Delay(leadMs);
+
+            // CSS classes used as JS selectors: fx.js and gpu-fx.js answer a selector that
+            // matches nothing by doing nothing at all, so a rename silently kills these.
+            _ = Fx.ImpactAsync(WinnerPanelSelector);
+            _ = Fx.NebulaAsync(WinnerPanelSelector);
             await Fx.BurstFromAsync(VerdictBandSelector, colliders: VerdictColliderSelector);
         }
         catch (Exception ex) when (ex is JSException or TaskCanceledException or ObjectDisposedException)
@@ -799,11 +890,30 @@ public partial class Arena
         }
     }
 
-    // ── ELO count-up ──────────────────────────────────────────────────────────
+    /// <summary>
+    /// Stamps UPSET when the winner was rated below the loser going in. The response carries the
+    /// ratings after the verdict and the shifts, so the ratings before are exact — no second read.
+    /// </summary>
+    private void NoteUpset(VerdictResponseDto response)
+    {
+        if (response is not { Verdict: DuelVerdict.Left or DuelVerdict.Right,
+                              WinnerEloAfter: { } winnerAfter, LoserEloAfter: { } loserAfter,
+                              EloShiftWinner: { } winnerShift, EloShiftLoser: { } loserShift })
+            return;
+
+        var gap = (loserAfter - loserShift) - (winnerAfter - winnerShift);
+        if (gap < UpsetMinimumGap) return;
+
+        _upsetGap = Math.Round(gap);
+        if (_revealVerdict) _ = AudioService.PlayUpsetAsync();
+    }
+
+    // ── ELO odometer ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Counts both badges from zero to their real shift over ~400ms. Respecting reduced-motion
-    /// is handled by settling instantly rather than by animating faster.
+    /// Rolls both badges' reels from zero to the real shift: one render at zero, one at the
+    /// digits, and the CSS transition between them is the motion, with clicks under it.
+    /// Respecting reduced-motion is handled by settling instantly rather than by rolling faster.
     /// </summary>
     private async Task AnimateEloAsync()
     {
@@ -812,30 +922,20 @@ public partial class Arena
         _eloAnimationCts = new CancellationTokenSource();
         var token = _eloAnimationCts.Token;
 
-        if (await PrefersReducedMotionAsync())
+        if (!_revealVerdict || await PrefersReducedMotionAsync())
         {
             SettleEloDisplay();
             StateHasChanged();
             return;
         }
 
-        const int steps = 24;
-        var targetLeft = _eloShiftLeft ?? 0;
-        var targetRight = _eloShiftRight ?? 0;
-
+        _eloRolled = false;
+        await InvokeAsync(StateHasChanged);
         try
         {
-            for (var step = 1; step <= steps; step++)
-            {
-                // Cubic ease-out: fast enough to feel immediate, settling rather than stopping.
-                var progress = step / (double)steps;
-                var eased = 1 - Math.Pow(1 - progress, 3);
-
-                _eloDisplayLeft = targetLeft * eased;
-                _eloDisplayRight = targetRight * eased;
-                await InvokeAsync(StateHasChanged);
-                await Task.Delay(16, token);
-            }
+            // One frame at zero is all the transition needs to have somewhere to start from.
+            await Task.Delay(50, token);
+            if (_eloShiftLeft.HasValue) _ = AudioService.PlayOdometerAsync(WinnerPan);
         }
         catch (OperationCanceledException)
         {
@@ -867,11 +967,7 @@ public partial class Arena
         return reduce;
     }
 
-    private void SettleEloDisplay()
-    {
-        _eloDisplayLeft = _eloShiftLeft ?? 0;
-        _eloDisplayRight = _eloShiftRight ?? 0;
-    }
+    private void SettleEloDisplay() => _eloRolled = true;
 
     // ── Auto-judge countdown ──────────────────────────────────────────────────
 
@@ -922,6 +1018,8 @@ public partial class Arena
             _autoJudgeRemaining = null;
             _autoJudgeDeciding = true;
             await InvokeAsync(StateHasChanged);
+            // Two beating voices while it decides — resolved by the verdict cue.
+            _ = AudioService.StartDeliberationAsync();
 
             // SignalR delivers the verdict when this page is connected, but the Arena only
             // connects for duels that were still running when it loaded. Poll as well so a
@@ -945,6 +1043,7 @@ public partial class Arena
             // The judge declined to decide (no output to compare, or an unreachable judge).
             // Fall back to the plain "pick a winner" prompt — the duel is still judgeable.
             _autoJudgeDeciding = false;
+            _ = AudioService.StopDeliberationAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch (OperationCanceledException)
@@ -982,6 +1081,7 @@ public partial class Arena
 
         AdoptVerdict(response.Verdict, response.WinnerModelId, response.LoserModelId, response.Source, response.JudgeRationale, response.JudgeAnalysis);
         ApplyEloShifts(response.WinnerModelId, response.EloShiftWinner, response.EloShiftLoser);
+        NoteUpset(response);
 
         StopAutoJudgeCountdown();
         InvokeAsync(async () =>
@@ -1036,6 +1136,7 @@ public partial class Arena
         if (update.Status == DuelStatus.Generating && update.TokenCount == 0 && metrics.TokenCount > 0)
             return;
 
+        var tokensBefore = metrics.TokenCount;
         metrics.Status = update.Status;
         metrics.TokenCount = update.TokenCount;
         if (update.TokenVelocity.HasValue) metrics.TokenVelocity = update.TokenVelocity;
@@ -1044,6 +1145,37 @@ public partial class Arena
         // Coalesced, not immediate: this fires once per token batch on both sides at once.
         _streamRender?.Request();
         NoteLead();
+        NoteFirstToken(side.Value, tokensBefore);
+        CueRace();
+    }
+
+    /// <summary>
+    /// A side's first token: its panel's light streak plays once and a chirp comes from its
+    /// side. Only while watching live — a side seeded from a stored row is not news.
+    /// </summary>
+    private void NoteFirstToken(Side side, int tokensBefore)
+    {
+        if (tokensBefore > 0 || _sides[(int)side].TokenCount <= 0 || _spark[(int)side]) return;
+        _spark[(int)side] = true;
+        _ = AudioService.PlaySparkAsync(side == Side.Left ? -0.6 : 0.6);
+    }
+
+    /// <summary>
+    /// Tells the race sonification each side's pace — at most every 250 ms, and at once when a
+    /// side finishes so its finishing chime is on time. Token batches arrive far faster than
+    /// that; the grains themselves are scheduled in audio.js.
+    /// </summary>
+    private void CueRace()
+    {
+        var left = _sides[(int)Side.Left];
+        var right = _sides[(int)Side.Right];
+        var done = (IsFinished(left), IsFinished(right));
+        var now = DateTimeOffset.UtcNow;
+        if (done == _raceDoneCued && now - _lastRaceCueAt < RaceCueInterval) return;
+
+        _raceDoneCued = done;
+        _lastRaceCueAt = now;
+        _ = AudioService.RaceAsync(left.TokenVelocity ?? 0, right.TokenVelocity ?? 0, done.Item1, done.Item2);
     }
 
     /// <summary>
@@ -1145,6 +1277,7 @@ public partial class Arena
             metrics.WarmUpMs = update.ElapsedMs;
         metrics.LocalStatus = status;
 
+        var tokensBefore = metrics.TokenCount;
         metrics.Status = status;
         metrics.TokenCount = update.TokenCount;
         metrics.TokenVelocity = GenerationVelocity(update, metrics.WarmUpMs);
@@ -1153,6 +1286,8 @@ public partial class Arena
         // Same reasoning as the hub handler: the WebLLM worker reports per token batch.
         _streamRender?.Request();
         NoteLead();
+        NoteFirstToken(side, tokensBefore);
+        CueRace();
     }
 
     /// <summary>Tokens per second excluding warm-up, so a slow model load does not read as slow generation.</summary>
@@ -1226,6 +1361,7 @@ public partial class Arena
         var wasRunning = _duelStillRunning;
         _duelStillRunning = false;
         StopStallTimer();
+        _ = AudioService.StopRaceAsync();
         var duelId = _duelId;
         InvokeAsync((Func<Task>)(async () =>
         {

@@ -1133,6 +1133,34 @@ html.po-liquid:not([data-gpu="busy"]) .po-glass {
     pointer-events: none;
 }
 
+/* gpu-fx.js's verdict nebula sits under the confetti: it is the atmosphere, the paper is the
+   foreground. It is created after an await, so DOM order alone would put it on top. */
+.fx-overlay--under {
+    z-index: 9998;
+}
+
+/* The champion storm draws over everything for its seven seconds, confetti included. */
+.fx-overlay--storm {
+    z-index: 10000;
+}
+
+/* The verdict's shockwave (fx.js impact). Positioned by custom properties from JS; only
+   transform and opacity animate. */
+.fx-ring {
+    position: fixed;
+    left: var(--fx-x);
+    top: var(--fx-y);
+    z-index: 9998;
+    width: var(--fx-size);
+    height: var(--fx-size);
+    border: 3px solid var(--accent-green);
+    border-radius: var(--radius-full);
+    box-shadow:
+        0 0 24px color-mix(in srgb, var(--accent-green) 55%, transparent),
+        inset 0 0 24px color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+    pointer-events: none;
+}
+
 /* ── State-modifier primitives ───────────────────────────────────────────
    Pair with `.po-bg--{palette}` (background+border) or `.po-fg--{palette}` (text-only)
    on any element that needs a status colour. The previous design had ~15 per-surface

@@ -28,8 +28,10 @@
 param (
     [string]$TargetAccount = 'punkouter27@gmail.com',
     [string]$TargetSubscriptionId,
+    [string]$TargetTenantId,
     [string]$SourceAccount = 'punkouter26@outlook.com',
     [string]$SourceSubscriptionId,
+    [string]$SourceTenantId,
     [string]$SourceVaultName = 'kv-poshared2',
     [string]$Location = 'westus2',
     [string]$GitHubRepo = 'punkouter27/PoLocalCompare',
@@ -57,11 +59,16 @@ function Invoke-Az {
     $out
 }
 
-function Resolve-Subscription([string]$Account, [string]$SubscriptionId) {
+function Get-AccountEntries([string]$Account) {
+    @(Invoke-Az account list --all -o json | ConvertFrom-Json | Where-Object { $_.user.name -eq $Account })
+}
+
+function Resolve-Subscription([string]$Account, [string]$SubscriptionId, [string]$TenantId) {
     for ($attempt = 0; $attempt -lt 2; $attempt++) {
-        $subs = @(Invoke-Az account list --all -o json | ConvertFrom-Json |
-            Where-Object { $_.user.name -eq $Account -and $_.state -eq 'Enabled' })
+        # A tenant-level entry (from --allow-no-subscriptions) carries the tenant id as its id.
+        $subs = @(Get-AccountEntries $Account | Where-Object { $_.state -eq 'Enabled' -and $_.id -ne $_.tenantId })
         if ($SubscriptionId) { $subs = @($subs | Where-Object { $_.id -eq $SubscriptionId }) }
+        if ($TenantId) { $subs = @($subs | Where-Object { $_.tenantId -eq $TenantId }) }
         if ($subs.Count -eq 1) { return $subs[0] }
         if ($subs.Count -gt 1) {
             $list = ($subs | ForEach-Object { "$($_.name) ($($_.id))" }) -join ', '
@@ -69,19 +76,28 @@ function Resolve-Subscription([string]$Account, [string]$SubscriptionId) {
         }
         if ($attempt -eq 0) {
             Write-Warn "No enabled subscription for $Account in the Azure CLI. Sign in as $Account in the browser window that opens (choose 'Use another account' if it offers a different one)."
-            Invoke-Az login --only-show-errors -o none | Out-Null
+            # --allow-no-subscriptions keeps the sign-in even when nothing is visible, so the
+            # directories it found can be reported. Warnings stay on: that is where az names a
+            # directory it skipped because it needs MFA.
+            $loginArgs = @('login', '--allow-no-subscriptions', '-o', 'none')
+            if ($TenantId) { $loginArgs += @('--tenant', $TenantId) }
+            Invoke-Az @loginArgs | Out-Null
         }
     }
-    throw "Still no enabled subscription for $Account. Create one at https://portal.azure.com, then re-run."
+    $tenants = @(Get-AccountEntries $Account | ForEach-Object { $_.tenantId } | Select-Object -Unique)
+    throw ("Signed in as $Account, but no enabled subscription is visible " +
+        "(directories found: $(if ($tenants) { $tenants -join ', ' } else { 'none' })). " +
+        "Check portal.azure.com > Subscriptions under that account. If the subscription is in a directory " +
+        "az skipped, re-run with -$(if ($Account -eq $TargetAccount) { 'Target' } else { 'Source' })TenantId <directory id>.")
 }
 
 # ─── 1. Subscriptions ─────────────────────────────────────────────────────────
 Write-Step "Resolving subscriptions"
-$target = Resolve-Subscription $TargetAccount $TargetSubscriptionId
+$target = Resolve-Subscription $TargetAccount $TargetSubscriptionId $TargetTenantId
 Write-Ok "Target: $($target.name) ($($target.id)) as $TargetAccount"
 $source = $null
 if (-not $SkipSecretCopy) {
-    $source = Resolve-Subscription $SourceAccount $SourceSubscriptionId
+    $source = Resolve-Subscription $SourceAccount $SourceSubscriptionId $SourceTenantId
     Write-Ok "Source: $($source.name) ($($source.id)) as $SourceAccount"
 }
 

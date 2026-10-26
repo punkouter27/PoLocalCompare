@@ -2,7 +2,9 @@
  * fx.js — the one-shot confetti burst for a verdict or a champion, with rigid-body collisions:
  * pieces land on, bounce off and come to rest on the elements the caller names (the Arena's
  * two panels, the bracket's match cards). Hand-rolled — a few dozen axis-aligned boxes do not
- * need a physics library, and Rapier would be a WASM download for one effect.
+ * need a physics library, and Rapier would be a WASM download for one effect. Also the
+ * verdict's shockwave ring and haptic pulse, and the champion's two corner cannons. The two
+ * shader effects — the verdict nebula and the champion storm — are gpu-fx.js.
  * (The photo-finish strip, shard/mote/pyrotechnic effects and the WebGL backdrop were cut on
  * 2026-09-26 as decoration; a second WebGL backdrop was added and removed again on 2026-10-11.)
  *
@@ -93,13 +95,16 @@ function createOverlay() {
 }
 
 /**
- * Fires a particle burst from a point.
+ * Fires a particle burst from a point, or from several emitters at once.
  *
  * @param {object} options
  * @param {number} options.x        origin, CSS pixels (defaults to viewport centre)
  * @param {number} options.y        origin, CSS pixels
  * @param {number} options.count    particle count
  * @param {number} options.spread   initial speed, px/s
+ * @param {{x: number, y: number, direction: number, cone: number, spread: number}[]} [options.emitters]
+ *   replaces x/y/spread: piece i leaves emitter i mod n, inside its cone (radians; 0 points
+ *   right, -π/2 straight up)
  * @param {string[]} options.colors palette; defaults to the theme's accent
  * @param {number} options.durationMs
  * @param {string} options.colliders selector for elements the pieces land on and bounce off
@@ -118,6 +123,11 @@ function burst(options = {}) {
         count = 90,
         spread = 520,
     } = options;
+    // Biased upward: a full circle sprays as much into the floor as the air, which reads
+    // as a puff rather than a celebration.
+    const emitters = options.emitters?.length
+        ? options.emitters
+        : [{ x, y, direction: -Math.PI / 2, cone: Math.PI * 1.1, spread }];
 
     const boxes = collidersFrom(options.colliders);
     // Longer when there is something to land on: the bounce and the settle are the effect.
@@ -148,13 +158,12 @@ function burst(options = {}) {
 
     const particles = [];
     for (let i = 0; i < count; i++) {
-        // Biased upward: a full circle sprays as much into the floor as the air, which reads
-        // as a puff rather than a celebration.
-        const angle = (-Math.PI / 2) + (Math.random() - 0.5) * Math.PI * 1.1;
-        const speed = spread * (0.35 + Math.random() * 0.65);
+        const emitter = emitters[i % emitters.length];
+        const angle = emitter.direction + (Math.random() - 0.5) * emitter.cone;
+        const speed = emitter.spread * (0.35 + Math.random() * 0.65);
 
         particles.push({
-            x, y,
+            x: emitter.x, y: emitter.y,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
             size: 3 + Math.random() * 5,
@@ -261,4 +270,67 @@ export function burstFrom(selector, options = {}) {
     }
 
     burst({ ...origin, ...options });
+}
+
+/**
+ * The champion's cannons: two jets from the bottom corners, angled inward so they cross over
+ * the bracket and rain onto its cards. One burst with two emitters rather than two bursts, so
+ * it takes one slot of MAX_ACTIVE and the champion burst still fits beside it.
+ */
+export function cannons(colliders) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // Fast enough to reach two-thirds of the way up a tall window before gravity wins.
+    const spread = Math.min(1500, 900 + h * 0.6);
+    burst({
+        count: 180,
+        colliders,
+        durationMs: 3200,
+        emitters: [
+            { x: 0, y: h, direction: -Math.PI / 2 + 0.42, cone: 0.45, spread },
+            { x: w, y: h, direction: -Math.PI / 2 - 0.42, cone: 0.45, spread },
+        ],
+    });
+}
+
+/**
+ * The verdict's impact: two rings expanding from the winning panel, and a short haptic pulse
+ * on phones. The rings are DOM elements animated by transform and opacity — the compositor
+ * does all of it — and they remove themselves when done.
+ */
+export function impact(selector) {
+    try {
+        navigator.vibrate?.([28, 40, 64]);
+    } catch {
+        // No vibration API, or no user activation yet: the rings alone.
+    }
+
+    if (gpuBusy() || prefersReducedMotion() || !document.body) return;
+
+    let rect = null;
+    try {
+        rect = document.querySelector(selector)?.getBoundingClientRect() ?? null;
+    } catch {
+        // Bad selector — no rings.
+    }
+    if (!rect) return;
+
+    const size = Math.max(rect.width, rect.height) * 1.6;
+    for (const delay of [0, 140]) {
+        const ring = document.createElement('div');
+        ring.className = 'fx-ring';
+        ring.setAttribute('aria-hidden', 'true');
+        ring.style.setProperty('--fx-x', `${rect.left + rect.width / 2}px`);
+        ring.style.setProperty('--fx-y', `${rect.top + rect.height / 2}px`);
+        ring.style.setProperty('--fx-size', `${size}px`);
+        document.body.appendChild(ring);
+        ring.animate(
+            [
+                { transform: 'translate(-50%, -50%) scale(0.15)', opacity: 0.9 },
+                { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 },
+            ],
+            { duration: 820, delay, easing: 'cubic-bezier(.15,.75,.3,1)', fill: 'both' })
+            // Cancelled (navigated away) rejects `finished`; remove the ring either way.
+            .finished.then(() => ring.remove(), () => ring.remove());
+    }
 }

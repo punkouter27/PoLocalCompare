@@ -137,8 +137,16 @@
 
         @* The judge's reticle: while the grace window runs (and while the AI judge is
            deciding) a scan beam sweeps both panels — the outputs being weighed are the ones
-           on screen. Compositor-only, and by now inference is finished anyway. *@
-        <div class="arena__viewports arena__viewports--focus-@_mobileFocus @(JudgeIsLooking ? "arena__viewports--judging" : "")">
+           on screen. Compositor-only, and by now inference is finished anyway. While the AI
+           judge itself is deciding (--deliberating) the beams run in opposite directions —
+           it reads the pair in both orders — and the panels frost under the reticle. *@
+        <div class="arena__viewports arena__viewports--focus-@_mobileFocus @(JudgeIsLooking ? "arena__viewports--judging" : "") @(Phase is ArenaPhase.JudgeDeciding ? "arena__viewports--deliberating" : "")">
+            @* The versus slam: once, when the page opens a live duel, landing on playVersus's
+               thump. Decorative — the page title already says "Left vs Right". *@
+            @if (_versusSlam)
+            {
+                <span class="arena__vs" aria-hidden="true">VS</span>
+            }
             <div class="arena__viewport-slot arena__viewport-slot--left">
                 <ArenaViewportPanel
                     Result="@_leftResult"
@@ -149,7 +157,10 @@
                     WinnerModelId="@_winnerModelId"
                     IsVerdictRecorded="@_verdictRecorded"
                     Reveal="@_revealVerdict"
-                    EloShiftDisplay="@(_eloShiftLeft.HasValue ? _eloDisplayLeft : null)"
+                    EloShift="@_eloShiftLeft"
+                    EloRolled="@_eloRolled"
+                    UpsetGap="@_upsetGap"
+                    Spark="@_spark[(int)Side.Left]"
                     Live="@(_duelStillRunning ? _sides[(int)Side.Left] : null)"
                     Progress="@RaceProgress(Side.Left)" />
             </div>
@@ -164,7 +175,10 @@
                     WinnerModelId="@_winnerModelId"
                     IsVerdictRecorded="@_verdictRecorded"
                     Reveal="@_revealVerdict"
-                    EloShiftDisplay="@(_eloShiftRight.HasValue ? _eloDisplayRight : null)"
+                    EloShift="@_eloShiftRight"
+                    EloRolled="@_eloRolled"
+                    UpsetGap="@_upsetGap"
+                    Spark="@_spark[(int)Side.Right]"
                     Live="@(_duelStillRunning ? _sides[(int)Side.Right] : null)"
                     Progress="@RaceProgress(Side.Right)" />
             </div>

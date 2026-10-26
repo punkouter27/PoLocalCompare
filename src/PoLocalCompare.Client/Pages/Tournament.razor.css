@@ -123,10 +123,41 @@
     to   { opacity: 1; transform: none; }
 }
 
+/* A glint runs across each lit card just after it lights — the light travelling the road,
+   round by round. Its own clipping box, so the card keeps no overflow: hidden that would cut
+   off the gold ring above, which sits 3px outside it. Transform only. */
+.tourney__glint {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.tourney__glint::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--accent-yellow) 45%, transparent), transparent);
+    transform: translateX(-110%);
+    animation: tourney-glint 900ms ease-out calc(var(--path-step, 0) * 280ms + 650ms) both;
+}
+
+@keyframes tourney-glint {
+    from { transform: translateX(-110%); }
+    to   { transform: translateX(260%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .tourney__match--champion-path::after {
         opacity: 1;
         animation: none;
+    }
+
+    .tourney__glint {
+        display: none;
     }
 }
 

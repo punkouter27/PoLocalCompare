@@ -3,7 +3,9 @@ using Microsoft.JSInterop;
 namespace PoLocalCompare.Client.Services;
 
 /// <summary>
-/// JS interop wrapper for the confetti burst in <c>wwwroot/js/fx.js</c>.
+/// JS interop wrapper for the visual effects: the confetti, cannons and verdict shockwave in
+/// <c>wwwroot/js/fx.js</c>, and the two shader effects — the verdict nebula and the champion
+/// storm — in <c>wwwroot/js/gpu-fx.js</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,12 +21,19 @@ namespace PoLocalCompare.Client.Services;
 /// <c>window[&quot;import(&quot;/js/fx&quot;]</c>, threw "Could not find", and the catch below swallowed it.
 /// No effect in the app had ever run from Blazor. The <c>?v=</c> cache-buster still applies.
 /// </para>
+/// <para>
+/// <b>gpu-fx.js is a separate module, imported only when a shader effect is first asked for.</b>
+/// It is the one place the app runs a WebGPU/WebGL2 render loop (CLAUDE.md, "Motion"): both
+/// effects check the same lease, and also tear down mid-frame the moment a worker takes it.
+/// </para>
 /// </remarks>
 public sealed class FxService(IJSRuntime js) : IAsyncDisposable
 {
-    private const string ModulePath = "/js/fx.js?v=9";
+    private const string ModulePath = "/js/fx.js?v=10";
+    private const string GpuModulePath = "/js/gpu-fx.js?v=2";
 
     private Task<IJSObjectReference>? _module;
+    private Task<IJSObjectReference>? _gpuModule;
 
     /// <summary>
     /// Fires a burst centred on the first element matching <paramref name="selector"/>, falling
@@ -41,6 +50,42 @@ public sealed class FxService(IJSRuntime js) : IAsyncDisposable
     /// <summary>A larger burst for a tournament champion — the final should outweigh a duel.</summary>
     public Task ChampionBurstAsync(string selector, string? colliders = null) =>
         BurstFromAsync(selector, count: 160, colliders);
+
+    /// <summary>Two confetti jets from the bottom corners, crossing over and landing on <paramref name="colliders"/>.</summary>
+    public Task CannonsAsync(string colliders) => CallAsync("cannons", colliders);
+
+    /// <summary>The verdict's shockwave rings from <paramref name="selector"/>, and a haptic pulse on phones.</summary>
+    public Task ImpactAsync(string selector) => CallAsync("impact", selector);
+
+    /// <summary>
+    /// The verdict nebula — shader smoke blooming from <paramref name="selector"/>. WebGPU, else
+    /// WebGL2, else nothing.
+    /// </summary>
+    public Task NebulaAsync(string selector) => CallGpuAsync("nebula", selector);
+
+    /// <summary>
+    /// The champion storm: particles swarm into <paramref name="name"/>, then burst onto
+    /// <paramref name="colliders"/>. Returns false when it did not run (no WebGPU, the GPU lease
+    /// is held, reduced motion) so the caller can fire the Canvas2D cannons instead.
+    /// </summary>
+    public Task<bool> ChampionStormAsync(string name, string colliders) =>
+        CallGpuAsync("championStorm", name, colliders);
+
+    private async Task<bool> CallGpuAsync(string identifier, params object?[] args)
+    {
+        try
+        {
+            _gpuModule ??= js.InvokeAsync<IJSObjectReference>("import", GpuModulePath).AsTask();
+            var module = await _gpuModule;
+            return await module.InvokeAsync<bool>(identifier, args);
+        }
+        catch (Exception ex) when (ex is JSException or TaskCanceledException or InvalidOperationException or JSDisconnectedException)
+        {
+            // Decoration, same as below — and "it did not run" is the honest answer.
+            if (_gpuModule is { IsFaulted: true }) _gpuModule = null;
+            return false;
+        }
+    }
 
     private async Task CallAsync(string identifier, params object?[] args)
     {
@@ -61,11 +106,12 @@ public sealed class FxService(IJSRuntime js) : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_module is { IsCompletedSuccessfully: true })
+        foreach (var module in new[] { _module, _gpuModule })
         {
+            if (module is not { IsCompletedSuccessfully: true }) continue;
             try
             {
-                await _module.Result.DisposeAsync();
+                await module.Result.DisposeAsync();
             }
             catch (JSDisconnectedException)
             {

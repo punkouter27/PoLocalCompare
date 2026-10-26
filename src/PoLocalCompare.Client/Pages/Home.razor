@@ -544,9 +544,6 @@
 
     private void AssignModel(ModelDto model)
     {
-        // Tactile mechanical switch click confirmation.
-        _ = AudioService.PlayTickAsync();
-
         _slotsFullHint = null;
 
         // Both slots full + clicking a 3rd → never overwrite silently, and never guess which
@@ -555,16 +552,22 @@
             && model.ModelId != _leftModel.ModelId
             && model.ModelId != _rightModel.ModelId)
         {
+            _ = AudioService.PlayTickAsync();
             _slotsFullHint = $"Both slots are full — clear one (✕ beside its name) to swap in {model.DisplayName}.";
             return;
         }
 
         // Click selected → unselect.
-        if (_leftModel?.ModelId == model.ModelId) { _leftModel = null; return; }
-        if (_rightModel?.ModelId == model.ModelId) { _rightModel = null; return; }
+        if (_leftModel?.ModelId == model.ModelId) { _ = AudioService.PlayTickAsync(); _leftModel = null; return; }
+        if (_rightModel?.ModelId == model.ModelId) { _ = AudioService.PlayTickAsync(); _rightModel = null; return; }
+
+        // Filling a slot plays the model's own motif from that slot's side — the same four
+        // notes it plays when it wins in the Arena.
+        var left = _leftModel is null;
+        _ = AudioService.PlayMotifAsync(model.ModelId, model.ModelType, left ? -0.5 : 0.5);
 
         // Fill empty slot first.
-        if (_leftModel is null) { _leftModel = model; _focusPrompt = _rightModel is not null; return; }
+        if (left) { _leftModel = model; _focusPrompt = _rightModel is not null; return; }
         _rightModel = model;
         // The pair is complete — on to the prompt. Not on any later edit:
         // this runs only when the second slot is filled.

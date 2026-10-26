@@ -47,11 +47,11 @@
            in this header. *@
         @if (IsLoser)
         {
-            <span class="sandboxed-viewport__badge sandboxed-viewport__badge--loser">LOSER @EloText</span>
+            <span class="sandboxed-viewport__badge sandboxed-viewport__badge--loser">LOSER @EloOdometer</span>
         }
         else if (ShowWinner)
         {
-            <span class="sandboxed-viewport__badge sandboxed-viewport__badge--winner">WINNER @EloText</span>
+            <span class="sandboxed-viewport__badge sandboxed-viewport__badge--winner">WINNER @EloOdometer</span>
         }
     </div>
     @if (string.IsNullOrWhiteSpace(_normalizedHtml))
@@ -115,12 +115,53 @@
     /// <summary>The run has no final result yet — hides the score, which would grade a half-written page.</summary>
     [Parameter] public bool IsStreaming { get; set; }
 
-    /// <summary>This side's ELO shift (animated by the page); folded into the WINNER/LOSER badge.</summary>
+    /// <summary>This side's ELO shift; folded into the WINNER/LOSER badge as an odometer.</summary>
     [Parameter] public double? EloShift { get; set; }
+
+    /// <summary>
+    /// The odometer's reels sit on the real digits. The page renders false for one frame and
+    /// then true, and the transform transition between the two is the roll.
+    /// </summary>
+    [Parameter] public bool EloRolled { get; set; }
 
     private string EloText => EloShift is { } v
         ? $"{(v >= 0 ? "+" : "−")}{ArenaFormatting.FormatElo(Math.Abs(v))}"
         : string.Empty;
+
+    /// <summary>
+    /// The shift as reels: each digit is a strip of 0–9 twice over, translated to the digit plus
+    /// ten so every reel spins through a full turn, the rightmost longest. The real text rides
+    /// alongside for assistive technology; the reels are hidden from it.
+    /// </summary>
+    private RenderFragment EloOdometer => __builder =>
+    {
+        if (EloShift is null) return;
+        var text = EloText;
+        var index = 0;
+        <span class="visually-hidden">@text</span>
+        <span class="sandboxed-viewport__odometer" aria-hidden="true">
+            @foreach (var c in text)
+            {
+                if (char.IsAsciiDigit(c))
+                {
+                    var position = EloRolled ? c - '0' + 10 : 0;
+                    var reelIndex = index++;
+                    <span class="sandboxed-viewport__reel">
+                        <span class="sandboxed-viewport__reel-strip" style="--reel: @position; --reel-index: @reelIndex">
+                            @for (var n = 0; n < 20; n++)
+                            {
+                                <span>@(n % 10)</span>
+                            }
+                        </span>
+                    </span>
+                }
+                else
+                {
+                    <text>@c</text>
+                }
+            }
+        </span>
+    };
 
     private readonly List<string> _diagnosticItems = [];
     private string _normalizedHtml = string.Empty;
@@ -131,7 +172,7 @@
     // parameter set can only produce an identical frame. The sentinel makes the first pass
     // always process (a genuinely empty HtmlContent must still be analysed once).
     private string? _lastRaw;
-    private (string Name, bool Loser, bool Winner, bool Awaiting, bool Streaming, bool Reveal, double? Elo) _lastChrome;
+    private (string Name, bool Loser, bool Winner, bool Awaiting, bool Streaming, bool Reveal, double? Elo, bool Rolled) _lastChrome;
     private bool _renderDirty = true;
 
     /// <summary>
@@ -145,7 +186,7 @@
     protected override void OnParametersSet()
     {
         var raw = HtmlContent ?? string.Empty;
-        var chrome = (ModelName, IsLoser, ShowWinner, IsAwaitingResult, IsStreaming, Reveal, EloShift);
+        var chrome = (ModelName, IsLoser, ShowWinner, IsAwaitingResult, IsStreaming, Reveal, EloShift, EloRolled);
         var sameDocument = _lastRaw is not null && string.Equals(raw, _lastRaw, StringComparison.Ordinal);
 
         // Cheap ordinal gate before the four regex passes below: while a duel streams, most

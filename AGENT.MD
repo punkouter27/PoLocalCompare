@@ -299,7 +299,8 @@ dotnet run --project src/PoLocalCompare.Api --launch-profile https
 - **Zero-waste C#.** Delete unused files immediately. Optimize for human readability and LLM context.
 - **Diagnostics endpoints:** `/health` (JSON, automated pings) and `/diag` (dev+prod hidden page). **No UI links to these.**
 - **Mock visibility:** When `Features:UseRealAi` is disabled (AI responses simulated), display `USING MOCK DATA` in the top nav (see `NavMenu.razor`).
-- **Audio:** Web Audio API for in-app sounds.
+- **Audio:** Web Audio API for in-app sounds, all synthesised at play time (`audio.js`, no assets).
+- **Effects:** compositor-only CSS/WAAPI plus Canvas2D confetti (`fx.js`); the only GPU render loops are the two one-shot, lease-gated shader effects in `gpu-fx.js` (verdict nebula, champion storm).
 - **API docs:** OpenAPI **3.1** (pinned explicitly in `Program.cs`) + Scalar UI at `/scalar`; both dev-only and anonymous. Guarded by `Tests.E2E/Api/OpenApiContractTests`.
 - **Caching & resilience:** `HybridCache` (30s TTL, tag-invalidated on verdict) fronts leaderboard and model-availability reads; HTTP callers use `AddResilienceHandler` pipelines (retry-only for SSE streams).
 - **Accessibility: WCAG 2.2 Level AA.** Enforced in `wwwroot/css/app.css` (`:focus-visible` ring, 24×24 minimum target size, skip link, `scroll-margin` clearance under the sticky nav, `prefers-reduced-motion`) and in markup: clickable cards/steps are keyboard-operable with `role`/`aria-pressed`, decorative glyphs are `aria-hidden`, and status changes use `role="status"`. Colour-contrast ratios are **not** automatically verified — check new palette tokens by hand.
@@ -446,12 +447,14 @@ When asked to make changes to this codebase:
 8. **Branching:** Work on `master`. Only use another branch when explicitly asked to.
 9. **Restart & verify:** After a code change, restart the app and confirm it starts cleanly — build
    output, no startup exception, `https://localhost:5001` reachable. "It compiles" is not "it runs".
-10. **Read the docs folder first:** If a `DOCS/` (or `docs/`) folder exists in the repo root, read it
-    for the project overview before making changes — it outranks inference from the code.
+10. **Read the docs first, and keep them in sync:** Read the root `DOCS/` (or `docs/`) folder, if one
+    exists, and `README.md` for the project overview before making changes — they outrank inference
+    from the code. When a dependency, a configuration key or a major endpoint changes, update both in
+    the same change, not later.
 11. **No `dotnet user-secrets`:** Local config lives in `appsettings.Development.json` or environment
     variables; real secrets live in Azure Key Vault (`KeyVault:Uri`).
 12. **Git sync:** When a git sync happens, commit with a short message in casual American slang —
-    not technical, so it reads like a human wrote it — and push.
+    not technical, so it reads like a human wrote it — and push automatically.
 13. **TLDR:** Any answer longer than 100 words ends with a 20-word TLDR summary.
 14. **Targeted tests only:** Do not run every suite after a code change. Run only the tests related
     to the change, or none at all if the change is simple.
@@ -461,13 +464,15 @@ When asked to make changes to this codebase:
     is global).
 17. **Report big deletions:** If a prompt removes more than 100 lines of code overall, mention it.
 18. **UI changes get a before/after screenshot:** Take an annotated screenshot showing the old and
-    new UI with the changes marked up, place the image in the `SCREENSHOTS/` folder inside an HTML
-    file, and give the valid full path.
-19. **Three-tier change summary:** For code changes over 20 lines, include exactly one sentence per
-    audience: "Toddler" for the core intuition, "Child" for the behavior, and "Adult" for the
-    technical or architectural details.
+    new UI with the changes marked up, save it as `SCREENSHOTS/YYMMDD-feature-name.html`, and give
+    the valid full path. (Files before 2026-10-26 use `YYYY-MM-DD-`; they are not renamed.)
+19. **Three-tier change summary:** For code changes over 20 lines, append a TL;DR of exactly three
+    lines, one sentence each: "Toddler" for the core intuition, "Child" for the behavior, and
+    "Adult" for the technical or architectural details.
 20. **Follow-up questions for large changes:** After a code change over 100 lines, when the prompt
     contains no other questions, offer three optional high-level questions about the app's purpose
     that could guide further changes.
 21. **Deployment build version:** Display the deployment build version in the app's bottom-right
-    corner as `YYMMDD`, generated automatically from the current date or Git commit date.
+    corner as `YYMMDD`, generated automatically from the current date or Git commit date. Already
+    wired: `Directory.Build.props` stamps `BuildStamp` at build time and `MainLayout.razor` renders it
+    as `.build-stamp`.

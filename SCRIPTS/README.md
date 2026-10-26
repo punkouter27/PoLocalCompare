@@ -43,6 +43,7 @@ pwsh SCRIPTS/provision-azure.ps1
 
 # Flags:
 #   -TargetSubscriptionId / -SourceSubscriptionId   when an account has several subscriptions
+#   -TargetTenantId / -SourceTenantId               when the subscription's directory was skipped (MFA)
 #   -SkipSecretCopy   don't read the old kv-poshared2 (fill the new vault by hand)
 #   -SkipGitHub       don't set the repo variables
 ```

@@ -493,9 +493,8 @@ public partial class Tournament
                     {
                         if (fresh.Status == TournamentStatus.Complete)
                         {
-                            _ = AudioService.PlaySuccessAsync();
-                            // The bracket's cards are what the confetti lands on.
-                            _ = Fx.ChampionBurstAsync(".tourney__champion", colliders: ".tourney__match");
+                            _ = AudioService.PlayFanfareAsync(fresh.TournamentId.ToString());
+                            _ = CelebrateChampionAsync(fresh.ChampionName);
                             await JS.InvokeVoidAsync("poNotify.notify", "Tournament complete", $"{fresh.ChampionName} wins the {SizeLabel(fresh.Size)}.");
                         }
                         else
@@ -519,6 +518,26 @@ public partial class Tournament
             // Anything other than a network failure (those are retried above) is unexpected:
             // stop refreshing rather than replacing what is on screen with an error about it.
             StopPolling();
+        }
+    }
+
+    /// <summary>
+    /// The champion's moment, after the fanfare has started: the GPU storm swarms into the
+    /// name and bursts onto the bracket's cards. Where it cannot run (no WebGPU, reduced
+    /// motion, the GPU lease held) the Canvas2D corner cannons and the burst over the banner
+    /// play instead — the cards are what the confetti lands on either way.
+    /// </summary>
+    private async Task CelebrateChampionAsync(string? championName)
+    {
+        try
+        {
+            if (championName is not null && await Fx.ChampionStormAsync(championName, ".tourney__match")) return;
+            _ = Fx.CannonsAsync(".tourney__match");
+            await Fx.ChampionBurstAsync(".tourney__champion", colliders: ".tourney__match");
+        }
+        catch (Exception ex) when (ex is JSException or TaskCanceledException or ObjectDisposedException)
+        {
+            // Decoration only.
         }
     }
 
