@@ -13,7 +13,7 @@
 - **Live URL:** `https://app-polocalcompare-<suffix>.azurewebsites.net` in the punkouter27@gmail.com
   subscription since 2026-10-25 (§9). The `<suffix>` is derived per subscription by
   `infra/main.bicep`; the repo variable `AZURE_WEBAPP_NAME` is the source of truth. The previous
-  host, `app-polocalcompare-win` in the punkouter26@outlook.com subscription, keeps running until
+  host, `app-polocalcompare-win2` in the punkouter26@outlook.com subscription, keeps running until
   it is deleted by hand. `polocalcompare.azurewebsites.net` has **no DNS record at all** and never
   was the real host, so do not probe it — a smoke test against it looks exactly like an outage.
 - **Solution file:** `PoLocalCompare.slnx`
@@ -358,7 +358,7 @@ pwsh SCRIPTS/provision-azure.ps1
 ```
 
 - **Subscription:** punkouter27@gmail.com since 2026-10-25. The original punkouter26@outlook.com
-  deployment (`app-polocalcompare-win`, `polocalcomparedevsa`, `kv-poshared`) is left running and is
+  deployment (`app-polocalcompare-win2`, `polocalcomparedevsa2`, `kv-poshared2`) is left running and is
   no longer deployed to; delete it by hand once the new host is verified.
 - **`infra/main.bicep` is subscription-scoped and creates everything** — nothing is `existing`
   any more. It creates two resource groups (`westus2`):
@@ -380,7 +380,7 @@ pwsh SCRIPTS/provision-azure.ps1
   `AZURE_WEBAPP_NAME`.
 - **App-scoped secrets** use the `PoLocalCompare--` prefix (e.g. `PoLocalCompare--AzureAiFoundry--ApiKey`);
   `PrefixKeyVaultSecretManager("PoLocalCompare")` strips the prefix. The script copies every
-  `PoLocalCompare--*` secret from the outlook `kv-poshared` except `ConnectionStrings--*`, which
+  `PoLocalCompare--*` secret from the outlook `kv-poshared2` except `ConnectionStrings--*`, which
   point at the old storage. **BFF OIDC needs `PoLocalCompare--AzureAd--ClientSecret`**; it is copied
   only if the old vault had it.
 - **Sign-in redirect URIs:** the `AzureAd:ClientId` app registration stays where it is; the script

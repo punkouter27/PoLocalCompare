@@ -146,7 +146,7 @@ if (-not (Test-Path $devSettings)) {
             }
         }
         KeyVault = @{
-            Uri = 'https://kv-poshared.vault.azure.net/'
+            Uri = 'https://kv-poshared2.vault.azure.net/'
         }
         ApplicationInsights = @{
             ConnectionString = ''

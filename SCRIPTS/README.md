@@ -43,7 +43,7 @@ pwsh SCRIPTS/provision-azure.ps1
 
 # Flags:
 #   -TargetSubscriptionId / -SourceSubscriptionId   when an account has several subscriptions
-#   -SkipSecretCopy   don't read the old kv-poshared (fill the new vault by hand)
+#   -SkipSecretCopy   don't read the old kv-poshared2 (fill the new vault by hand)
 #   -SkipGitHub       don't set the repo variables
 ```
 
@@ -54,7 +54,7 @@ pwsh SCRIPTS/provision-azure.ps1
    Then it deploys `infra/main.bicep` at subscription scope, which creates the `PoShared` and
    `PoLocalCompare` resource groups and everything in them.
 3. Copies every `PoLocalCompare--*` secret except `ConnectionStrings--*` from the outlook
-   account's `kv-poshared` into the new vault, then restarts the app.
+   account's `kv-poshared2` into the new vault, then restarts the app.
 4. Adds the new host's redirect URIs to the sign-in app registration.
 5. Sets `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` / `AZURE_WEBAPP_NAME` on the
    repo with `gh`, and repoints `KeyVault:Uri` in both appsettings files. Commit that change and push.

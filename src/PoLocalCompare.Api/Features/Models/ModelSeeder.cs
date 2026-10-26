@@ -51,7 +51,7 @@ public static class ModelSeeder
         new Model(ModelId.From("01SEED000000000000000000A"), "Gemma 4 (Ollama)",  ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "gemma4:latest"),
         new Model(ModelId.From("01SEED000000000000000000B"), "Qwen 3.5 (Ollama)", ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "qwen3.5:latest"),
 
-        // ── Azure remote models (po-aiservices-shared) ────────────────────
+        // ── Azure remote models (po-aiservices-shared2) ────────────────────
         // Only deployments that actually exist in the Foundry resource are seeded.
         // Pricing below is Microsoft Foundry list rates as of 2026-08-02 — update in lockstep
         // with the public price sheet (https://azure.microsoft.com/en-us/pricing/details/ai-foundry/)

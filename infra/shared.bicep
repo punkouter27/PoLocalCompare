@@ -32,7 +32,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// RBAC mode, unlike the outlook account's kv-poshared (access policies): role assignments are the
+// RBAC mode, unlike the outlook account's kv-poshared2 (access policies): role assignments are the
 // only grant, so keyvault-access.bicep needs no access-policy fallback.
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName

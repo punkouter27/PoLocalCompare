@@ -11,7 +11,7 @@
          accounts signed in at once; this script switches between them with 'az account set'.
       2. Target: creates the GitHub Actions app registration, its service principal and a
          federated credential for master, then deploys infra/main.bicep at subscription scope.
-      3. Source: reads every PoLocalCompare--* secret from the old kv-poshared (except
+      3. Source: reads every PoLocalCompare--* secret from the old kv-poshared2 (except
          ConnectionStrings, which point at the old storage account) and adds the new host's
          redirect URIs to the sign-in app registration.
       4. Target: writes those secrets to the new vault and restarts the app so it reads them.
@@ -30,7 +30,7 @@ param (
     [string]$TargetSubscriptionId,
     [string]$SourceAccount = 'punkouter26@outlook.com',
     [string]$SourceSubscriptionId,
-    [string]$SourceVaultName = 'kv-poshared',
+    [string]$SourceVaultName = 'kv-poshared2',
     [string]$Location = 'westus2',
     [string]$GitHubRepo = 'punkouter27/PoLocalCompare',
     [switch]$SkipSecretCopy,
@@ -43,7 +43,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $AppResourceGroup = 'PoLocalCompare'
 $CiAppName = 'PoLocalCompare-GitHub'
-$OldHost = 'app-polocalcompare-win.azurewebsites.net'
+$OldHost = 'app-polocalcompare-win2.azurewebsites.net'
 
 function Write-Step([string]$Msg) { Write-Host "`n==> $Msg" -ForegroundColor Cyan }
 function Write-Ok([string]$Msg)   { Write-Host "    [OK] $Msg" -ForegroundColor Green }

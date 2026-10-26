@@ -14,7 +14,7 @@ param deployerObjectId string = ''
 param ciPrincipalId string = ''
 
 // Web app host, storage and Key Vault names are global. The original outlook-account deployment
-// still holds app-polocalcompare-win / polocalcomparedevsa / kv-poshared, so every global name here
+// still holds app-polocalcompare-win2 / polocalcomparedevsa2 / kv-poshared2, so every global name here
 // carries a suffix that is stable per subscription.
 var suffix = take(uniqueString(subscription().id), 6)
 
