@@ -67,6 +67,36 @@ public sealed class AutoJudgeOptions
     /// </remarks>
     public string? TiebreakDeployment { get; set; } = "gpt-5.4";
 
+    /// <summary>
+    /// A model from another family that reads the SECOND ordering (right page shown first), so a
+    /// verdict has to survive both a swapped order and a different judge. Empty, or a provider
+    /// with no key, puts both orderings on the primary judge as before; a cross-check call that
+    /// fails or is rate-limited has its ordering re-read by the primary. Must accept image input
+    /// when <see cref="VisionEnabled"/> is on.
+    /// </summary>
+    /// <remarks>
+    /// Added 2026-10-26 against self-preference: an OpenAI judge was scoring a mostly-OpenAI
+    /// catalog, and nothing corrected for a judge preferring its own house style. Gemini 3.5
+    /// Flash-Lite ($0.30/$2.50) reads images and costs well under what the OpenAI judge
+    /// deployments actually serve (gpt-5.4-mini, $0.75/$4.50 — see
+    /// <c>FoundryChatRequest.TryLearnShape</c>), so it lowers the cost of every verdict.
+    /// 2.5 Flash-Lite is cheaper still but closed to new Gemini projects.
+    /// </remarks>
+    public string? CrossCheckDeployment { get; set; }
+
+    /// <summary>
+    /// The first, cheap re-ask of a split: both orderings again on this one deployment at its
+    /// floor effort. Only a split that survives it reaches <see cref="TiebreakDeployment"/>.
+    /// Empty skips straight to the tie-break.
+    /// </summary>
+    public string? EscalationDeployment { get; set; }
+
+    /// <summary>
+    /// Write the request's checkable requirements once per prompt and judge every call against
+    /// that one list (see <see cref="JudgeRubricProvider"/>). Off: each call derives its own.
+    /// </summary>
+    public bool RubricEnabled { get; set; } = true;
+
     /// <summary>Effective deployment given the current vision flag.</summary>
     public string EffectiveDeployment(bool visionEnabled) =>
         visionEnabled || string.IsNullOrWhiteSpace(TextOnlyDeployment) ? Deployment : TextOnlyDeployment!;
@@ -104,8 +134,14 @@ public sealed class AutoJudgeOptions
     /// was decided by a judge that had probably never seen the geometry code. Judging is the
     /// one call where cheapness buys a wrong permanent answer, so this dial is set for accuracy
     /// now. Lower it if judged-duel cost becomes the binding constraint.
+    ///
+    /// Raised to 40,000 on 2026-10-26. At 12,000 the source-only judge — every production verdict
+    /// — still lost the middle of a long page, which is where its <c>&lt;script&gt;</c> usually
+    /// sits, so "does it move?" was being answered from the stylesheet. Every judge deployment
+    /// in use takes far more context than this, and at nano rates the extra ~7k tokens a side
+    /// costs well under a tenth of a cent. Only the vision path ignores it (it sends no source).
     /// </remarks>
-    public int MaxOutputChars { get; set; } = 12_000;
+    public int MaxOutputChars { get; set; } = 40_000;
 
     /// <summary>
     /// Maximum number of times a single duel may be re-queued after a transient HTTP 429.

@@ -73,4 +73,22 @@ public sealed class HomeUiTests : UiTestBase
         // directly made Blazor omit the attribute entirely when unselected.
         await Assertions.Expect(card).ToHaveAttributeAsync("aria-pressed", "false");
     }
+
+    [Theory]
+    [MemberData(nameof(Viewports))]
+    public async Task SuggestMatchup_FillsBothSlots_AndSaysWhy(int width, int height)
+    {
+        // A9: one click picks the pair the leaderboard learns most from. Both slots fill, the
+        // button goes (there is nothing left for it to fill), and the picker's status line —
+        // a live region — explains the choice.
+        var page = await SignedInPageAsync(width, height);
+
+        var suggest = page.Locator(".home__picker-actions .po-btn", new() { HasText = "Suggest matchup" });
+        await Assertions.Expect(suggest).ToBeEnabledAsync(new() { Timeout = 20_000 });
+        await suggest.ClickAsync();
+
+        await Assertions.Expect(page.Locator(".home__slot--set")).ToHaveCountAsync(2, new() { Timeout = 15_000 });
+        await Assertions.Expect(page.Locator(".home__full-hint")).ToContainTextAsync("moves the leaderboard most");
+        await Assertions.Expect(suggest).ToHaveCountAsync(0);
+    }
 }

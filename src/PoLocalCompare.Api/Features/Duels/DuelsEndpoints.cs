@@ -167,6 +167,7 @@ public static class DuelsEndpoints
             [FromServices] IDuelRepository duelRepo,
             [FromServices] IDuelResultRepository duelResultRepo,
             [FromServices] IModelRepository modelRepo,
+            [FromServices] LocalResultSignal localResults,
             [FromServices] IConfiguration configuration) =>
         {
             if (request.ModelId.IsEmpty)
@@ -228,6 +229,7 @@ public static class DuelsEndpoints
             DuelResultEnricher.Enrich(result, model, electricityRate);
 
             await duelResultRepo.SaveAsync(result);
+            localResults.Notify(duelId, request.ModelId);
 
             return Results.Ok();
         })

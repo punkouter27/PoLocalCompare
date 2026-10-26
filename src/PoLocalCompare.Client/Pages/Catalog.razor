@@ -27,7 +27,13 @@
 
     @if (_loading)
     {
-        <p class="po-status">Looking for models…</p>
+        @* Rows, at the list window's own height, rather than one line of text that the bar,
+           hint and list then pushed down from under: discovery takes a few seconds (it reads
+           the WebLLM bundle and asks the Hub), and the page arrived as a jump at the end. *@
+        <div class="catalog__loading">
+            <p class="po-status">Looking for models…</p>
+            <SkeletonGrid Count="10" StaggerMs="40" ItemClass="catalog__skeleton" OuterClass="catalog__skeleton-list" />
+        </div>
     }
     else if (_error is not null)
     {

@@ -184,13 +184,11 @@
         padding-bottom: calc(var(--space-2xl) * 2);
     }
 
-    /* The bounded picker used to start at 640px, so from 641 to 1080 (tablets, a phone in
-       landscape) the whole catalog still sat above the prompt. */
-    .home__picker {
-        max-height: 52dvh;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-    }
+    /* No bounded picker here any more. It was a 52dvh scroll box inside the scrolling page —
+       the thumb trap this block's own header warns about — kept because a catalog of ~115px
+       cards put the prompt a page and a half down. With 44px rows the list is a third of that,
+       Compare is the fixed bar below, and picking the second model scrolls the prompt into
+       view, so the page scrolls once and nothing scrolls inside it. */
 }
 
 /* ── Desktop: the whole workbench fits the viewport ─────────────────────────
@@ -239,6 +237,10 @@
     background: var(--success-surface);
 }
 
+.home__health--pending {
+    visibility: hidden;
+}
+
 .home__health--warn {
     color: var(--accent-yellow);
     border-color: var(--warn-border);
@@ -246,7 +248,13 @@
 }
 
 /* ── Section headings (shared by both columns) ────────────────────────
-   A row so the picker's "Load starter duel" button sits beside its heading. */
+   A row so the picker's "Load starter duel" and "Add model" sit beside its heading. */
+.home__picker-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
 .home__section-head {
     display: flex;
     flex-wrap: wrap;
@@ -409,8 +417,11 @@
    full-width 0-height bar instead of six card-shaped tiles. */
 .home__picker ::deep .home__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: var(--space-smd);
+    /* 20rem keeps "name · rating · size · price" on one line in a row; two columns on a
+       desktop picker and on a tablet, one on a phone. At 17rem a 1440px picker took three
+       columns and the figures wrapped under every long name. */
+    grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+    gap: var(--space-xs) var(--space-sm);
 }
 
 .home__card-disabled {
@@ -558,50 +569,28 @@
 /* Loading placeholders in the model grid. Only the stagger is dynamic — the markup passes
    it as --stagger; everything else lives here rather than in an inline style. */
 .home__picker ::deep .home__skeleton {
-    height: 6.5rem;
+    height: 2.75rem;
     border-radius: var(--radius-md);
     animation-delay: var(--stagger, 0ms);
 }
 
-/* ── Phone: bound the picker ─────────────────────────────────────────────────
-   Below 1080px the layout is one column, so on a phone the model catalog — 26 rich cards
-   carrying name, ELO, duel record, parameter count and pricing — sits ABOVE the console.
-   That is roughly 1700px of list, which pushed the prompt box and Compare a page and a
-   half down: the two controls the page exists for were the last things you could reach.
-
-   Bounding the picker gives the catalog its own scroll window instead, so the page opens
-   with models, prompt and Compare all in reach. A nested scroll area is normally the wrong
-   answer — and it is exactly what was removed from the Archive grid — but the two cases
-   differ in what is inside the box. There the grid WAS the page's content, so the second
-   scrollbar only competed with the first for the same gesture. Here the box is a picker: a
-   bounded list you scan within, which is the ordinary shape for choosing from a long set,
-   and the console below it does not move.
-
-   Every card stays in the DOM, visible and clickable — this bounds the box, it does not
-   hide anything, which is also why it does not disturb the UI tests that click the first
-   card on a 390px viewport.
-
-   40dvh leaves room for the console's own ~380px under a 56px nav; a taller window would
-   put Compare below the fold again, which is the problem being solved.
-   overscroll-behavior: contain stops a flick past the end of the list from scrolling the
-   page underneath it. */
+/* ── Phone ────────────────────────────────────────────────────────────────────
+   The picker flows with the page (see the 1080px block), so every row here is about height:
+   the filters and the two slots each take one row instead of two. */
 @media (max-width: 640px) {
     .home__picker {
-        /* max-height (52dvh, up from 40) now lives in the 1080px block above. The window was sized when a card was 178px tall, where it made
-           no difference how tall the window was — you saw one model either way. ModelCard is
-           ~80px on a phone now (it drops the parameter and pricing rows below 640px), so the
-           extra 12dvh is the difference between four models visible and three, and the
-           console below it still opens inside the first viewport. */
-        padding: var(--space-md);
+        padding: var(--space-md) var(--space-sm);
     }
 
-    /* A 2×2 grid keeps all four filters fully visible. The former single horizontal row
-       clipped the last label to "Ollam" with no visual cue that the row could scroll. */
-    /* One slot per row. Side by side, each was ~150px holding a tag, a 44px clear button and
-       the name — which left about 60px, and "GPT-4.1 Nano" rendered as "GP T…". Stacked, the
-       name gets the whole row and the "vs" between them says nothing the order does not. */
+    /* Side by side again, without the "vs". Stacked cost a row for nothing the L/R tags do
+       not already say; the 2-line name clamp keeps "DeepSeek V4 Flash" whole in ~150px. */
     .home__slots {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-xs);
+    }
+
+    .home__slot {
+        padding: var(--space-xs) var(--space-sm);
         gap: var(--space-xs);
     }
 
@@ -609,17 +598,19 @@
         display: none;
     }
 
+    /* One row of four. The old single row was a scroller that clipped "Ollam"; four equal
+       columns cannot clip, and the labels are short enough to fit 360px whole. */
     .home__filters {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--space-xs);
-        padding-block: var(--space-2xs);
+        grid-template-columns: repeat(4, minmax(0, auto));
+        gap: var(--space-2xs);
     }
 
     .home__filters > .po-btn {
         min-width: 0;
         padding-inline: var(--space-xs);
         white-space: nowrap;
+        font-size: var(--text-xs);
     }
 
     .home__console-foot {

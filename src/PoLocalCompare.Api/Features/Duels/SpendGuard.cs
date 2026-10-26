@@ -14,14 +14,16 @@ namespace PoLocalCompare.Api.Features.Duels;
 /// read from storage rather than counted in memory because the Free-tier App Service unloads
 /// when idle, and a counter that resets on every cold start is not a cap.
 ///
-/// Two known gaps, both deliberate. The judge's own Foundry calls are not recorded as
-/// <c>ApiCostUsd</c>, so they are not counted. And the total is cached for the default 30 s, so
-/// duels started inside that window after the cap is crossed still run.
+/// Three sources: contestants (<c>ApiCostUsd</c>), the judge (<c>JudgeCostUsd</c>, its checklist
+/// included) and the <see cref="SpendLedger"/> for calls with no duel row. One known gap, and it
+/// is deliberate: the total is cached for the default 30 s, so duels started inside that window
+/// after the cap is crossed still run.
 /// </remarks>
 public sealed class SpendGuard(
     IDuelResultRepository results,
     IDuelRepository duels,
     IModelRepository models,
+    SpendLedger ledger,
     HybridCache cache,
     IConfiguration configuration)
 {
@@ -39,7 +41,8 @@ public sealed class SpendGuard(
             // Contestants and the judge. The judge's calls were not counted until
             // 2026-10-11 — two per duel, on the vision deployment when screenshots are on.
             async _ => await results.SumApiCostAsync(day, day.AddDays(1))
-                + await duels.SumJudgeCostAsync(day, day.AddDays(1)),
+                + await duels.SumJudgeCostAsync(day, day.AddDays(1))
+                + await ledger.SumAsync(day),
             cancellationToken: cancellationToken);
 
         return spent >= cap;

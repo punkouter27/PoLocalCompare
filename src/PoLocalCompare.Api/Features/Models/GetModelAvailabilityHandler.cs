@@ -161,7 +161,12 @@ public sealed class GetModelAvailabilityHandler(
 
             var deploymentStatus = reply.Status;
             if ((int)deploymentStatus is >= 200 and < 300)
-                return Available(model);
+            {
+                var served = FoundryChatRequest.ServedModel(reply.Body);
+                return FoundryChatRequest.ServedModelMatches(deploymentName, served)
+                    ? Available(model)
+                    : new() { ModelId = model.ModelId, IsAvailable = true, ServedModelMismatch = served };
+            }
 
             if (gemini)
                 return Unavailable(model, $"Gemini endpoint unavailable (HTTP {(int)deploymentStatus}).");

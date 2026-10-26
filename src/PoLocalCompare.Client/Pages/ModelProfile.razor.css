@@ -1,3 +1,12 @@
+/* ── Container ────────────────────────────────────────────────────────
+   The profile is a page and also the Leaderboard's side panel, so its breakpoints ask how
+   wide the profile is, not how wide the window is: a 34rem panel on a 1440px desktop must
+   lay out like a phone. 60rem is where a page split at 1024px used to; 38rem is the content
+   width at a 640px window. */
+.profile {
+    container: profile / inline-size;
+}
+
 /* ── Header ─────────────────────────────────────────────────────────── */
 
 .profile__header {
@@ -82,7 +91,7 @@
    From 1024px they share a row: stats as a 2x2 block on the left, the curve given the rest.
    --split is set only when there IS a history section — a model without one keeps the
    full-width stat strip. */
-@media (min-width: 1024px) {
+@container profile (min-width: 60rem) {
     .profile__overview--split {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) minmax(0, 2.5fr);
@@ -263,6 +272,70 @@
     font-size: var(--text-xs);
 }
 
+/* ── Scouting report ────────────────────────────────────────────────
+   Two tinted columns side by side once the profile is wide enough, stacked below that. The
+   label colours are the leaderboard's outcome pairings (green on --success-surface, red on
+   --danger-surface), already checked in both themes; the list text stays --text. */
+
+.profile__scout-summary {
+    margin: var(--space-sm) 0 0;
+    color: var(--text);
+    line-height: var(--leading-snug);
+}
+
+.profile__scout-lists {
+    display: grid;
+    gap: var(--space-smd);
+    margin-top: var(--space-smd);
+}
+
+.profile__scout-col {
+    padding: var(--space-smd);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.profile__scout-col--good {
+    border-color: var(--success-border);
+    background: var(--success-surface);
+}
+
+.profile__scout-col--bad {
+    border-color: var(--danger-border);
+    background: var(--danger-surface);
+}
+
+.profile__scout-label {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.profile__scout-col--good .profile__scout-label {
+    color: var(--accent-green);
+}
+
+.profile__scout-col--bad .profile__scout-label {
+    color: var(--accent-red);
+}
+
+.profile__scout-list {
+    display: grid;
+    gap: var(--space-xs);
+    margin: var(--space-sm) 0 0;
+    padding-inline-start: var(--space-lg);
+    color: var(--text);
+    font-size: var(--text-sm);
+}
+
+@container profile (min-width: 40rem) {
+    .profile__scout-lists {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 /* ── Gallery ────────────────────────────────────────────────────────── */
 
 .profile__gallery {
@@ -276,7 +349,7 @@
    section that is meant to be skimmed. Two columns halves that, and a 4:3 thumbnail at ~170px
    wide is still perfectly legible as a preview. Explicit 1fr columns rather than auto-fill,
    because auto-fill honours the 15rem minimum and would keep giving one column. */
-@media (max-width: 640px) {
+@container profile (max-width: 38rem) {
     /* One column. `1fr auto` puts the standing beside the name, which is right on a desktop
        and wrong on a 358px card: the rank, rating, interval and provisional chip together are
        ~180px of `auto`, leaving the name under 180px, so "Kimi K2.7 Code" broke across three

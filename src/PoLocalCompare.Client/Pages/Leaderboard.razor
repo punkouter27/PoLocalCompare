@@ -10,6 +10,7 @@
 @inject DuelApiClient ApiClient
 @inject AudioService AudioService
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <div class="leaderboard po-page po-page--wide">
     <PageHeader Title="Leaderboard" TitleHook="leaderboard__title" />
@@ -46,11 +47,19 @@
 
         @* Chart then table in the DOM (and stacked, below 1400px); from 1400px the table takes
            the left column and the chart a sticky right one, so the ranking starts at the top
-           of the page instead of under a 400px figure. *@
-        <div class="leaderboard__layout">
-        <div class="leaderboard__chart">
-            <ValueChart Entries="_displayedEntries" />
-        </div>
+           of the page instead of under a 400px figure.
+
+           With a model picked (?model=, from 1024px) that right column is the model's profile
+           instead — the board and the "why" on one page. The chart steps aside while it is
+           open; closing the panel brings it back. *@
+        <div class="leaderboard__layout @(PanelOpen ? "leaderboard__layout--panel" : null)">
+        @if (!PanelOpen)
+        {
+            <div class="leaderboard__chart">
+                <ValueChart Entries="_displayedEntries" />
+            </div>
+        }
+        <div class="leaderboard__main">
 
         @* Plain .po-table-wrap. This used to also carry a local `leaderboard__grid--scrollable`
            class whose only rule was another `overflow-x: auto` — a second horizontal-scroll
@@ -65,9 +74,9 @@
                         <th scope="col">Model Name</th>
                         <th scope="col">ELO</th>
                         <th scope="col" title="Wins–losses. Losses are total duels minus wins minus draws; a model that failed to produce output lost that duel.">Record</th>
-                        <th scope="col" title="Mean API cost per duel across every priced result this model has. Local and Ollama models run on your own hardware and show &mdash;.">💰 Avg $/duel</th>
-                        <th scope="col" title="Median time to first token across this model's duels. Lower is better; local models with no measured run show &mdash;.">⚡ First token</th>
-                        <th scope="col" title="ELO earned per dollar of API spend (CurrentElo / AvgApiCostPerDuel, divisor floored at $0.0001). Higher = more bang per buck. Local/Ollama and unpriced remotes show &mdash;.">💎 Value</th>
+                        <th scope="col" class="leaderboard__derived" title="Mean API cost per duel across every priced result this model has. Local and Ollama models run on your own hardware and show &mdash;.">💰 Avg $/duel</th>
+                        <th scope="col" class="leaderboard__derived" title="Median time to first token across this model's duels. Lower is better; local models with no measured run show &mdash;.">⚡ First token</th>
+                        <th scope="col" class="leaderboard__derived" title="ELO earned per dollar of API spend (CurrentElo / AvgApiCostPerDuel, divisor floored at $0.0001). Higher = more bang per buck. Local/Ollama and unpriced remotes show &mdash;.">💎 Value</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -81,7 +90,8 @@
                         var move = _moved.GetValueOrDefault(entry.ModelId.ToString());
                         @* data-rank-row is the FLIP hook (wow.js flipRows): the row is already in its
                            new place, and plays in from where its old rank sits on screen. *@
-                        <tr @key="entry.ModelId" class="po-reveal" data-rank-row="@entry.ModelId">
+                        var picked = PanelOpen && entry.ModelId.Value == PanelModel;
+                        <tr @key="entry.ModelId" class="po-reveal @(picked ? "leaderboard__row--picked" : null)" data-rank-row="@entry.ModelId">
                             <td class="po-cell--bare leaderboard__rank-cell">
                                 @* The medal is decoration and the rank is the content: the glyph is
                                    hidden and the ordinal stated, since a title is not reliably read. *@
@@ -113,12 +123,16 @@
                                    one model, so it moved to that model's page along with the
                                    rating history and output gallery it belongs beside. *@
                                 @* data-vt: opens the profile through a view transition — this link
-                                   morphs into the profile's card (wow.js). *@
+                                   morphs into the profile's card (wow.js). Narrow screens only:
+                                   from 1024px the click opens the side panel instead, and the
+                                   href stays the profile page for a new tab or a copied link. *@
                                 <a class="po-btn po-btn--ghost po-btn--sm leaderboard__row-btn"
                                    href="@($"/model/{entry.ModelId}")"
-                                   data-vt=".profile__card"
+                                   data-vt="@(_wide ? null : ".profile__card")"
+                                   aria-current="@(picked ? "true" : null)"
                                    title="@($"Open {entry.DisplayName}")"
-                                   @onclick="@(() => AudioService.PlayTickAsync())">
+                                   @onclick="@(() => OpenModel(entry))"
+                                   @onclick:preventDefault="_wide">
                                     @entry.DisplayName
                                     <ModelTypeBadge Type="entry.ModelType" AdditionalClass="leaderboard__type-badge-spacing" />
                                 </a>
@@ -146,7 +160,7 @@
                             @* W–L in one cell. The draw count is deliberately left out — it is
                                recoverable from DuelCount and is near-always zero. *@
                             <td data-label="Record" class="leaderboard__record leaderboard__record-cell">@entry.WinCount–@Losses(entry)</td>
-                            <td data-label="Avg $/duel" class="po-cell--secondary">
+                            <td data-label="Avg $/duel" class="po-cell--secondary leaderboard__derived">
                                 @* Four decimals: a duel on a nano model costs a few ten-thousandths
                                    of a dollar, and rounding to cents renders the whole column as
                                    $0.00. Suppressed rather than zeroed for unpriced models — free
@@ -160,7 +174,7 @@
                                     <span class="leaderboard__no-data" title="No priced duels yet — local and Ollama models have no per-token rate.">&#8212;</span>
                                 }
                             </td>
-                            <td data-label="First token" class="po-cell--secondary">
+                            <td data-label="First token" class="po-cell--secondary leaderboard__derived">
                                 @if (entry.AvgFirstTokenMs is { } ttft)
                                 {
                                     <span class="leaderboard__ttft">@FormatFirstToken(ttft)</span>
@@ -170,7 +184,7 @@
                                     <span class="leaderboard__no-data" title="No completed run has recorded a first-token time yet.">&#8212;</span>
                                 }
                             </td>
-                            <td data-label="Value" class="po-cell--secondary">
+                            <td data-label="Value" class="po-cell--secondary leaderboard__derived">
                                 @* Value = ELO earned per dollar of API spend, with the divisor
                                    floored at $0.0001 server-side. Reads as a big number, hence the
                                    tabular-nums treatment; suppress for rows that have no cost. *@
@@ -188,14 +202,87 @@
                 </tbody>
             </table>
         </div>
+
+        @* The models with no judged duel. They are not ranked — an unplayed model is a 1200
+           with no record — but the board used to leave 24 of 26 models unmentioned, so the
+           list read as the whole catalog. Collapsed, and each name still opens its profile. *@
+        @if (UnplayedEntries.Count > 0)
+        {
+            <details class="leaderboard__unplayed">
+                <summary>Not yet played (@UnplayedEntries.Count)</summary>
+                <ul class="leaderboard__unplayed-list">
+                    @foreach (var entry in UnplayedEntries)
+                    {
+                        <li @key="entry.ModelId">
+                            <a href="@($"/model/{entry.ModelId}")"
+                               @onclick="@(() => OpenModel(entry))"
+                               @onclick:preventDefault="_wide">@entry.DisplayName</a>
+                        </li>
+                    }
+                </ul>
+            </details>
+        }
+        </div>
+
+        @if (PanelOpen)
+        {
+            <aside class="leaderboard__panel po-glass" aria-label="Model profile">
+                <div class="leaderboard__panel-bar">
+                    <a class="po-btn po-btn--sm po-btn--ghost" href="@($"/model/{Uri.EscapeDataString(PanelModel!)}")">
+                        Open full page <span aria-hidden="true">↗</span>
+                    </a>
+                    @if (PanelPicked)
+                    {
+                        <a class="po-btn po-btn--sm po-btn--ghost" href="/leaderboard" aria-label="Close the profile panel">
+                            <span aria-hidden="true">✕</span> Close
+                        </a>
+                    }
+                </div>
+                <ModelProfile ModelIdText="@PanelModel" Embedded="true" />
+            </aside>
+        }
         </div>
         }
     }
 </div>
 
 @code {
+    /// <summary>The model whose profile is open in the side panel (?model=).</summary>
+    [SupplyParameterFromQuery(Name = "model")] public string? SelectedModel { get; set; }
+
+    /// <summary>
+    /// 1024px and up: a model name opens the side panel. Asked once, at first render — below
+    /// that the panel would be stacked out of sight, so the name opens the model's page.
+    /// </summary>
+    private bool _wide;
+
+    /// <summary>Set after load: whether the value chart has anything to plot.</summary>
+    private bool _chartHasData;
+
+    /// <summary>
+    /// The model in the panel: the one picked, or — from 1024px, when the chart has nothing
+    /// to plot (no priced duels yet) — the leader, so the right column is never just empty.
+    /// </summary>
+    private string? PanelModel =>
+        RouteIdShape.IsPlausible(SelectedModel) ? SelectedModel
+        : _wide && !_chartHasData && _displayedEntries.Count > 0 ? _displayedEntries[0].ModelId.Value
+        : null;
+
+    private bool PanelOpen => PanelModel is not null;
+
+    /// <summary>Opened by a click, so it can be closed; the default leader panel cannot.</summary>
+    private bool PanelPicked => RouteIdShape.IsPlausible(SelectedModel);
+
     private List<LeaderboardEntryDto> _entries = [];
     private List<LeaderboardEntryDto> _displayedEntries = [];
+    private List<LeaderboardEntryDto> UnplayedEntries => _entries.Where(e => e.DuelCount == 0).ToList();
+
+    private void OpenModel(LeaderboardEntryDto entry)
+    {
+        _ = AudioService.PlayTickAsync();
+        if (_wide)
+            Nav.NavigateTo($"/leaderboard?model={Uri.EscapeDataString(entry.ModelId.Value)}");
+    }
     /// <summary>
     /// Models that have never duelled are hidden. This was a checkbox next to the sort bar and
     /// went with it on 2026-08-23 — it defaulted to on, and an unplayed model is a 1200 with no
@@ -252,6 +339,12 @@
     {
         try
         {
+            if (firstRender)
+            {
+                _wide = await JS.InvokeAsync<bool>("poMatches", "(min-width: 1024px)");
+                if (_wide) StateHasChanged();
+            }
+
             if (!_diffed && !_loading && _displayedEntries.Count > 0)
             {
                 _diffed = true;
@@ -292,6 +385,7 @@
             var rows = await ApiClient.GetLeaderboardAsync(SortBy);
             _entries = rows?.ToList() ?? [];
             _displayedEntries = ActiveOnly ? _entries.Where(e => e.DuelCount > 0).ToList() : _entries;
+            _chartHasData = ValueChartLayout.Build(_displayedEntries) is not null;
         }
         catch (Exception ex)
         {

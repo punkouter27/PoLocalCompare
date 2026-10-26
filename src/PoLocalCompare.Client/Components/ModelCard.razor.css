@@ -1,15 +1,25 @@
 /* Extracted from a <style> block inside ModelCard.razor. Scoped now, so these
    .model-card rules can no longer leak into other components. */
 
+/* ── A picker row, not a datasheet ───────────────────────────────────────────
+   Name on the left, the figures on the right, one line wherever they fit and two where they
+   do not (flex-wrap, so nothing is ever clipped). 2.75rem is the touch-target floor, and the
+   whole row is the target. It was a five-line card at ~115px: a 1440x900 desktop showed 15 of
+   26 models inside a scrolling picker, and a phone four. */
 .model-card {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2xs) var(--space-sm);
+    min-height: 2.75rem;
+    padding: var(--space-xs) var(--space-smd);
     background: var(--surface-1);
     border: 1px solid var(--border);
-    transition: all var(--transition-medium);
-    margin-bottom: var(--space-sm);
     border-radius: var(--radius-md);
-    position: relative;
     overflow: hidden;
-    padding: var(--space-md);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .model-card::before {
@@ -26,8 +36,6 @@
 
 .model-card:hover:not(.model-card--selected) {
     border-color: var(--border-strong);
-    transform: translateY(-2px) scale(1.01);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     background: var(--surface-2);
 }
 
@@ -37,19 +45,33 @@
 
 .model-card--selected {
     border-color: var(--accent-green);
-    border-left: none;
-    box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--accent-green) 40%, transparent),
-        0 0 24px color-mix(in srgb, var(--accent-green) 20%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-green) 40%, transparent);
     background: var(--success-surface);
-    animation: borderGlow 3s ease-in-out infinite;
 }
 
 .model-card--selected::before {
     transform: scaleY(1);
 }
 
+.model-card--disabled {
+    cursor: not-allowed;
+}
+
+/* A long model name must never be clipped or ellipsised — it is the only thing that
+   identifies the row, and two of the catalog's names differ only in their suffix. */
+.model-card__name {
+    flex: 1 1 8rem;
+    min-width: 0;
+    color: var(--text);
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-md);
+    line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+    hyphens: auto;
+}
+
 .model-card__slot-badge {
+    flex: 0 0 auto;
     font-size: var(--text-2xs);
     font-weight: var(--weight-bold);
     width: 1.25rem;
@@ -73,168 +95,39 @@
     color: var(--on-accent);
 }
 
-.model-card__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-xs);
-}
-
-.model-card__name {
-    color: var(--text);
-    font-weight: var(--weight-semibold);
-    font-size: var(--text-lg);
-}
-
-/* Rating + record, one line. */
+/* Rating, size and price, separated by a dot that is drawn rather than typed so a screen
+   reader does not read "dot" three times (the aria-label already states the essentials).
+   No opacity on any of this: the tokens are contrast-checked per theme, and multiplying them
+   down is what once pushed fourteen pricing nodes below 4.5:1. */
 .model-card__meta {
-    min-width: 0;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0 var(--space-sm);
+    margin-inline-start: auto;
     color: var(--text-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.model-card__meta > * + *::before {
+    content: "·";
+    content: "·" / "";
+    margin-inline-end: var(--space-sm);
+    color: var(--text-dim);
 }
 
 .model-card__elo {
     color: var(--text);
 }
 
-.model-card__params {
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    margin-top: var(--space-2xs);
-}
-
-.model-card__params-value {
-    color: var(--text);
-    font-weight: var(--weight-semibold);
-}
-
-/* No opacity on any of these. The tokens are contrast-checked per theme, and multiplying them
-   by 0.6–0.85 quietly pushed all fourteen pricing nodes on the Compare page below 4.5:1.
-   (--accent, the old --free colour's token, was never defined anywhere — the #22c55e fallback
-   was doing all the work, and it fails on a white card.) */
-.model-card__pricing {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    margin-top: var(--space-xs);
-}
-
-.model-card__pricing--free {
-    color: var(--accent-green);
+.model-card__unrated {
     font-style: italic;
 }
 
-.model-card__pricing-unit {
-    color: var(--text-dim);
-    font-size: var(--text-2xs);
-}
-
-/* Ripple effect on click */
-.model-card::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.5s, height 0.5s;
-}
-
-.model-card:active::after {
-    width: 300px;
-    height: 300px;
-}
-
-/* Badge row in the card header — was an inline flex style. */
-.model-card__badges {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-}
-
-/* Cursor affordance. Dimming is owned by the caller's .home__card-disabled wrapper,
-   so it is deliberately not repeated here — the two would compound into an
-   unreadable opacity. */
-.model-card {
-    cursor: pointer;
-}
-
-.model-card--disabled {
-    cursor: not-allowed;
-}
-
-/* ── Container queries ───────────────────────────────────────────────────────
-   The Home picker's grid column is the only place this card renders — the Arena and
-   Tournament slot summaries and the ModelProfile gallery that this comment used to also
-   name have all since been replaced by their own markup — but that column is still handed
-   very different widths (three across at 1440px, one across on a phone, and anything in
-   between while the window is dragged). It had no responsive handling of any kind, and a
-   media query would be the wrong tool for the WIDTH question
-   — it measures the WINDOW, when what varies here is the box the card was handed.
-   A 1400px desktop showing a narrow picker column and a 640px phone showing a
-   full-bleed card are the same layout problem and the opposite media query.
-
-   Same reasoning and the same mechanism as TelemetryHud, which documents it at
-   length. The card declares itself a container; the rules below ask its own width. */
-.model-card {
-    container-type: inline-size;
-    container-name: modelcard;
-}
-
-/* Narrow column: the header is `name ......... badges` on one line, which is where
-   a long display name ("Llama-4-Maverick-17B-128E-Instruct-FP8") collides with the
-   REMOTE pill. Stack them so the name gets the full width and wraps instead. */
-@container modelcard (max-width: 260px) {
-    .model-card__header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--space-2xs);
-    }
-
-    .model-card__badges {
-        flex-wrap: wrap;
-    }
-
-    .model-card__name {
-        font-size: var(--text-md);
-    }
-}
-
-/* ── Phone: the card is a picker row, not a datasheet ────────────────────────
-   A media query rather than a container query, and that is the one place in this file
-   where the window IS the right thing to measure. The container queries above ask how
-   much WIDTH the card was handed; this asks how much of the page it is allowed to spend,
-   which is a different question. Below 1080px the Home layout collapses to one column and
-   the picker becomes a bounded 40dvh window — so on a 390x844 phone the catalog is a 337px
-   porthole, and at 178px per card that showed ONE AND A HALF of 26 models. (Measured
-   side-effect: the "Load starter duel" onboarding button, which then sat under the grid, was at
-   y=3735 inside that window. Nobody was ever going to reach it.)
-
-   The card keeps its name, type chip, rating and record — everything the aria-label already
-   announces, and everything you choose between. Parameter count and per-token pricing are
-   dropped: they are comparison detail, they are both on the model's own page, and together
-   they are 60% of the card's height. ~178px becomes ~80px, so the same porthole now shows
-   four models instead of one. */
-@media (max-width: 640px) {
-    .model-card {
-        padding: var(--space-sm) var(--space-smd);
-        margin-bottom: var(--space-xs);
-    }
-
-    /* display: none, not visibility or opacity — the point is to reclaim the space. Nothing
-       is lost to assistive tech: the card's aria-label already carries name, type and rating,
-       and the full datasheet is one tap away on /model/{id}. */
-    .model-card__params,
-    .model-card__pricing {
-        display: none;
-    }
-}
-
-/* A long model name must never be clipped or ellipsised — it is the only thing that
-   identifies the row, and two of the catalog's names differ only in their suffix. */
-.model-card__name {
-    overflow-wrap: anywhere;
-    hyphens: auto;
+.model-card__free {
+    color: var(--accent-green);
+    font-style: italic;
 }

@@ -34,14 +34,30 @@
     }
     else
     {
-        @* One search box over the loaded rows, matching the prompt or either model's name.
-           It replaced the Radzen grid's per-column filters when Radzen was removed on
-           2026-09-26. The verdict chips (All / Won / Tie / Unjudged) that sat above it were
-           removed on 2026-09-30 to keep the page simple: the archive always lists every duel,
-           and an unjudged one still carries its own Judge button in the Matchup cell. *@
-        <input type="search" class="archive__search" placeholder="Search prompt or model…"
-               aria-label="Search loaded duels by prompt or model name"
-               @bind="_search" @bind:event="oninput" />
+        @* ── One command bar ─────────────────────────────────────────────────
+           Search, outcome chips and the count on one line. The search replaced the Radzen
+           grid's per-column filters (2026-09-26); outcome chips were dropped on 2026-09-30
+           and come back here (2026-10-26, asked for) as the bar's second half rather than a
+           row of their own, offering only outcomes the loaded rows actually contain. The count
+           moved up from under the table, where it sat below everything it was counting. *@
+        <div class="archive__bar">
+            <input type="search" class="archive__search" placeholder="Search prompt or model…"
+                   aria-label="Search loaded duels by prompt or model name"
+                   @bind="_search" @bind:event="oninput" />
+            <div class="archive__filters" role="group" aria-label="Filter by outcome">
+                @foreach (var (key, label) in Outcomes)
+                {
+                    var count = OutcomeCount(key);
+                    if (key != "all" && count == 0) continue;
+                    <button type="button" class="po-btn po-btn--sm po-btn--chip"
+                            aria-pressed="@(_outcome == key ? "true" : "false")"
+                            @onclick="@(() => _outcome = key)">
+                        @label <span class="archive__chip-count">@count</span>
+                    </button>
+                }
+            </div>
+            <span class="archive__count" role="status">@CountSummary</span>
+        </div>
 
         @* A plain .po-table: it becomes labelled cards below 640px via data-label, and the
            prompt cell's link opens the duel in the Arena. *@
@@ -62,7 +78,7 @@
                         var d = r.Duel;
                         <tr @key="d.DuelId">
                             <td data-label="Date" class="archive__date">@d.StartedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                            <td data-label="Prompt" class="archive__prompt-cell"><a class="archive__prompt" href="@($"/arena/{d.DuelId}")">@d.PromptSummary</a></td>
+                            <td data-label="Prompt" class="archive__prompt-cell"><a class="archive__prompt" href="@($"/arena/{d.DuelId}")" title="@PromptTitle(d)">@d.PromptSummary</a></td>
                             <td data-label="Matchup" class="archive__matchup-cell">
                                 <span class="archive__matchup">
                                     @Side(d.LeftModelName, d.LeftModelId, d.Verdict == DuelVerdict.Left)
@@ -100,14 +116,14 @@
                                             aria-label="@($"Re-run {d.LeftModelName} vs {d.RightModelName} with the same prompt")"
                                             title="Re-run with the same prompt"
                                             disabled="@_rerunning"
-                                            @onclick="@(() => RerunAsync(d))"><span aria-hidden="true">⚔</span></button>
+                                            @onclick="@(() => RerunAsync(d))"><span aria-hidden="true">⚔</span><span class="archive__row-btn-label" aria-hidden="true">Re-run</span></button>
                                     @* Same-origin GET carries the BFF cookie, so the browser
                                        does the whole download with no interop. *@
                                     <a class="po-btn po-btn--sm archive__row-btn"
                                        href="@($"/api/duels/{d.DuelId}/report")"
                                        aria-label="Download lab report (HTML)"
                                        title="Download lab report (HTML)"
-                                       download="@($"lab-report-{d.DuelId}.html")"><span aria-hidden="true">⬇</span></a>
+                                       download="@($"lab-report-{d.DuelId}.html")"><span aria-hidden="true">⬇</span><span class="archive__row-btn-label" aria-hidden="true">Report</span></a>
                                 </div>
                             </td>
                         </tr>
@@ -117,24 +133,19 @@
         </div>
         @if (!VisibleRows.Any())
         {
-            <p class="po-hint">No duels match — clear the search.</p>
+            <p class="po-hint">No duels match — clear the search or pick All.</p>
         }
 
-        <div class="archive__pagination">
-            @* The old copy read "Showing 20 of 20 duels — more available", because the first
-               number counted the filter and the second counted what had been loaded, while
-               "more available" spoke about the server. Three different populations, one
-               sentence. Now it counts one thing, and Load More says the rest. *@
-            <span class="archive__count">@CountSummary</span>
-            @if (_hasMore)
-            {
+        @if (_hasMore)
+        {
+            <div class="archive__pagination">
                 @* Disabled while any list request is in flight: a double-click used to fire two
                    requests from the same cursor and append the same page twice. *@
                 <button type="button" class="po-btn" disabled="@_fetching" @onclick="LoadMoreAsync">
                     @(_fetching ? "Loading…" : "Load More")
                 </button>
-            }
-        </div>
+            </div>
+        }
         @if (!string.IsNullOrEmpty(_error))
         {
             <p class="po-error">@_error</p>
@@ -175,13 +186,54 @@
 
     private string _search = string.Empty;
 
-    private IEnumerable<ArchiveRow> VisibleRows => string.IsNullOrWhiteSpace(_search)
-        ? _rows
-        : _rows.Where(r => r.Matchup.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
-                        || r.Duel.PromptSummary.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+    /// <summary>Outcome chip keys, in bar order. Filters the loaded rows, like the search.</summary>
+    private static readonly (string Key, string Label)[] Outcomes =
+    [
+        ("all", "All"),
+        ("decided", "Decided"),
+        ("tie", "Tie"),
+        ("voided", "Voided"),
+        ("awaiting", "Awaiting judge"),
+    ];
 
-    /// <summary>How many rows are on screen. Load More says whether there are more.</summary>
-    private string CountSummary => $"{_rows.Count} {(_rows.Count == 1 ? "duel" : "duels")}";
+    private string _outcome = "all";
+
+    private static bool MatchesOutcome(DuelVerdict verdict, string key) => key switch
+    {
+        "decided" => verdict is DuelVerdict.Left or DuelVerdict.Right,
+        "tie" => verdict == DuelVerdict.Tie,
+        "voided" => verdict == DuelVerdict.Voided,
+        "awaiting" => verdict == DuelVerdict.Pending,
+        _ => true,
+    };
+
+    private int OutcomeCount(string key) => _rows.Count(r => MatchesOutcome(r.Duel.Verdict, key));
+
+    private IEnumerable<ArchiveRow> VisibleRows => _rows
+        .Where(r => MatchesOutcome(r.Duel.Verdict, _outcome))
+        .Where(r => string.IsNullOrWhiteSpace(_search)
+                    || r.Matchup.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+                    || r.Duel.PromptSummary.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// How many rows are on screen, and of how many loaded when a filter is narrowing them.
+    /// Load More says whether the server has more.
+    /// </summary>
+    private string CountSummary
+    {
+        get
+        {
+            var shown = VisibleRows.Count();
+            var noun = _rows.Count == 1 ? "duel" : "duels";
+            return shown == _rows.Count ? $"{_rows.Count} {noun}" : $"{shown} of {_rows.Count} {noun}";
+        }
+    }
+
+    /// <summary>The prompt beyond the 80-character summary, on hover. Capped: prompts run to 10,000.</summary>
+    private static string? PromptTitle(DuelSummaryDto d) =>
+        string.IsNullOrWhiteSpace(d.PromptText) ? null
+        : d.PromptText.Length <= 400 ? d.PromptText
+        : d.PromptText[..400].TrimEnd() + "…";
 
     protected override Task OnInitializedAsync() => LoadPageAsync(append: false);
 

@@ -70,9 +70,11 @@ public sealed class JudgeCalibrationHandler(
                 var prompt = string.IsNullOrWhiteSpace(duel.PromptFull) ? duel.PromptText : duel.PromptFull;
                 // The override lives on the concrete judge, not on IDuelJudge: it is a
                 // calibration tool, and a test double has no second deployment to switch to.
+                var leftPage = new JudgedPage(left.HtmlOutputRaw, left.WasTruncated);
+                var rightPage = new JudgedPage(right.HtmlOutputRaw, right.WasTruncated);
                 decision = overriding && judge is FoundryDuelJudge foundry
-                    ? await foundry.JudgeAsync(prompt, left.HtmlOutputRaw, right.HtmlOutputRaw, deployment, vision, cancellationToken)
-                    : await judge.JudgeAsync(prompt, left.HtmlOutputRaw, right.HtmlOutputRaw, cancellationToken);
+                    ? await foundry.JudgeAsync(prompt, leftPage, rightPage, deployment, vision, cancellationToken)
+                    : await judge.JudgeAsync(prompt, leftPage, rightPage, cancellationToken);
                 cost += decision?.CostUsd ?? 0;
             }
             catch (JudgeRateLimitedException)

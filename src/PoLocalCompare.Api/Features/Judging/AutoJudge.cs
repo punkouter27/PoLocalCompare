@@ -304,8 +304,8 @@ public sealed class AutoJudge
 
         return await _judge.JudgeAsync(
             string.IsNullOrWhiteSpace(duel.PromptFull) ? duel.PromptText : duel.PromptFull,
-            left!.HtmlOutputRaw,
-            right!.HtmlOutputRaw,
+            new JudgedPage(left!.HtmlOutputRaw, left.WasTruncated),
+            new JudgedPage(right!.HtmlOutputRaw, right.WasTruncated),
             cancellationToken);
     }
 

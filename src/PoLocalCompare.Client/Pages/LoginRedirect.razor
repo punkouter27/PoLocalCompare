@@ -1,0 +1,12 @@
+@page "/login"
+@inject NavigationManager Nav
+
+@* /login is the address people type, and it rendered "Page not found": the sign-in card
+   (Login.razor) has no route of its own — AuthorizeRouteView shows it for any page a
+   signed-out visitor opens. This route is that page for /login. Signed out, [Authorize]
+   (from _Imports) means the card renders here; signed in, there is nothing to sign in to,
+   so it goes to Compare. *@
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("/", replace: true);
+}

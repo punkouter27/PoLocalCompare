@@ -30,10 +30,18 @@ internal static partial class JudgeLog
 /// evenly over Left and Right; every individual verdict still carried it. So the judge is now
 /// asked twice, in parallel, once in each order, and a verdict only stands when both orderings
 /// agree — a pick that flips with the presentation order is recorded as a Tie. On the text-only
-/// judge that doubles a cost of well under a tenth of a cent and adds no latency. A split first
-/// gets one closer look from a stronger deployment (see <see cref="TiebreakAsync"/>).
-/// Length and self-preference bias are not corrected for; the prompt below at least tells the
-/// judge not to reward length for its own sake.
+/// judge that doubles a cost of well under a tenth of a cent and adds no latency.
+/// <para>
+/// Since 2026-10-26 the second ordering can be read by a model from another family
+/// (<see cref="AutoJudgeOptions.CrossCheckDeployment"/>), so a verdict also has to survive a
+/// change of judge — the correction for self-preference this class used to say it lacked. Both
+/// readings score against one checklist written per prompt (<see cref="JudgeRubricProvider"/>),
+/// and a split climbs a ladder: both orders again on
+/// <see cref="AutoJudgeOptions.EscalationDeployment"/> at floor effort, then on
+/// <see cref="AutoJudgeOptions.TiebreakDeployment"/> at medium effort. Each rung still needs its
+/// two orderings to agree, and a split at the top is a Tie. Length bias is not corrected for;
+/// the prompt below at least tells the judge not to reward length for its own sake.
+/// </para>
 /// </remarks>
 public sealed partial class FoundryDuelJudge : IDuelJudge
 {
@@ -111,6 +119,58 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         },
     };
 
+    /// <summary>Appended when the call carries a checklist from <see cref="JudgeRubricProvider"/>.</summary>
+    private const string RubricPromptSuffix =
+        "\n\nThe request is followed by a CHECKLIST of its requirements, written once for this request so " +
+        "every reading scores against the same list. In checks, give exactly one entry per checklist item, " +
+        "in order, marking each document met, partial or missed — judge against that list, not one of your " +
+        "own. The winner is the document with fewer material misses on it; the analysis says why each mark " +
+        "was given.";
+
+    private static readonly string[] Marks = ["met", "partial", "missed"];
+
+    /// <summary>
+    /// <see cref="JudgeResponseFormat"/> with a per-requirement <c>checks</c> array between the
+    /// analysis and the winner — still before the verdict, for the same reason the analysis is.
+    /// </summary>
+    private static readonly object RubricResponseFormat = new
+    {
+        type = "json_schema",
+        json_schema = new
+        {
+            name = "duel_verdict_checklist",
+            strict = true,
+            schema = new
+            {
+                type = "object",
+                additionalProperties = false,
+                required = new[] { "analysis", "checks", "winner", "reason" },
+                properties = new
+                {
+                    analysis = new { type = "string" },
+                    checks = new
+                    {
+                        type = "array",
+                        items = new
+                        {
+                            type = "object",
+                            additionalProperties = false,
+                            required = new[] { "requirement", "a", "b" },
+                            properties = new
+                            {
+                                requirement = new { type = "string" },
+                                a = new { type = "string", @enum = Marks },
+                                b = new { type = "string", @enum = Marks },
+                            },
+                        },
+                    },
+                    winner = new { type = "string", @enum = new[] { "A", "B", "Tie" } },
+                    reason = new { type = "string" },
+                },
+            },
+        },
+    };
+
     /// <summary>
     /// Token budget for the judge's reply. The reply itself is one small JSON object, but the
     /// default deployment (gpt-5.4-nano) is a reasoning model, and on those this budget is
@@ -134,6 +194,7 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     private readonly IConfiguration _configuration;
     private readonly AutoJudgeOptions _options;
     private readonly HtmlScreenshotRenderer _screenshots;
+    private readonly JudgeRubricProvider _rubrics;
     private readonly ILogger<FoundryDuelJudge> _logger;
 
     public FoundryDuelJudge(
@@ -141,21 +202,38 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         IConfiguration configuration,
         IOptions<AutoJudgeOptions> options,
         HtmlScreenshotRenderer screenshots,
+        JudgeRubricProvider rubrics,
         ILogger<FoundryDuelJudge> logger)
     {
         _http = http;
         _configuration = configuration;
         _options = options.Value;
         _screenshots = screenshots;
+        _rubrics = rubrics;
         _logger = logger;
     }
 
     public Task<JudgeDecision?> JudgeAsync(
         string promptFull,
-        string leftOutput,
-        string rightOutput,
+        JudgedPage left,
+        JudgedPage right,
         CancellationToken cancellationToken) =>
-        JudgeAsync(promptFull, leftOutput, rightOutput, deploymentOverride: null, visionOverride: null, cancellationToken);
+        JudgeAsync(promptFull, left, right, deploymentOverride: null, visionOverride: null, cancellationToken);
+
+    /// <summary>One deployment and the provider credentials that reach it.</summary>
+    private sealed record JudgeSeat(string Endpoint, string ApiKey, string Deployment);
+
+    /// <summary>Null when the deployment is blank or its provider has no endpoint or key.</summary>
+    private JudgeSeat? Seat(string? deployment)
+    {
+        if (string.IsNullOrWhiteSpace(deployment)) return null;
+        deployment = deployment.Trim();
+        // A gemini-* judge goes to Google's endpoint — see FoundryChatRequest.IsGemini.
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration, deployment);
+        return string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey)
+            ? null
+            : new JudgeSeat(endpoint, apiKey, deployment);
+    }
 
     /// <summary>
     /// The same judgment through a different deployment and/or with screenshots forced on or
@@ -164,24 +242,24 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     /// </summary>
     public async Task<JudgeDecision?> JudgeAsync(
         string promptFull,
-        string leftOutput,
-        string rightOutput,
+        JudgedPage left,
+        JudgedPage right,
         string? deploymentOverride,
         bool? visionOverride,
         CancellationToken cancellationToken)
     {
         var useVision = visionOverride ?? _options.VisionEnabled;
-        var deployment = string.IsNullOrWhiteSpace(deploymentOverride)
-            ? _options.EffectiveDeployment(useVision)
-            : deploymentOverride.Trim();
-        // A gemini-* judge goes to Google's endpoint — see FoundryChatRequest.IsGemini.
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration, deployment);
-
-        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(deployment))
+        var calibrating = !string.IsNullOrWhiteSpace(deploymentOverride);
+        if (Seat(calibrating ? deploymentOverride : _options.EffectiveDeployment(useVision)) is not { } primary)
         {
             JudgeLog.CallFailed(_logger, "AzureAiFoundry:Endpoint, AzureAiFoundry:ApiKey or AiJudge:Deployment is not configured.");
             return null;
         }
+
+        // Calibration names its own deployment to measure that judge alone, so it reads both
+        // orderings itself; a cross-check by another model would blur exactly what it measures.
+        // A cross-check whose provider has no key falls back to the primary rather than failing.
+        var second = calibrating ? primary : Seat(_options.CrossCheckDeployment) ?? primary;
 
         // Rendered once, both sides in parallel (each render has its own browser context), and
         // shared by both orderings. Either side failing to render drops both — judging one
@@ -191,41 +269,63 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         if (useVision)
         {
             var evidence = await Task.WhenAll(
-                _screenshots.RenderFramesAsync(leftOutput, cancellationToken),
-                _screenshots.RenderFramesAsync(rightOutput, cancellationToken));
+                _screenshots.RenderFramesAsync(left.Html, cancellationToken),
+                _screenshots.RenderFramesAsync(right.Html, cancellationToken));
             if (evidence[0] is null || evidence[1] is null)
                 _logger.LogInformation("Judge screenshots unavailable; judging source only.");
             else
                 (leftEvidence, rightEvidence) = (evidence[0], evidence[1]);
         }
 
-        var call = new JudgeCall(endpoint, apiKey, deployment, promptFull, leftOutput, rightOutput,
-            leftEvidence, rightEvidence, Convert.ToHexString(RandomNumberGenerator.GetBytes(16)), IsTiebreak: false);
+        // One checklist for every reading of this duel, cached per prompt. Null (switched off, or
+        // it could not be written) leaves each call to derive its own, as it did before.
+        var rubric = await _rubrics.GetAsync(promptFull, cancellationToken);
 
-        var opinions = await AskBothOrdersAsync(call, _options.TimeoutSeconds, cancellationToken);
+        var call = new JudgeCall(promptFull, left, right, leftEvidence, rightEvidence, rubric?.Requirements,
+            Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
+
+        var opinions = await AskBothOrdersAsync(call, primary, second, tiebreak: false, _options.TimeoutSeconds, cancellationToken);
         if (opinions is null) return null;
 
         // Every call was paid for whichever way it came out, including a disagreement.
-        var spent = opinions.Sum(o => o?.CostUsd ?? 0);
+        var spent = (rubric?.CostUsd ?? 0) + opinions.Sum(o => o?.CostUsd ?? 0);
         var decision = Reconcile(opinions[0], opinions[1]);
+        // Named for the models that actually answered — a cross-check that fell back to the
+        // primary did not take part, and the verdict must not say it did.
+        if (decision is not null && !IsSplit(opinions[0], opinions[1]))
+            decision = decision with { Model = string.Join(" + ", opinions.Select(o => o?.Model).OfType<string>().Distinct()) };
 
-        // Calibration names its own deployment to measure that judge alone; a tie-break by a
-        // different model would blur exactly what it is measuring.
-        if (IsSplit(opinions[0], opinions[1]) && deploymentOverride is null
-            && await TiebreakAsync(call, cancellationToken) is { } tiebreak)
+        // The ladder. Calibration skips it for the same reason it skips the cross-check.
+        if (IsSplit(opinions[0], opinions[1]) && !calibrating)
         {
-            spent += tiebreak.Sum(o => o?.CostUsd ?? 0);
-            decision = Reconcile(tiebreak[0], tiebreak[1], afterTiebreak: true) ?? decision;
+            foreach (var (rung, tiebreak) in new[] { (_options.EscalationDeployment, false), (_options.TiebreakDeployment, true) })
+            {
+                // Re-asking the very judge that just split, at the same effort, buys nothing.
+                if (Seat(rung) is not { } seat || (!tiebreak && seat == primary && second == primary)) continue;
+
+                _logger.LogInformation("Judge split; asking {Deployment} for a closer look.", seat.Deployment);
+                // Thinking at a higher effort takes longer than the floor the main timeout is sized for.
+                var again = await AskBothOrdersAsync(call, seat, seat, tiebreak,
+                    tiebreak ? _options.TimeoutSeconds * 2 : _options.TimeoutSeconds, cancellationToken);
+                if (again is null || again.All(o => o is null)) continue;
+
+                spent += again.Sum(o => o?.CostUsd ?? 0);
+                decision = Reconcile(again[0], again[1], afterTiebreak: true) ?? decision;
+                if (!IsSplit(again[0], again[1])) break;
+            }
         }
 
         return decision is null ? null : decision with { CostUsd = spent > 0 ? spent : null };
     }
 
     /// <summary>
-    /// Asks the judge in both orders at once. Null when the pair timed out; a single failed call
-    /// comes back as a null element, which <see cref="Reconcile"/> handles.
+    /// Asks in both orders at once — the left page shown first by <paramref name="first"/>, the
+    /// right page shown first by <paramref name="second"/>, which is the same seat unless a
+    /// cross-check is configured. Null when the pair timed out; a single failed call comes back
+    /// as a null element, which <see cref="Reconcile"/> handles.
     /// </summary>
-    private async Task<JudgeDecision?[]?> AskBothOrdersAsync(JudgeCall call, int timeoutSeconds, CancellationToken cancellationToken)
+    private async Task<JudgeDecision?[]?> AskBothOrdersAsync(
+        JudgeCall call, JudgeSeat first, JudgeSeat second, bool tiebreak, int timeoutSeconds, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 5, 300)));
@@ -233,13 +333,30 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         try
         {
             return await Task.WhenAll(
-                AskAsync(call, leftIsA: true, timeout.Token),
-                AskAsync(call, leftIsA: false, timeout.Token));
+                AskAsync(call, first, leftIsA: true, tiebreak, timeout.Token),
+                second == first ? AskAsync(call, second, leftIsA: false, tiebreak, timeout.Token) : CrossCheckAsync());
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            JudgeLog.CallFailed(_logger, $"{call.Deployment} timed out after {timeoutSeconds}s");
+            JudgeLog.CallFailed(_logger, $"{first.Deployment} / {second.Deployment} timed out after {timeoutSeconds}s");
             return null;
+        }
+
+        // A cross-check that fails (no credit, a model retired for this key, a bad reply, the other
+        // provider's rate limit) must not leave one ordering standing alone — that would quietly
+        // drop the position check the pair exists for — and is no reason to re-queue the verdict.
+        // The primary reads that ordering instead, at once, while the first ordering is still out.
+        async Task<JudgeDecision?> CrossCheckAsync()
+        {
+            try
+            {
+                if (await AskAsync(call, second, leftIsA: false, tiebreak, timeout.Token) is { } opinion) return opinion;
+            }
+            catch (JudgeRateLimitedException)
+            {
+            }
+            JudgeLog.CallFailed(_logger, $"cross-check {second.Deployment} gave no decision; {first.Deployment} reads that ordering");
+            return await AskAsync(call, first, leftIsA: false, tiebreak, timeout.Token);
         }
     }
 
@@ -247,45 +364,14 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     private static bool IsSplit(JudgeDecision? leftFirst, JudgeDecision? rightFirst) =>
         leftFirst is not null && rightFirst is not null && leftFirst.Verdict != rightFirst.Verdict;
 
-    /// <summary>
-    /// A second, closer look at a split: both orderings again, by
-    /// <see cref="AutoJudgeOptions.TiebreakDeployment"/> at a higher reasoning effort.
-    /// </summary>
-    /// <remarks>
-    /// A split means the first judge could not tell the pages apart beyond which one it saw
-    /// first. Recording that as a Tie was honest, but it also tied duels a person could call at a
-    /// glance — a recognisable portrait against a bald head scored as "equivalent". The
-    /// invariant is unchanged: a verdict still needs two opposite-order calls that agree, and
-    /// a tie-break that splits again is still a Tie. Only splits pay for it, so the common case
-    /// costs what it did. Null (keep the first pass's Tie) when it is switched off or fails.
-    /// </remarks>
-    private async Task<JudgeDecision?[]?> TiebreakAsync(JudgeCall firstPass, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_options.TiebreakDeployment)) return null;
-
-        var deployment = _options.TiebreakDeployment.Trim();
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration, deployment);
-        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey)) return null;
-
-        _logger.LogInformation("Judge split; asking {Deployment} for a tie-break.", deployment);
-        var call = firstPass with { Endpoint = endpoint, ApiKey = apiKey, Deployment = deployment, IsTiebreak = true };
-
-        // Thinking at a higher effort takes longer than the floor the main timeout is sized for.
-        var opinions = await AskBothOrdersAsync(call, _options.TimeoutSeconds * 2, cancellationToken);
-        return opinions is null || opinions.All(o => o is null) ? null : opinions;
-    }
-
     private sealed record JudgeCall(
-        string Endpoint,
-        string ApiKey,
-        string Deployment,
         string PromptFull,
-        string LeftOutput,
-        string RightOutput,
+        JudgedPage Left,
+        JudgedPage Right,
         HtmlRenderEvidence? LeftEvidence,
         HtmlRenderEvidence? RightEvidence,
-        string Delimiter,
-        bool IsTiebreak);
+        IReadOnlyList<string>? Rubric,
+        string Delimiter);
 
     /// <summary>
     /// Combines the two orderings. One that failed (null) defers to the other, which is what a
@@ -302,11 +388,12 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         if (leftFirst is null || rightFirst is null) return leftFirst ?? rightFirst;
         if (leftFirst.Verdict == rightFirst.Verdict) return leftFirst;
 
+        // "Each reading", not "the judge": with a cross-check the two orderings are two models.
         var why = (leftFirst.Verdict, rightFirst.Verdict) switch
         {
-            (DuelVerdict.Left, DuelVerdict.Right) => "the judge preferred whichever page it was shown first",
-            (DuelVerdict.Right, DuelVerdict.Left) => "the judge preferred whichever page it was shown second",
-            _ => "the judge called it a tie in one order and not in the other",
+            (DuelVerdict.Left, DuelVerdict.Right) => "each reading preferred whichever page it was shown first",
+            (DuelVerdict.Right, DuelVerdict.Left) => "each reading preferred whichever page it was shown second",
+            _ => "one reading called it a tie and the other did not",
         };
         var when = afterTiebreak ? ", even on a closer second look" : "";
         var analysis = leftFirst.Analysis is null && rightFirst.Analysis is null
@@ -322,31 +409,36 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     /// Returns null for no decision, throws <see cref="JudgeRateLimitedException"/> on a 429,
     /// and lets cancellation through so the caller can tell a timeout from a failure.
     /// </summary>
-    private async Task<JudgeDecision?> AskAsync(JudgeCall call, bool leftIsA, CancellationToken cancellationToken)
+    private async Task<JudgeDecision?> AskAsync(JudgeCall call, JudgeSeat seat, bool leftIsA, bool tiebreak, CancellationToken cancellationToken)
     {
-        var (aHtml, bHtml) = leftIsA ? (call.LeftOutput, call.RightOutput) : (call.RightOutput, call.LeftOutput);
+        var (a, b) = leftIsA ? (call.Left, call.Right) : (call.Right, call.Left);
         var (aEvidence, bEvidence) = leftIsA
             ? (call.LeftEvidence, call.RightEvidence)
             : (call.RightEvidence, call.LeftEvidence);
         var withVision = aEvidence is not null && bEvidence is not null;
+        var withRubric = call.Rubric is { Count: > 0 };
 
-        // With screenshots the source is replaced by a tiny descriptor: a 25 KB source paste costs
-        // ~500 ms of prefill and most of the judge's input bill, and the picture already carries
-        // the rendered page. Never both — see DescribeForVision.
-        var userContent =
-            "REQUEST:\n" + call.PromptFull + "\n\n" +
-            (withVision ? DescribeForVision(aHtml, "A", aEvidence!) : FullSourceBlock(aHtml, "A", call.Delimiter, _options.MaxOutputChars)) + "\n\n" +
-            (withVision ? DescribeForVision(bHtml, "B", bEvidence!) : FullSourceBlock(bHtml, "B", call.Delimiter, _options.MaxOutputChars));
+        var userContent = new StringBuilder("REQUEST:\n").Append(call.PromptFull).Append("\n\n");
+        if (withRubric)
+        {
+            userContent.Append("CHECKLIST (score both documents against exactly these, in this order):\n");
+            for (var i = 0; i < call.Rubric!.Count; i++)
+                userContent.Append(i + 1).Append(". ").Append(call.Rubric[i]).Append('\n');
+            userContent.Append('\n');
+        }
+        userContent.Append(DocumentBlock(a, "A", aEvidence, call.Delimiter)).Append("\n\n")
+            .Append(DocumentBlock(b, "B", bEvidence, call.Delimiter));
 
+        var systemPrompt = SystemPrompt + (withVision ? VisionPromptSuffix : "") + (withRubric ? RubricPromptSuffix : "");
         object[] messages;
         if (withVision)
         {
-            var parts = new List<object> { new { type = "text", text = userContent } };
+            var parts = new List<object> { new { type = "text", text = userContent.ToString() } };
             AddEvidence(parts, "A", aEvidence!);
             AddEvidence(parts, "B", bEvidence!);
             messages =
             [
-                new { role = "system", content = SystemPrompt + VisionPromptSuffix },
+                new { role = "system", content = systemPrompt },
                 new { role = "user", content = parts },
             ];
         }
@@ -354,8 +446,8 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         {
             messages =
             [
-                new { role = "system", content = SystemPrompt },
-                new { role = "user", content = userContent },
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userContent.ToString() },
             ];
         }
 
@@ -365,8 +457,8 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         FoundryChatClient.Reply response;
         try
         {
-            response = await FoundryChatClient.PostAsync(_http, call.Endpoint, call.Deployment, call.ApiKey,
-                includeModelField => JsonSerializer.Serialize(BuildJudgeRequest(call.Deployment, messages, includeModelField, call.IsTiebreak)),
+            response = await FoundryChatClient.PostAsync(_http, seat.Endpoint, seat.Deployment, seat.ApiKey,
+                includeModelField => JsonSerializer.Serialize(BuildJudgeRequest(seat.Deployment, messages, includeModelField, tiebreak, withRubric)),
                 cancellationToken);
         }
         catch (OperationCanceledException)
@@ -392,7 +484,7 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
             return null;
         }
 
-        var replyText = ExtractContent(payload) ?? string.Empty;
+        var replyText = FoundryChatClient.ContentOf(payload) ?? string.Empty;
 
         var parsed = ParseReply(replyText);
         if (parsed is null)
@@ -401,9 +493,12 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
             return null;
         }
 
-        var (slot, rawReason, rawAnalysis) = parsed.Value;
+        var (slot, rawReason, rawAnalysis, checks) = parsed.Value;
         var reason = RelabelSlots(rawReason, leftIsA);
         var analysis = rawAnalysis is null ? null : RelabelSlots(rawAnalysis, leftIsA);
+        if (checks.Count > 0)
+            analysis = (analysis is null ? "" : analysis + "\n\n") + "Checklist:\n" + string.Join('\n', checks.Select(c =>
+                $"• {c.Requirement} — left {(leftIsA ? c.A : c.B)}, right {(leftIsA ? c.B : c.A)}"));
 
         // A tie is a decision the judge reached, so it travels back as one. Returning null here
         // (as this used to) threw the answer away and left the duel Pending, which the Archive
@@ -412,28 +507,27 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
             : (slot == "A") == leftIsA ? DuelVerdict.Left : DuelVerdict.Right;
         JudgeLog.Decided(_logger, verdict.ToString(), slot, reason);
 
-        return new JudgeDecision(verdict, reason, Analysis: analysis, CostUsd: CostOf(call.Deployment, payload),
-            Model: call.Deployment);
+        return new JudgeDecision(verdict, reason, Analysis: analysis,
+            CostUsd: TokenCost.OfCompletion(seat.Deployment, payload), Model: seat.Deployment);
     }
 
     /// <summary>
-    /// What one judge call cost, from the usage the provider reported and the price book's rate
-    /// for the deployment. Null when either is missing — unknown, not free.
+    /// One document as the judge reads it: the source (or, with screenshots, a descriptor), led by
+    /// a note when the model ran out of output tokens — a fact the markup alone does not state.
     /// </summary>
-    private static double? CostOf(string deployment, string payload)
+    /// <remarks>
+    /// With screenshots the source is replaced by a tiny descriptor: a 25 KB source paste costs
+    /// ~500 ms of prefill and most of the judge's input bill, and the picture already carries
+    /// the rendered page. Never both — see DescribeForVision.
+    /// </remarks>
+    private string DocumentBlock(JudgedPage page, string slot, HtmlRenderEvidence? evidence, string delimiter)
     {
-        if (DefaultPriceBook.Resolve(deployment) is not { } rate) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(payload);
-            if (!doc.RootElement.TryGetProperty("usage", out var usage)) return null;
-            int Read(string name) => usage.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : 0;
-            return TokenCost.Compute(rate.InputPerMillion, rate.OutputPerMillion, Read("prompt_tokens"), Read("completion_tokens"));
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        var note = page.WasTruncated
+            ? $"NOTE: Document {slot} hit the model's output-token limit and stops mid-document, so anything after the cut is missing from the page.\n"
+            : "";
+        return note + (evidence is not null
+            ? DescribeForVision(page.Html, slot, evidence)
+            : FullSourceBlock(page.Html, slot, delimiter, _options.MaxOutputChars));
     }
 
     private static void AddEvidence(List<object> parts, string slot, HtmlRenderEvidence evidence)
@@ -564,11 +658,12 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         string deployment,
         object messages,
         bool includeModelField,
-        bool isTiebreak)
+        bool isTiebreak,
+        bool withRubric)
     {
         var body = FoundryChatRequest.Build(
             deployment, messages, isTiebreak ? TiebreakTokenBudget : ReplyTokenBudget, 0.0, stream: false, includeModelField);
-        body["response_format"] = JudgeResponseFormat;
+        body["response_format"] = withRubric ? RubricResponseFormat : JudgeResponseFormat;
         // Build pins every reasoning model to its floor. A tie-break exists to look harder, so it
         // lifts that — but only for families known to accept the value (not xAI or Gemini).
         if (isTiebreak && body.ContainsKey("reasoning_effort")
@@ -590,29 +685,11 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         return s[..cut];
     }
 
-    /// <summary>Pulls choices[0].message.content out of a non-streaming completion response.</summary>
-    private static string? ExtractContent(string payload)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(payload);
-            if (!doc.RootElement.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
-                return null;
-            if (!choices[0].TryGetProperty("message", out var message)) return null;
-            return message.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String
-                ? content.GetString()
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
 
     /// <summary>
     /// Reads the schema-constrained {"analysis":"…","winner":"A|B|Tie","reason":"…"} reply.
     /// </summary>
-    private static (string Slot, string Reason, string? Analysis)? ParseReply(string reply)
+    internal static (string Slot, string Reason, string? Analysis, IReadOnlyList<Check> Checks)? ParseReply(string reply)
     {
         if (string.IsNullOrWhiteSpace(reply)) return null;
 
@@ -636,13 +713,34 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
                 ? analysisEl.GetString()?.Trim()
                 : null;
 
+            // Only on a checklist call. A mark outside the enum (a judge that ignored strict mode)
+            // drops that line rather than the verdict.
+            var checks = new List<Check>();
+            if (doc.RootElement.TryGetProperty("checks", out var checksEl) && checksEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in checksEl.EnumerateArray().Take(JudgeRubricProvider.MaxRequirements))
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+                    string? Field(string name) => item.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+                        ? v.GetString()?.Trim()
+                        : null;
+                    if (Field("requirement") is { Length: > 0 } requirement
+                        && Field("a") is { } a && Marks.Contains(a) && Field("b") is { } b && Marks.Contains(b))
+                        checks.Add(new Check(Clip(requirement, 160), a, b));
+                }
+            }
+
             return (winner,
                 Clip(string.IsNullOrWhiteSpace(reason) ? "No reason given." : reason, 400),
-                string.IsNullOrWhiteSpace(analysis) ? null : Clip(analysis, 1500));
+                string.IsNullOrWhiteSpace(analysis) ? null : Clip(analysis, 1500),
+                checks);
         }
         catch (JsonException)
         {
             return null;
         }
     }
+
+    /// <summary>One checklist line as the judge marked it, in slot terms (A/B).</summary>
+    internal sealed record Check(string Requirement, string A, string B);
 }

@@ -29,6 +29,14 @@ public static class ModelSeeder
         new Model(ModelId.From("01SEED0000000000000000009"), "Gemma 2 2B",    ModelType.Local, tdpWatts: 115, webLlmModelId: "gemma-2-2b-it-q4f16_1-MLC"),
         new Model(ModelId.From("01SEED0000000000000000010"), "Qwen2.5 Coder 1.5B", ModelType.Local, tdpWatts: 115, webLlmModelId: "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC"),
 
+        // Added 2026-10-26: the browser tier topped out at 2B and mostly lost. Both are WebLLM
+        // low-resource builds (2.5 GB and 3.4 GB VRAM, q4f16), the coder for the same reason as
+        // 010 and Qwen3 4B as the general model a step up from 005 (thinking off in the worker).
+        // Qwen2.5 Coder 7B (5.1 GB, not low-resource) is deliberately left to /catalog's runtime
+        // add, where a GPU that cannot hold it gets a disabled button rather than a failing seed.
+        new Model(ModelId.From("01SEED0000000000000000013"), "Qwen2.5 Coder 3B", ModelType.Local, tdpWatts: 115, webLlmModelId: "Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC"),
+        new Model(ModelId.From("01SEED0000000000000000014"), "Qwen3 4B",         ModelType.Local, tdpWatts: 115, webLlmModelId: "Qwen3-4B-q4f16_1-MLC"),
+
         // Ids 007 (Llama 3.2 3B) and 008 (Phi-3.5 Mini) are retired, not reused. Both failed to
         // load in the browser across three independent runs, each on a dedicated cold browser:
         // Llama 3.2 3B loses the GPU device ("A valid external Instance reference no longer
@@ -50,6 +58,11 @@ public static class ModelSeeder
         // mean local Ollama ratings are not comparable between machines.
         new Model(ModelId.From("01SEED000000000000000000A"), "Gemma 4 (Ollama)",  ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "gemma4:latest"),
         new Model(ModelId.From("01SEED000000000000000000B"), "Qwen 3.5 (Ollama)", ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "qwen3.5:latest"),
+        // Added 2026-10-26: two code-capable models that fit one consumer GPU. Qwen3 Coder's
+        // default tag is the 30B mixture-of-experts with ~3B active, so it runs near small-model
+        // speed; gpt-oss's default is the 20B, which reasons — OllamaInferenceProxy pins it low.
+        new Model(ModelId.From("01SEED0000000000000000015"), "Qwen3 Coder (Ollama)", ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "qwen3-coder:latest"),
+        new Model(ModelId.From("01SEED0000000000000000016"), "GPT-OSS (Ollama)",     ModelType.LocalService, tdpWatts: 115, apiEndpointRef: "gpt-oss:latest"),
 
         // ── Azure remote models (po-aiservices-shared2) ────────────────────
         // Only deployments that actually exist in the Foundry resource are seeded.

@@ -25,25 +25,51 @@ public class FoundryChatRequestTests
         Assert.Equal(4096, blocking["max_tokens"]);
     }
 
-    [Theory]
-    [InlineData("gpt-5-nano")]
-    [InlineData("Llama-3.3-70B-Instruct")]
-    public void Build_NativeDeploymentNames_SupportStreamUsage(string deployment)
+    [Fact]
+    public void SupportsStreamUsage_IsAnAllowList()
     {
-        // Pin the allow-list: these all went through PoLocalCompare's proxy during the
-        // 2026-08-13 demo session and accepted stream_options without complaint.
-        Assert.True(FoundryChatRequest.SupportsStreamUsage(deployment));
+        // Pin the allow-list: Llama went through PoLocalCompare's proxy during the 2026-08-13 demo
+        // session and accepted stream_options. Deny-by-default: anything not on the native list
+        // (here, an unknown name) must NOT get it — Codestral is pinned by the test above.
+        Assert.True(FoundryChatRequest.SupportsStreamUsage("Llama-3.3-70B-Instruct"));
+        Assert.False(FoundryChatRequest.SupportsStreamUsage(null));
     }
 
-    [Theory]
-    [InlineData("Codestral-2501")]
-    [InlineData(null)]
-    public void Build_NonNativeOrUnknownDeploymentNames_RejectStreamUsage(string? deployment)
+    /// <summary>
+    /// The 2026-10-26 production outage: the text-only judge's deployment is NAMED gpt-4.1-nano
+    /// but SERVES gpt-5.4-mini, which rejects max_tokens — so every verdict failed and every duel
+    /// stayed Pending. The 400 has to switch that deployment to the reasoning shape, and only
+    /// once, or a resend that fails the same way would loop.
+    /// </summary>
+    [Fact]
+    public void TryLearnShape_ReasoningModelBehindAClassicName_SwitchesShapeOnce()
     {
-        // Deny-by-default: anything not on the native list must NOT get stream_options.
-        // Add a deployment to SupportsStreamUsage only after confirming the upstream accepts
-        // the OpenAI streaming-extension shape — see the ADR for Codestral.
-        Assert.False(FoundryChatRequest.SupportsStreamUsage(deployment));
+        var deployment = $"classic-name-{Guid.NewGuid():N}";
+        const string rejection = """{"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model.","type":"invalid_request_error","param":"max_tokens","code":"unsupported_parameter"}}""";
+        Assert.False(FoundryChatRequest.IsReasoningModel(deployment));
+
+        Assert.True(FoundryChatRequest.TryLearnShape(deployment, System.Net.HttpStatusCode.BadRequest, rejection));
+        Assert.False(FoundryChatRequest.TryLearnShape(deployment, System.Net.HttpStatusCode.BadRequest, rejection));
+
+        var body = FoundryChatRequest.Build(deployment, Array.Empty<object>(), 100, 0.2, stream: false, includeModelField: false);
+        Assert.Equal(100, body["max_completion_tokens"]);
+        Assert.False(body.ContainsKey("max_tokens"));
+        Assert.False(body.ContainsKey("temperature"));
+    }
+
+    /// <summary>
+    /// What a one-shot call costs is priced by the model the reply says ran — a relabelled
+    /// deployment bills at the dearer model's rate — and xAI's separately reported reasoning
+    /// tokens are billed as output. The judge's old private copy did neither.
+    /// </summary>
+    [Fact]
+    public void OfCompletion_PricesByServedModel_AndBillsXaiReasoningAsOutput()
+    {
+        const string relabelled = """{"model":"gpt-5.4-mini-2026-03-17","usage":{"prompt_tokens":1000000,"completion_tokens":0}}""";
+        Assert.Equal(0.75, TokenCost.OfCompletion("gpt-4.1-nano", relabelled)!.Value, 6);
+
+        const string grok = """{"model":"grok-4.6","usage":{"prompt_tokens":0,"completion_tokens":1000,"completion_tokens_details":{"reasoning_tokens":3000}}}""";
+        Assert.Equal(0.04, TokenCost.OfCompletion("grok-4.6", grok)!.Value, 6);
     }
 
     [Fact]

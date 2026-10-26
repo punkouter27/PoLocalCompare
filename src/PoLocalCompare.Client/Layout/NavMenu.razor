@@ -20,9 +20,11 @@
             </span>
         }
 
-        @* No hamburger. Below 768px this wrapper is display: contents and its three children
-           lay out on the bar directly — session controls beside the brand, the four links as
-           a second row — because a drawer was hiding four destinations behind an extra tap. *@
+        @* No hamburger, and since 2026-10-26 one row at every width. Below 768px the brand is
+           its mark alone, the identity badge its initial, and the two long labels have short
+           forms — that is what fits four links on a 360px bar, where they used to be a second
+           row costing every phone page 44px. Exactly one label form is displayed at a time, so
+           the accessible name is always the visible word (SC 2.5.3). *@
         <div class="navmenu__collapse">
             <ul class="navmenu__links">
                 <li>
@@ -32,12 +34,14 @@
                 </li>
                 <li>
                     <NavLink class="navmenu__link" href="tournament">
-                        <span class="navmenu__link-text">Tournament</span>
+                        <span class="navmenu__link-text navmenu__link-text--long">Tournament</span>
+                        <span class="navmenu__link-text navmenu__link-text--short">Bracket</span>
                     </NavLink>
                 </li>
                 <li>
                     <NavLink class="navmenu__link" href="leaderboard">
-                        <span class="navmenu__link-text">Leaderboard</span>
+                        <span class="navmenu__link-text navmenu__link-text--long">Leaderboard</span>
+                        <span class="navmenu__link-text navmenu__link-text--short">Ranks</span>
                     </NavLink>
                 </li>
                 <li>
@@ -81,8 +85,11 @@
             }
 
             @* ── User identity / auth (standards §6) ── *@
+            @* Nothing until the session is known. The first render ran before /auth/me answered,
+               so a signed-in visitor saw Sign in + Guest flash and then swap for their badge —
+               measured as a layout shift on every route. *@
             <div class="navmenu__auth">
-                @if (_identity is null)
+                @if (_identityResolved && _identity is null)
                 {
                     @* Same control as the Login card, just sized small so it sits in the navbar. *@
                     <MicrosoftSignInButton Size="MicrosoftSignInSize.Small"
@@ -104,6 +111,8 @@
                    Closing: Escape (OnMenuKeyDown) and any navigation (Catalog) re-key the
                    element, which recreates it closed. The two toggles deliberately leave it
                    open so the new state is visible where it was changed. *@
+                @if (_identityResolved)
+                {
                 <details class="navmenu__menu" @key="_menuKey" @onkeydown="OnMenuKeyDown">
                     <summary class="navmenu__menu-trigger" @ref="_menuTrigger" aria-label="@MenuLabel">
                         @if (_identity is not null)
@@ -111,9 +120,11 @@
                             @* Split at the '@' so the badge can drop the DOMAIN on a narrow screen
                                instead of ellipsising mid-string; the local part is the identifying
                                half. The full value stays in the title either way. *@
+                            @* The initial replaces the name below 768px; the summary's aria-label
+                               carries the full identity at every width. *@
                             <span class="navmenu__user-badge @(_isGuest ? "navmenu__user-badge--guest" : "navmenu__user-badge--oauth")"
                                   title="@(_identity + (_isGuest ? " (guest session)" : " (signed in via Microsoft)"))">
-                                <span>@IdentityLocalPart</span>@if (IdentityDomain is not null)
+                                <span class="navmenu__user-initial" aria-hidden="true">@IdentityInitial</span><span class="navmenu__user-badge-name">@IdentityLocalPart</span>@if (IdentityDomain is not null)
                                 {
                                     <span class="navmenu__user-badge-domain">@IdentityDomain</span>
                                 }
@@ -166,6 +177,7 @@
                         }
                     </div>
                 </details>
+                }
             </div>
         </div>
     </div>
@@ -195,6 +207,12 @@
     private string MenuLabel => _identity is null ? "Settings" : $"Account menu for {_identity}";
     private string? _identity;
     private bool _isGuest;
+
+    /// <summary>False until the first /auth/me answer; the session controls render after it.</summary>
+    private bool _identityResolved;
+
+    private string IdentityInitial =>
+        IdentityLocalPart.Length > 0 ? IdentityLocalPart[..1].ToUpperInvariant() : "?";
 
     /// <summary>
     /// The identity up to and excluding the first '@' — the whole value when there is none
@@ -342,6 +360,8 @@
             _identity = null;
             _isGuest = false;
         }
+
+        _identityResolved = true;
     }
 
     private void LoginWithMicrosoft()

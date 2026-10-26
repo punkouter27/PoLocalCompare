@@ -20,8 +20,10 @@ namespace PoLocalCompare.Api.Features.Judging;
 /// </param>
 /// <param name="CostUsd">What the judge calls behind this decision cost, when the deployment is in the price book.</param>
 /// <param name="Model">
-/// The deployment that made the deciding call. Differs from the configured judge when a split
-/// went to <see cref="AutoJudgeOptions.TiebreakDeployment"/>; null when no model was involved.
+/// The deployment that made the deciding call — "primary + cross-check" when two families agreed
+/// on the first pass, the rung's deployment when a split was settled further up the ladder
+/// (<see cref="AutoJudgeOptions.EscalationDeployment"/>, <see cref="AutoJudgeOptions.TiebreakDeployment"/>);
+/// null when no model was involved.
 /// </param>
 public sealed record JudgeDecision(
     DuelVerdict Verdict,
@@ -55,6 +57,13 @@ public sealed class JudgeRateLimitedException : Exception
     public TimeSpan RetryAfter { get; }
 }
 
+/// <summary>One side's output and the facts about it the judge cannot see in the markup.</summary>
+/// <param name="WasTruncated">
+/// The model hit its output-token limit, so the page stops mid-document. The telemetry HUD has
+/// always shown this; until 2026-10-26 the judge was the one reader that never heard it.
+/// </param>
+public sealed record JudgedPage(string Html, bool WasTruncated = false);
+
 /// <summary>
 /// Decides which of two outputs follows the prompt more accurately.
 /// </summary>
@@ -71,7 +80,7 @@ public interface IDuelJudge
     /// </exception>
     Task<JudgeDecision?> JudgeAsync(
         string promptFull,
-        string leftOutput,
-        string rightOutput,
+        JudgedPage left,
+        JudgedPage right,
         CancellationToken cancellationToken);
 }

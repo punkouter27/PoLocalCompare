@@ -65,6 +65,41 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
         Assert.NotEmpty(duelId);
     }
 
+    // ── A browser duel waits off the queue ─────────────────────────────────
+
+    /// <summary>
+    /// Until 2026-10-26 a duel with a browser side held <c>BackgroundTaskService</c>'s single
+    /// worker for as long as the tab took, so a second user's server-side duel could not start.
+    /// It now leaves the queue as soon as it is dequeued, and wakes when the tab posts.
+    /// </summary>
+    [Fact]
+    public async Task BrowserDuel_WaitingForItsTab_DoesNotHoldUpAServerDuel()
+    {
+        var browser = await TestModels.LocalAsync(_host.Services, $"Tab {Guid.NewGuid():N}");
+        var left = await TestModels.RemoteAsync(_host.Services, "Queue Left");
+        var right = await TestModels.RemoteAsync(_host.Services, "Queue Right");
+
+        var browserDuel = await DuelTestFlow.CommenceAsync(_client, browser, left);
+        var serverDuel = await DuelTestFlow.CommenceAsync(_client, left, right);
+
+        // Queued behind a tab that has not reported — this is what used to time out.
+        await DuelTestFlow.WaitForBothResultsAsync(_client, serverDuel, timeoutMs: 10_000);
+
+        var posted = await _client.PostAsJsonAsync($"/api/duels/{browserDuel}/local-result", new LocalResultRequest(
+            ModelId.From(browser), "<html><body>from the tab</body></html>", 12, 900, 100, IsFailure: false, FailureReason: null));
+        posted.EnsureSuccessStatusCode();
+
+        var deadline = Environment.TickCount64 + 10_000;
+        bool completed;
+        do
+        {
+            await Task.Delay(100);
+            var duel = await _client.GetFromJsonAsync<JsonElement>($"/api/duels/{browserDuel}");
+            completed = duel.TryGetProperty("completedAt", out var at) && at.ValueKind == JsonValueKind.String;
+        } while (!completed && Environment.TickCount64 < deadline);
+        Assert.True(completed, "The browser duel did not complete after its tab posted a result.");
+    }
+
     // ── POST /api/duels → 429 from the two guards on paid inference ───────
 
     private async Task<HttpResponseMessage> StartDuelAsync(IntegrationHost host)
@@ -96,6 +131,22 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains("budget", body.GetProperty("detail").GetString());
+    }
+
+    /// <summary>
+    /// Calls with no duel row (prompt refine, scouting reports) are recorded in the spend ledger,
+    /// and the cap counts them. The cap is set far above anything the rest of this run records
+    /// in duel results, so only the ledger row can push today over it.
+    /// </summary>
+    [Fact]
+    public async Task PostDuel_LedgerSpendReachesTheCap_Returns429()
+    {
+        await using var host = new IntegrationHost(_connectionString,
+            settings: new Dictionary<string, string> { ["Limits:DailySpendCapUsd"] = "100" });
+
+        await host.Services.GetRequiredService<SpendLedger>().RecordAsync("prompt-refine", "test-deployment", 1000);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await StartDuelAsync(host)).StatusCode);
     }
 
     [Fact]

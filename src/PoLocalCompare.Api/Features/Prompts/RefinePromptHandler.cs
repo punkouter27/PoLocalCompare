@@ -23,15 +23,16 @@ namespace PoLocalCompare.Api.Features.Prompts;
 /// runs, and can edit or undo it.
 /// </para>
 /// <para>
-/// Known gap, the same one the judge had: this call's cost is recorded nowhere, because there
-/// is no duel row yet to carry it. It is one call of a few hundred tokens on a nano-tier
-/// deployment; the endpoint is behind the duel-start rate limit and the spend cap instead.
+/// There is no duel row yet to carry this call's cost, so it goes to the
+/// <see cref="SpendLedger"/>, which the spend cap reads (it was recorded nowhere until
+/// 2026-10-26). The endpoint is also behind the duel-start rate limit.
 /// </para>
 /// </remarks>
 public sealed class RefinePromptHandler(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     IOptions<AutoJudgeOptions> judgeOptions,
+    SpendLedger ledger,
     ILogger<RefinePromptHandler> logger)
 {
     private const string SystemPrompt =
@@ -84,6 +85,8 @@ public sealed class RefinePromptHandler(
                 logger.LogWarning("Prompt refine failed on {Deployment}: HTTP {Status}", deployment, (int)status);
                 return null;
             }
+
+            await ledger.RecordAsync("prompt-refine", deployment, TokenCost.OfCompletion(deployment, body));
 
             using var doc = JsonDocument.Parse(body);
             var text = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()?.Trim();

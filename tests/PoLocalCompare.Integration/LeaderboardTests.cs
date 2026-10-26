@@ -106,5 +106,23 @@ public sealed class LeaderboardTests : IAsyncLifetime
             unknownEntries.Select(e => e.GetProperty("displayName").GetString()));
     }
 
+    // ── GET /api/leaderboard/{id}/scouting-report ─────────────────────────
+
+    /// <summary>
+    /// A report is written only from AI-judged duels, and human verdicts carry no analysis — so a
+    /// model with only human-decided duels has nothing to report (204, which the profile renders
+    /// as no section), and an unknown id is a 404. Neither path makes a model call.
+    /// </summary>
+    [Fact]
+    public async Task GetScoutingReport_WithoutAiJudgedDuels_IsNoContent_AndUnknownModelIs404()
+    {
+        var scouted = await RegisterRemoteModelAsync("Scouted");
+        var opponent = await RegisterRemoteModelAsync("Scouted Opponent");
+        for (var i = 0; i < 3; i++) await RunDuelAsync(scouted, opponent, "Left");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _client.GetAsync($"/api/leaderboard/{scouted}/scouting-report")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/leaderboard/no-such-model/scouting-report")).StatusCode);
+    }
+
     // ── Kill-list row shape is covered by KillListTests; this file stays focused on sort ──
 }

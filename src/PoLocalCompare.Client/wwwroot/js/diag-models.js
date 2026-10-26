@@ -184,7 +184,9 @@
             targets.forEach((r) => {
                 const entry = availability.find((a) => a.modelId === r.model.modelId);
                 setRow(r.model.modelId, entry && entry.isAvailable
-                    ? { status: 'ok', note: 'inference probe returned' }
+                    ? { status: 'ok', note: entry.servedModelMismatch
+                        ? 'answered, but served by ' + entry.servedModelMismatch + ' — not the model this entry is named for'
+                        : 'inference probe returned' }
                     : { status: 'failed', note: (entry && entry.reason) || 'deployment unreachable' });
             });
         } catch (e) {

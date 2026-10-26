@@ -41,12 +41,43 @@ public static class FoundryChatClient
                 bodyFor(true), usedFallback: false, perSendTimeout, cancellationToken);
         }
 
-        var first = await SendAsync(http, FoundryChatRequest.DeploymentUrl(endpoint, deployment), deployment, apiKey,
+        var deploymentUrl = FoundryChatRequest.DeploymentUrl(endpoint, deployment);
+        var first = await SendAsync(http, deploymentUrl, deployment, apiKey,
             bodyFor(false), usedFallback: false, perSendTimeout, cancellationToken);
+        // A deployment whose name reads classic but whose model reasons rejects the classic
+        // shape once; bodyFor rebuilds with the learned shape (see FoundryChatRequest.TryLearnShape).
+        if (FoundryChatRequest.TryLearnShape(deployment, first.Status, first.Body))
+            first = await SendAsync(http, deploymentUrl, deployment, apiKey,
+                bodyFor(false), usedFallback: false, perSendTimeout, cancellationToken);
         if (first.Status != HttpStatusCode.NotFound) return first;
 
-        return await SendAsync(http, FoundryChatRequest.ModelInferenceUrl(endpoint), deployment, apiKey,
+        var modelUrl = FoundryChatRequest.ModelInferenceUrl(endpoint);
+        var fallback = await SendAsync(http, modelUrl, deployment, apiKey,
             bodyFor(true), usedFallback: true, perSendTimeout, cancellationToken);
+        return FoundryChatRequest.TryLearnShape(deployment, fallback.Status, fallback.Body)
+            ? await SendAsync(http, modelUrl, deployment, apiKey, bodyFor(true), usedFallback: true, perSendTimeout, cancellationToken)
+            : fallback;
+    }
+
+    /// <summary><c>choices[0].message.content</c> of a non-streaming completion, or null.</summary>
+    public static string? ContentOf(string payload)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(payload);
+            if (!doc.RootElement.TryGetProperty("choices", out var choices)
+                || choices.ValueKind != System.Text.Json.JsonValueKind.Array || choices.GetArrayLength() == 0)
+                return null;
+            return choices[0].TryGetProperty("message", out var message)
+                && message.TryGetProperty("content", out var content)
+                && content.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? content.GetString()
+                    : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     private static async Task<Reply> SendAsync(

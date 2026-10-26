@@ -25,6 +25,13 @@ window.focusElement = function (id, scrollId) {
 };
 
 /**
+ * Whether a media query matches right now. The Leaderboard asks once, at first render, to
+ * decide whether a model name opens the side panel (wide) or the model's own page (narrow).
+ * @param {string} query
+ */
+window.poMatches = query => window.matchMedia(query).matches;
+
+/**
  * "Your duel/bracket finished" while the tab is in the background. ask() runs from the Compare
  * and Start clicks because browsers ignore a permission request without a user gesture; notify()
  * stays silent when the tab is visible, since the page itself is already showing the result.

@@ -75,8 +75,9 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Rank is taken from the leaderboard projection rather than re-sorted locally, so that the
-    /// number here is by construction the number the row the user clicked was showing.
+    /// The rank is the number the board's row shows: the model's position among models that
+    /// have played, in the board's order. The loser is the case that matters — at 1185 it sits
+    /// under every unplayed 1200, and counting those put it at #25 beside a board row saying #2.
     /// </summary>
     [Fact]
     public async Task Profile_RankAgreesWithTheLeaderboard()
@@ -88,12 +89,15 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
 
         var board = (await (await _client.GetAsync("/api/leaderboard"))
             .Content.ReadFromJsonAsync<JsonElement[]>())!;
-        var boardRank = board.Single(r => r.GetProperty("modelId").GetString() == a)
-            .GetProperty("rank").GetInt32();
+        var played = board.Where(r => r.GetProperty("duelCount").GetInt32() > 0)
+            .Select(r => r.GetProperty("modelId").GetString())
+            .ToList();
 
-        var profile = await GetProfileAsync(a);
-
-        Assert.Equal(boardRank, profile.GetProperty("rank").GetInt32());
+        foreach (var id in new[] { a, b })
+        {
+            var profile = await GetProfileAsync(id);
+            Assert.Equal(played.IndexOf(id) + 1, profile.GetProperty("rank").GetInt32());
+        }
     }
 
     [Fact]

@@ -224,6 +224,18 @@ public sealed class DuelApiClient
         return await response.Content.ReadFromJsonAsync<ModelProfileDto>(JsonOptions);
     }
 
+    /// <summary>
+    /// The model's scouting report, or null when there is none to show — too few judged duels,
+    /// a new one cannot be paid for right now, or the writer failed. Never throws for those:
+    /// the report is an extra on the profile, and its absence is not an error.
+    /// </summary>
+    public async Task<ScoutingReportDto?> GetScoutingReportAsync(ModelId modelId)
+    {
+        var response = await _http.GetAsync($"/api/leaderboard/{modelId}/scouting-report");
+        if (response.StatusCode != System.Net.HttpStatusCode.OK) return null;
+        return await response.Content.ReadFromJsonAsync<ScoutingReportDto>(JsonOptions);
+    }
+
     // ── Tournaments ──────────────────────────────────────────────────────────
 
     /// <summary>Models eligible to enter a bracket, strongest first — which is the seeding order.</summary>

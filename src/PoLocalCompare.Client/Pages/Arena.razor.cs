@@ -116,6 +116,12 @@ public partial class Arena
     /// </summary>
     private const double UpsetMinimumGap = 25;
 
+    /// <summary>The prompt line is unclamped ("more").</summary>
+    private bool _promptOpen;
+
+    /// <summary>Roughly one desktop line of prompt; anything longer gets the "more" toggle.</summary>
+    private const int PromptClampChars = 90;
+
     // ── Moments (G1–G7, 2026-10-26) ──────────────────────────────────────────
     /// <summary>The duel was live when the page opened it: the VS mark slams once.</summary>
     private bool _versusSlam;
@@ -431,6 +437,13 @@ public partial class Arena
             var previousHub = DetachFromDuel();
             ResetDuelState();
             if (previousHub is not null) await previousHub.DisposeAsync();
+        }
+
+        // Not shaped like any id: "Duel not found" without asking the API to 404 it first.
+        if (!RouteIdShape.IsPlausible(DuelIdText))
+        {
+            _loading = false;
+            return;
         }
 
         _ = LoadTournamentMatchLabelAsync();

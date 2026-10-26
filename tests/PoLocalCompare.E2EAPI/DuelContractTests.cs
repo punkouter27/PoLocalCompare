@@ -68,14 +68,13 @@ public sealed class DuelContractTests(DuelApiFixture app)
     /// </summary>
     /// <remarks>
     /// A duel whose left model is Local (browser) is not driven by the server: DuelExecutionService
-    /// polls <c>WaitForLocalModelResultAsync</c> until the client POSTs /local-result, or until the
-    /// execution watchdog fires (<c>Duel:TimeLimitSeconds</c>, 900 s). BackgroundTaskService is a
-    /// SINGLE consumer, so a duel left waiting for a result that never arrives does not merely
-    /// stall itself — it blocks every duel queued behind it for the rest of the run. The tests
-    /// below assert a rejection from /local-result and so never deliver one; without this they
-    /// starve the queue, and any later test that waits for real results times out. That is what
-    /// made Verdict_Twice_Returns409 and friends fail when run with the rest of the suite but
-    /// pass in isolation.
+    /// waits in <c>WaitForLocalModelResultAsync</c> until the client POSTs /local-result, or until
+    /// the execution watchdog fires (<c>Duel:TimeLimitSeconds</c>, 900 s). Until 2026-10-26 that
+    /// wait ran on BackgroundTaskService's single consumer, so a duel left waiting blocked every
+    /// duel queued behind it — which is what made Verdict_Twice_Returns409 and friends fail with
+    /// the rest of the suite but pass in isolation. The wait is detached from the queue now, but
+    /// releasing still matters: an unreleased duel keeps a watchdog and a SignalR heartbeat
+    /// running for fifteen minutes after the test that started it has finished.
     /// </remarks>
     private static async Task ReleaseLocalDuelAsync(HttpClient client, string duelId, string leftModelId)
     {

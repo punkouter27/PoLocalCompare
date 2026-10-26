@@ -55,6 +55,41 @@ public static class LeaderboardEndpoints
         .Produces<ModelProfileDto>()
         .Produces(StatusCodes.Status404NotFound);
 
+        // Paid inference when no report is cached, so it carries the two guards every such
+        // endpoint does: the duel-start rate limit, and the spend cap (with mock inference off
+        // too). Either one only stops a NEW report being written — a cached one is still served.
+        group.MapGet("/{modelId}/scouting-report", async (
+            ModelId modelId,
+            [FromServices] GetScoutingReportHandler handler,
+            [FromServices] SpendGuard spend,
+            [FromServices] IConfiguration configuration,
+            CancellationToken cancellationToken) =>
+        {
+            var mayWrite = configuration.GetValue("Features:UseRealAi", false)
+                && !await spend.IsOverBudgetAsync(cancellationToken);
+            var (outcome, report) = await handler.HandleAsync(modelId, mayWrite, cancellationToken);
+            return outcome switch
+            {
+                GetScoutingReportHandler.Outcome.Written => Results.Ok(report),
+                GetScoutingReportHandler.Outcome.UnknownModel => Results.NotFound(),
+                // Not an error: the model simply has too little judged history, or a new report
+                // cannot be paid for right now. The profile shows no section.
+                GetScoutingReportHandler.Outcome.TooFewDuels or GetScoutingReportHandler.Outcome.NotAllowed => Results.NoContent(),
+                _ => Results.Problem(
+                    title: "Could not write the scouting report",
+                    detail: "The model did not answer. Try again later.",
+                    statusCode: StatusCodes.Status502BadGateway),
+            };
+        })
+        .RequireRateLimiting(DuelsEndpoints.StartRateLimitPolicy)
+        .WithName("GetScoutingReport")
+        .WithSummary("Summarises what the judge's notes say a model is reliably good and bad at.")
+        .Produces<ScoutingReportDto>()
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status429TooManyRequests)
+        .Produces(StatusCodes.Status502BadGateway);
+
         // The /h2h/{a}/{b} endpoint and its handler are gone with the /h2h page. The kill-list
         // above already answers "how do these two compare" for every opponent at once, and it
         // does so without a second model lookup that 404s whenever either id has been retired.

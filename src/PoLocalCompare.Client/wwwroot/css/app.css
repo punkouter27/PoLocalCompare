@@ -297,7 +297,7 @@
        load-bearing against paired min-width rules.
 
        Prefer a container query to a media query for anything inside a component that
-       renders at more than one width: see TelemetryHud, ModelCard and SandboxedViewport,
+       renders at more than one width: see TelemetryHud, ModelProfile and SandboxedViewport,
        which measure their own box rather than the window. */
 
     /* ── Chrome ──────────────────────────────────────────────────────────
@@ -403,11 +403,6 @@
 @keyframes float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
-}
-
-@keyframes borderGlow {
-    0%, 100% { border-color: var(--accent-green); box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3); }
-    50% { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.3); }
 }
 
 /* ── Skeleton Loading Styles ───────────────────────────────────────────────────── */
@@ -822,14 +817,9 @@ code {
     --sticky-nav-clearance: 4.5rem;
 }
 
-/* Below 768px the nav is two rows — the brand's (3.5rem) and the four links (2.75rem) — so
-   everything that clears it reads a taller token. Same breakpoint as NavMenu.razor.css. */
-@media (max-width: 767.98px) {
-    :root {
-        --nav-height: 6.25rem;
-        --sticky-nav-clearance: 7.25rem;
-    }
-}
+/* The nav is one 3.5rem row at every width since 2026-10-26. Below 768px it used to be two
+   (6.25rem), and this block raised both tokens to match; NavMenu.razor.css now fits the
+   brand mark, four links and the identity initial on a 360px bar. */
 
 :root {
     /* SC 2.5.8 Target Size (Minimum) — 24px is the AA requirement, and it is a FLOOR,

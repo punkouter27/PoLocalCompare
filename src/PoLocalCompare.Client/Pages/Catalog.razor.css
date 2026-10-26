@@ -13,6 +13,40 @@
     overflow-y: auto;
 }
 
+/* Fixed column widths above the card breakpoint. Auto layout sized the columns from whatever
+   rows <Virtualize> had rendered so far, so the header and every row re-flowed as its second
+   pass arrived — CLS 0.094 at 768px, the largest left in the app. */
+@media (min-width: 641px) {
+    .catalog__grid-wrap > table {
+        table-layout: fixed;
+    }
+
+    /* The id column is the widest on purpose: a build id that wraps makes its row taller than
+       the 44px <Virtualize> assumes, and the rows below it then shift as it corrects. */
+    .catalog__grid-wrap th:nth-child(1) { width: 46%; }
+    .catalog__grid-wrap th:nth-child(2) { width: 8%; }
+    .catalog__grid-wrap th:nth-child(3) { width: 10%; }
+    .catalog__grid-wrap th:nth-child(4) { width: 20%; }
+    .catalog__grid-wrap th:nth-child(5) { width: 16%; }
+}
+
+/* Loading: the bar's row plus the list window, so what replaces it lands in place. ::deep
+   because the list and its rows are <SkeletonGrid>'s markup. */
+.catalog__loading ::deep .catalog__skeleton-list {
+    display: grid;
+    align-content: start;
+    gap: var(--space-xs);
+    height: max(16rem, calc(100dvh - var(--nav-height) - 16rem));
+    margin-top: var(--space-lg);
+    overflow: hidden;
+}
+
+.catalog__loading ::deep .catalog__skeleton {
+    height: 2.75rem;
+    border-radius: var(--radius-sm);
+    animation-delay: var(--stagger, 0ms);
+}
+
 @media (max-width: 640px) {
     /* In card rows the actions read left to right under the values, like every other card. */
     .catalog__row-actions {

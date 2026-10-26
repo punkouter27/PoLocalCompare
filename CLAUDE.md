@@ -101,11 +101,13 @@ touching UI markup.
 AGENT.MD §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
-onto whichever tier is easiest to write. **Unit and E2EAPI sit exactly at the cap**
-(100/40/25/23 as of 2026-10-11) and `SCRIPTS/check-clean.ps1` fails when a tier exceeds its
-budget, so the contract is enforced rather than remembered. A new Unit test has to displace a
-weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial id/label
-cases made way). Say so rather than quietly raising the cap.
+onto whichever tier is easiest to write. **E2EAPI and E2EUI sit exactly at the cap and Unit has
+one case spare** (99/43/25/25 as of 2026-10-26) and `SCRIPTS/check-clean.ps1` fails when a tier
+exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
+displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
+id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
+(two `WinRateCalculator` arithmetic cases and two redundant stream-usage inline cases made way).
+Say so rather than quietly raising the cap.
 
 **E2E-UI needs the machine to itself.** The suite drives a real browser against the one running dev
 instance, and `SignedInPageAsync` waits for `NetworkIdle` with a 45-second budget. Anything else
@@ -127,8 +129,9 @@ Two async traps in the server-side suites, both of which were causing real failu
 - **`BackgroundTaskService` is a SINGLE consumer.** `AutoJudge` runs inline inside it only
   when the grace window is 0 (tournaments); with a window it is detached since 2026-09-26, so a
   standalone duel no longer holds the worker through `AiJudge:DelaySeconds` plus the judge call.
-  Anything else that makes a queue item wait still stalls every later test — a browser-model
-  duel waiting for a client result that a headless test never posts. That is why the E2EAPI fixture keeps a short watchdog and why its duel suite
+  A duel with a browser side leaves the queue once dequeued since 2026-10-26, so a client result a
+  headless test never posts no longer stalls the run — but anything else that makes a queue item
+  wait still does. That is why the E2EAPI fixture keeps a short watchdog and why its duel suite
   runs in its own collection with the judge off — tournaments cannot run without the judge and
   duels cannot run with it, so they get one host each.
 
@@ -149,7 +152,8 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Duel execution is asynchronous.** `POST /api/duels` returns 202; a verdict before both result
   rows exist is a 409. Tests wait for the rows.
 - **`BackgroundTaskService` is a single consumer.** Anything that waits inside a queue item stalls
-  every item behind it.
+  every item behind it — which is why a duel with a browser side is detached as soon as it is
+  dequeued, and its wait wakes on `LocalResultSignal` rather than polling storage.
 - **Streaming re-renders go through `RenderCoalescer`;** terminal events (`DuelComplete`, verdicts)
   paint immediately. `SandboxedViewport.ShouldRender` keeps `srcdoc` from being re-emitted.
 
@@ -163,15 +167,24 @@ protects. A rule with no obvious reason usually has an expensive one.
   the duel `Pending`; `AiJudge:Enabled=false` is genuinely human-only.
 - **The verdict write order is load-bearing:** duel, then model aggregates, then ELO history.
 - **Every verdict is two judge calls in opposite orders, and they must agree** or it is a Tie. The
-  schema is `analysis` → `winner` → `reason`, in that order, on purpose. A split is asked again,
-  both orders, by `AiJudge:TiebreakDeployment` (`gpt-5.4`, medium effort); a second split is the
-  Tie, and it keeps both analyses. Calibration with a `deployment` override skips the tie-break.
+  second ordering is read by `AiJudge:CrossCheckDeployment` (another family); a cross-check that
+  fails or is rate-limited has its ordering re-read by the primary — never left standing alone.
+  The schema is `analysis` → (`checks` →) `winner` → `reason`, in that order, on purpose. A split
+  climbs `AiJudge:EscalationDeployment` (floor effort), then `AiJudge:TiebreakDeployment`
+  (medium); each rung needs its own two orders to agree, a split at the top is the Tie, and it
+  keeps both analyses. Calibration with a `deployment` override skips the cross-check and ladder.
+- **Both orderings score one checklist** (`JudgeRubricProvider`, cached a day per prompt hash);
+  without one the judge derives its own. `JudgeModel` names only the models that answered.
 - **The judge looks at rendered screenshots and bounded interaction evidence** when
   `AiJudge:VisionEnabled` (Development only). The renderer blocks all network, captures motion,
   activates up to three visible enabled buttons, and records text/pixel changes. Either side
   failing to render drops both; every failure degrades to source-only.
 - **The judge's analysis is kept, and its calls are counted** (`Duel.JudgeAnalysis`,
-  `Duel.JudgeCostUsd`, summed by `SpendGuard`).
+  `Duel.JudgeCostUsd` including the checklist, summed by `SpendGuard`). Paid calls with no duel
+  row — prompt refine, scouting reports — go to the `SpendLedger` table, which `SpendGuard` sums too.
+- **The scouting report reads stored analyses only, and never feeds ELO**
+  (`GET /api/leaderboard/{id}/scouting-report`, cached per newest analysed duel, 204 below three
+  AI-judged duels).
 - **`POST /api/dev/judge-calibration`** (`take`, `deployment`, `vision`) replays the judge over
   human-decided duels and never writes a verdict. It needs human-decided duels to mean anything.
 - **The Arena's scorecard must never feed ELO.**
@@ -182,9 +195,14 @@ protects. A rule with no obvious reason usually has an expensive one.
   `InferencePrompt.System` (copied into `webllm-worker.js` — change both and bump the worker's
   `?v=`) and `CommenceDuelHandler.SelfContainedSuffix`, which the judge reads too.
 - **A reasoning model that is not sent an effort thinks at its default.** `FoundryChatRequest`
-  pins each family to its floor; a new provider's model needs the same check.
-- **Cost is `TokenCost.Compute`.** xAI reports reasoning tokens outside `completion_tokens`
-  (`ReportsReasoningSeparately`). `POST /api/dev/reprice-costs` recomputes stored costs; it stays
+  pins each family to its floor; a new provider's model needs the same check (gpt-oss on Ollama
+  is pinned `low` in `OllamaInferenceProxy`).
+- **A deployment's name is not its model.** Several in po-aiservices-shared2 serve a different
+  model (no quota for the named one). `FoundryChatRequest.TryLearnShape` switches a classic-named
+  deployment to the reasoning shape on its first `max_tokens`/`temperature` 400; costs price by
+  the reported `ServedModel`; `/diag` flags the mismatch. Never infer the model from the name alone.
+- **Cost is `TokenCost.Compute`** (`TokenCost.OfCompletion` for one-shot calls). xAI reports
+  reasoning tokens outside `completion_tokens` (`ReportsReasoningSeparately`). `POST /api/dev/reprice-costs` recomputes stored costs; it stays
   until production has been re-priced.
 - **Non-streaming Foundry calls go through `FoundryChatClient.PostAsync`** (the two-route
   fallback, Gemini included). `FoundryInferenceProxy` keeps its own streaming version.
@@ -200,7 +218,8 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **`Features:UseRealAi` is real:** off, `MockInferenceProxy` replaces the keyed proxies, and the
   MOCK chip must render.
 - **Starting paid inference has two guards, both on the endpoint:** the `duel-start` rate limit
-  and `SpendGuard` (which reads storage, not memory). `/api/prompts/refine` carries the same two.
+  and `SpendGuard` (which reads storage, not memory). `/api/prompts/refine` and the scouting
+  report carry the same two (a cached report is still served when they would refuse a new one).
   Both test hosts zero the limits.
 - **The availability probe is cached ten minutes** (`CacheTags.ModelAvailability`) and dropped
   when a remote side fails a real duel. Home renders the catalog before the health probe lands.
@@ -247,7 +266,9 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **There is a design-token scale, and raw values are the defect.** Missing a step? Add the step.
 - **Three breakpoints: 640 / 1024 / 1400.** Exceptions: Home collapses at 1080; the nav at 768.
 - **`.po-page` is the only page shell, and the gutter is declared exactly once.**
-- **There is no hamburger, and `--nav-height` is 3.5rem, 6.25rem below 768px.**
+- **There is no hamburger, and the nav is one 3.5rem row at every width** — below 768px the
+  logo without its wordmark, "Bracket"/"Ranks" as the short labels, and the badge as an initial.
+  `--nav-height` is 3.5rem everywhere; only the signed-out bar wraps to two rows.
 - **Status tints are the `--*-surface` / `--*-border` tokens, never an `rgba()` literal.**
 - **There is no component library — `.po-btn` and `.po-table` are the primitives.** Radzen has
   been added and removed twice. **`.po-btn--chip` is the only filter chip** (with `aria-pressed`).
@@ -255,11 +276,21 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Wide tables become cards below 640px** (`.po-table--cards`). The Archive and the profile's
   kill list override it to one or two unlabelled lines; the Archive's grid places cells explicitly.
 - **Above 1080px Home is exactly one screen, and picking the second model moves you to the
-  prompt.** Below it, one column with Compare as a fixed bottom bar. Slots clear themselves; there
-  is no replace popover. E2E-UI hooks: `home__title`, `home__grid`, `home__compare .po-btn`.
-- **From 1400px the leaderboard's chart sits beside the table;** the profile's upsets are a grid
-  item under the stat tiles; **`/catalog` shows one list at a time** and its browser list needs a
-  definite height to virtualise.
+  prompt.** Below it, one column with Compare as a fixed bottom bar, and the picker flows with the
+  page — no inner scroll box. `ModelCard` is a 44px row, not a card. Slots clear themselves; there
+  is no replace popover. E2E-UI hooks: `home__title`, `home__grid`, `home__compare .po-btn`,
+  `home__picker-actions .po-btn`, `home__slot--set`, `home__full-hint` (the picker's one status line).
+- **Compare and Start tournament share one rule:** disabled only for what the button cannot fix
+  (models, a running bracket); a missing prompt leaves it enabled and the click focuses the prompt.
+- **From 1400px the leaderboard's chart sits beside the table; from 1024px a picked model
+  (`?model=`) puts its profile there instead** — `ModelProfile Embedded`, laid out by container
+  queries on `.profile`, never by the window. The profile's rank is its position among *played*
+  models. The profile's upsets are a grid item under the stat tiles; **`/catalog` shows one list at
+  a time** and its browser list needs a definite height and fixed column widths to virtualise.
+- **The Archive's bar is search · outcome chips · count, on one line.** Chips filter loaded rows.
+- **The Arena page is exactly as wide as its two panels;** `--preview-scale` is set on `.arena`.
+- **A route id is shape-checked before it is fetched** (`RouteIdShape`, loose on purpose — seeds
+  are 25 characters).
 - **Fonts load from `index.html`, not from an `@import` in `app.css`.**
 - **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
   2026-10-26): the verdict nebula (WebGPU, WebGL2 fallback, 1.9 s) and the champion storm (WebGPU
@@ -271,7 +302,8 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Audio is synthesised, never a file** — including the race sonification and the judge's
   deliberation drone, which `DetachFromDuel` must always stop.
 - **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12)
-  without a user-facing reason: HISTORY.md lists each one.
+  without a user-facing reason: HISTORY.md lists each one. The Archive's outcome chips came back
+  on 2026-10-26 with one (U4).
 
 ## Constraints worth knowing before you edit
 

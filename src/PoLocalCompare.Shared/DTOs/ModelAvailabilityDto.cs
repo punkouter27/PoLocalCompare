@@ -13,5 +13,11 @@ public sealed class ModelAvailabilityDto
     /// mismatch. The picker renders it directly under the unavailable card.
     /// </summary>
     public string? Suggestion { get; init; }
+
+    /// <summary>
+    /// Set when the probe's reply names a different model from the one this entry is named for
+    /// — the deployment is a relabelled copy. Only <c>/diag</c> shows it.
+    /// </summary>
+    public string? ServedModelMismatch { get; init; }
 }
 

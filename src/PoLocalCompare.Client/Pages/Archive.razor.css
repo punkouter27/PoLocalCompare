@@ -97,12 +97,42 @@
     gap: var(--space-md);
 }
 
-.archive__count {
+/* ── Command bar: search · outcome chips · count ─────────────────────────── */
+.archive__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm) var(--space-md);
+}
+
+.archive__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.archive__chip-count {
+    margin-inline-start: var(--space-2xs);
     color: var(--text-muted);
-    font-size: var(--text-md);
+    font-variant-numeric: tabular-nums;
+}
+
+.archive__count {
+    margin-inline-start: auto;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Glyph plus word on a desktop row: ⚔ and ⬇ alone were labelled for a screen reader and a
+   guess for everyone else. The word is aria-hidden because the aria-label already names the
+   action; on a phone it gives way and the glyph stands alone in a 44px target. */
+.archive__row-btn-label {
+    margin-inline-start: var(--space-xs);
 }
 
 .archive__search {
+    flex: 1 1 14rem;
     max-width: 24rem;
     padding: var(--space-xs) var(--space-sm);
     border: 1px solid var(--border-strong);
@@ -132,17 +162,27 @@
    kept their desktop shape inside a card that is now a third of the width. */
 
 @media (max-width: 640px) {
-    /* ── Two-line card ───────────────────────────────────────────────────────
+    /* ── Compact card ────────────────────────────────────────────────────────
        .po-table--cards gives one labelled line per cell, plus a button row: four lines and
        ~140px a duel, so a page of twenty ran to 3.9 phone screens. Every value here is
        self-evident without its label (a prompt, a date, "A vs B", two buttons), so the
-       labels go and the card is a two-row grid: prompt + date, then matchup + actions.
-       Still a real table underneath — same reasoning as the profile's kill list. */
+       labels go and the card is a grid: the prompt across the full width, then matchup
+       over date with the two actions beside them. The prompt used to share its row with the
+       date, which took ~110px of a 358px card and broke an 80-character summary over three
+       lines. Still a real table underneath — same reasoning as the profile's kill list. */
     .archive__grid tr {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: var(--space-2xs) var(--space-sm);
+    }
+
+    .archive__row-btn-label {
+        display: none;
+    }
+
+    .archive__count {
+        margin-inline-start: 0;
     }
 
     .archive__grid td {
@@ -161,24 +201,28 @@
        order), and auto-placement followed it: the date took the wide column and the prompt
        the `auto` one, which then grew to the prompt's full width and crushed the matchup. */
     td.archive__prompt-cell {
-        grid-area: 1 / 1;
+        grid-column: 1 / -1;
+        grid-row: 1;
         min-width: 0;
         font-weight: var(--weight-semibold);
     }
 
+    td.archive__matchup-cell {
+        grid-column: 1;
+        grid-row: 2;
+        min-width: 0;
+    }
+
     td.archive__date {
-        grid-area: 1 / 2;
+        grid-column: 1;
+        grid-row: 3;
         color: var(--text-muted);
         font-size: var(--text-xs);
     }
 
-    td.archive__matchup-cell {
-        grid-area: 2 / 1;
-        min-width: 0;
-    }
-
     .archive__grid td.po-cell--bare {
-        grid-area: 2 / 2;
+        grid-column: 2;
+        grid-row: 2 / span 2;
     }
 
     /* --target-min is 44px here (pointer: coarse), so the pair is finger-sized. */

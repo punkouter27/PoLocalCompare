@@ -81,7 +81,7 @@ public class ApiAppFixture : IAsyncLifetime
                 // brackets moving without a Foundry call, while disabling it stalls the queue.
                 var judge = new Mock<IDuelJudge>();
                 judge.Setup(j => j.JudgeAsync(
-                        It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                        It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(new JudgeDecision(DuelVerdict.Left, "E2E API judge mock.", IsWalkover: false));
                 services.AddScoped(_ => judge.Object);
 

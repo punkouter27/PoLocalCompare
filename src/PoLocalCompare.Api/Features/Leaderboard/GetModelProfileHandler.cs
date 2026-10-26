@@ -41,10 +41,14 @@ public sealed class GetModelProfileHandler(
         var results = (await resultsTask).ToList();
         var board = await boardTask;
 
-        // Rank comes from the leaderboard projection rather than a local re-sort, so the number
-        // here is by construction the number the leaderboard row showed. Zero means unranked.
+        // Rank is the position among models that have played, in the leaderboard's own order —
+        // the board lists only those, so this is the number its row shows. The projection's own
+        // Rank counts the unplayed models too, and they all sit at 1200: a played model at 1198
+        // came out #25 here beside a board that showed it #2 (seen once the profile opened in
+        // the board's side panel). Zero means unranked.
+        var played = board.Where(e => e.DuelCount > 0).ToList();
         var standing = board.FirstOrDefault(e => e.ModelId == modelId);
-        var rank = standing?.Rank ?? 0;
+        var rank = played.FindIndex(e => e.ModelId == modelId) + 1;
 
         var opponentNames = await ResolveOpponentNamesAsync(history);
 

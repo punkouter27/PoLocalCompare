@@ -30,34 +30,62 @@ public sealed class DuelExecutionService
     private readonly IConfiguration _configuration;
     private readonly ILogger<DuelExecutionService> _logger;
     private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly LocalResultSignal _localResults;
 
     public DuelExecutionService(
         IServiceScopeFactory scopeFactory,
         IHubContext<DuelHub> hubContext,
         IConfiguration configuration,
         ILogger<DuelExecutionService> logger,
-        IBackgroundTaskQueue taskQueue)
+        IBackgroundTaskQueue taskQueue,
+        LocalResultSignal localResults)
     {
         _scopeFactory = scopeFactory;
         _hubContext = hubContext;
         _configuration = configuration;
         _logger = logger;
         _taskQueue = taskQueue;
+        _localResults = localResults;
     }
 
     /// <param name="autoJudgeDelaySecondsOverride">
     /// Replaces the configured grace window for this duel only — a tournament passes 0 so the
     /// bracket does not pause between rounds waiting for a human who is not there.
     /// </param>
+    /// <remarks>
+    /// A duel with a browser side leaves the queue as soon as it is dequeued. Its execution is
+    /// mostly a wait on someone's tab — minutes, for a small model on a cold GPU — and
+    /// <see cref="BackgroundTaskService"/> is single-consumer, so until 2026-10-26 every other
+    /// user's duel queued behind that wait. The same reasoning detached the judge on 2026-09-26.
+    /// Server-side duels stay on the queue: that is where their ordering and back-pressure live.
+    /// </remarks>
     public Task EnqueueAsync(DuelId duelId, int? autoJudgeDelaySecondsOverride = null)
     {
-        // Queue the execution task for reliable background processing
         _taskQueue.QueueBackgroundWork(async ct =>
         {
             using var scope = _scopeFactory.CreateScope();
-            await ExecuteAsync(scope.ServiceProvider, duelId, autoJudgeDelaySecondsOverride, ct);
+            if (!await HasBrowserSideAsync(scope.ServiceProvider, duelId))
+            {
+                await ExecuteAsync(scope.ServiceProvider, duelId, autoJudgeDelaySecondsOverride, ct);
+                return;
+            }
+
+            // Own scope: the queue item's is disposed when it returns. ExecuteAsync never throws.
+            _ = Task.Run(async () =>
+            {
+                using var own = _scopeFactory.CreateScope();
+                await ExecuteAsync(own.ServiceProvider, duelId, autoJudgeDelaySecondsOverride, ct);
+            }, CancellationToken.None);
         });
         return Task.CompletedTask;
+    }
+
+    private static async Task<bool> HasBrowserSideAsync(IServiceProvider services, DuelId duelId)
+    {
+        if (await services.GetRequiredService<IDuelRepository>().GetByIdAsync(duelId) is not { } duel) return false;
+        var models = services.GetRequiredService<IModelRepository>();
+        return (await models.GetByIdAsync(duel.LeftModelId))?.ModelType == ModelType.Local
+            || (await models.GetByIdAsync(duel.RightModelId))?.ModelType == ModelType.Local;
     }
 
     /// <summary>
@@ -395,62 +423,71 @@ public sealed class DuelExecutionService
     {
         var payload = new { duelId, modelId = model.ModelId, side, webLlmModelId = model.WebLlmModelId };
 
-        // Signal the client to start its Web Worker inference.
-        // Retry every 5 s — the client may not have joined the SignalR group yet when the first send fires.
-        await _hubContext.Clients
-            .Group($"duel:{duelId}")
-            .SendAsync("StartLocalInference", payload, cancellationToken);
-
-        // The client will report back via POST /api/duels/{duelId}/local-result
-        // We poll the result repository until the result appears or watchdog fires
-        var result = new DuelResult(duelId, model.ModelId)
+        // Listening before the client is told to start, so a result cannot be posted unheard.
+        var arrived = _localResults.Register(duelId, model.ModelId);
+        try
         {
-            IsFailure = false,
-        };
+            // Signal the client to start its Web Worker inference.
+            // Retry every 5 s — the client may not have joined the SignalR group yet when the first send fires.
+            await _hubContext.Clients
+                .Group($"duel:{duelId}")
+                .SendAsync("StartLocalInference", payload, cancellationToken);
 
-        var started = DateTimeOffset.UtcNow;
-        var lastSignalAt = DateTimeOffset.UtcNow;
-        const int retryIntervalMs = 5_000;
+            var started = DateTimeOffset.UtcNow;
+            var lastSignalAt = started;
+            var lastStorageCheckAt = started;
+            var retryInterval = TimeSpan.FromSeconds(5);
 
-        // One scope for the whole poll, not one per 500ms tick — this loop can run for the
-        // full 15-minute watchdog, which was ~1,800 scope creations and repository resolutions.
-        using var pollScope = _scopeFactory.CreateScope();
-        var duelResultRepo = pollScope.ServiceProvider.GetRequiredService<IDuelResultRepository>();
+            // One scope for the whole wait — it can run for the full 15-minute watchdog.
+            using var pollScope = _scopeFactory.CreateScope();
+            var duelResultRepo = pollScope.ServiceProvider.GetRequiredService<IDuelResultRepository>();
 
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            // Delay on a bare token and check the flag — awaiting the cancellable token directly
-            // throws the moment the watchdog fires, so the post-loop "watchdog expired" block
-            // below was unreachable and a stalled browser model stranded its duel as Pending
-            // with no failure row until a host restart swept it.
-            await Task.Delay(500, CancellationToken.None);
-
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            var elapsed = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
-            await SendStatusAsync(duelId, model.ModelId, side, DuelStatus.Generating, elapsed, 0);
-
-            // Resend StartLocalInference periodically so late-joining clients receive it
-            if ((DateTimeOffset.UtcNow - lastSignalAt).TotalMilliseconds >= retryIntervalMs)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                lastSignalAt = DateTimeOffset.UtcNow;
-                await _hubContext.Clients
-                    .Group($"duel:{duelId}")
-                    .SendAsync("StartLocalInference", payload, cancellationToken);
-            }
+                // Wakes on the 500 ms heartbeat or the moment the result is posted. Delay on a
+                // bare token and check the flag — awaiting the cancellable token directly throws
+                // the moment the watchdog fires, which made the post-loop failure unreachable
+                // and stranded a stalled browser duel as Pending until a host restart swept it.
+                await Task.WhenAny(arrived, Task.Delay(500, CancellationToken.None));
 
-            // Check if result was posted by client
-            var stored = await duelResultRepo.GetAsync(duelId, model.ModelId);
-            if (stored is not null)
-                return stored;
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                // Storage is read when signalled, and otherwise every five seconds — the
+                // fallback for a result posted to another instance (see LocalResultSignal).
+                if (arrived.IsCompleted || DateTimeOffset.UtcNow - lastStorageCheckAt >= retryInterval)
+                {
+                    lastStorageCheckAt = DateTimeOffset.UtcNow;
+                    if (await duelResultRepo.GetAsync(duelId, model.ModelId) is { } stored)
+                        return stored;
+                    if (arrived.IsCompleted) arrived = _localResults.Register(duelId, model.ModelId);
+                }
+
+                var elapsed = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
+                await SendStatusAsync(duelId, model.ModelId, side, DuelStatus.Generating, elapsed, 0);
+
+                // Resend StartLocalInference periodically so late-joining clients receive it
+                if (DateTimeOffset.UtcNow - lastSignalAt >= retryInterval)
+                {
+                    lastSignalAt = DateTimeOffset.UtcNow;
+                    await _hubContext.Clients
+                        .Group($"duel:{duelId}")
+                        .SendAsync("StartLocalInference", payload, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            _localResults.Forget(duelId, model.ModelId);
         }
 
-        // Watchdog expired — reachable now that the poll delay no longer throws through it.
-        result.IsFailure = true;
-        result.FailureReason = $"Watchdog timeout ({TimeSpan.FromSeconds(watchdogSeconds).TotalMinutes:F0} min)";
-        result.TotalDurationMs = watchdogSeconds * 1000L;
-        return result;
+        // Watchdog expired.
+        return new DuelResult(duelId, model.ModelId)
+        {
+            IsFailure = true,
+            FailureReason = $"Watchdog timeout ({TimeSpan.FromSeconds(watchdogSeconds).TotalMinutes:F0} min)",
+            TotalDurationMs = watchdogSeconds * 1000L,
+        };
     }
 
     /// <summary>

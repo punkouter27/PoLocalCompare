@@ -48,6 +48,14 @@
                            someone mid-sentence in the prompt box. *@
                         <span class="home__health @HealthBadgeText.ModifierClass(_healthHasRemotes)" role="status" title="@HealthBadgeText.Tooltip(_availability?.Count(a => a.IsAvailable), _models.Count, _health?.Models.CloudMode)">@HealthBadgeText.Label(_healthHasRemotes)</span>
                     }
+                    else
+                    {
+                        @* Holds the pill's place until the probe lands (~5 s): on a phone the title
+                           and pill wrap to two lines, and the pill arriving pushed the whole picker
+                           down. Invisible and aria-hidden — the live region above is still inserted
+                           filled, which is what gets it announced. *@
+                        <span class="home__health home__health--pending" aria-hidden="true">@HealthBadgeText.Label(true)</span>
+                    }
                 </StatusContent>
             </PageHeader>
         </div>
@@ -59,26 +67,52 @@
                 <h2 id="home-models-heading" class="po-section-title">Choose two models</h2>
                 @* Top of the picker, not below the catalog: below it, it sat at y=3735 inside a
                    337px phone window. Shown only while nothing is picked. *@
-                @if (_models.Count > 0 && _leftModel is null && _rightModel is null)
-                {
-                    <button type="button" class="po-btn po-btn--sm po-btn--secondary"
-                            title="Loads a working prompt and two lightweight models"
-                            @onclick="LoadStarterDuel">
-                        <span aria-hidden="true">⚡</span> Load starter duel
-                    </button>
-                }
+                <div class="home__picker-actions">
+                    @* Present (disabled) while the catalog loads rather than appearing when it
+                       lands: arriving late, it wrapped this row on a phone and shoved the picker. *@
+                    @if (_leftModel is null && _rightModel is null)
+                    {
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                title="Loads a working prompt and two lightweight models"
+                                disabled="@(_models.Count == 0)"
+                                @onclick="LoadStarterDuel">
+                            <span aria-hidden="true">⚡</span> Load starter duel
+                        </button>
+                    }
+                    @* Picks the duel the leaderboard learns most from (MatchupPicker); with one
+                       slot filled, the best opponent for it. Hidden once both are, like the
+                       starter duel — there is nothing left for it to fill. *@
+                    @if (_leftModel is null || _rightModel is null)
+                    {
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                title="Picks two closely matched models whose ratings are least settled — the duel that moves the leaderboard most"
+                                disabled="@(_models.Count == 0 || _suggesting)"
+                                @onclick="SuggestMatchupAsync">
+                            <span aria-hidden="true">🎯</span> @(_leftModel is null && _rightModel is null ? "Suggest matchup" : "Suggest opponent")
+                        </button>
+                    }
+                    @* The way into /catalog from the page that needs it. The route was reachable
+                       only from the user menu, so a model that was not in the list here had no
+                       visible next step. *@
+                    <a class="po-btn po-btn--sm po-btn--ghost" href="/catalog"
+                       title="Add browser or Ollama models to this list">
+                        <span aria-hidden="true">＋</span> Add model
+                    </a>
+                </div>
             </div>
 
-            @* Both slots full and a third model clicked: say how to swap, do not guess which
-               side was meant. This was a role="dialog" popover with its own focus handling and
-               three buttons; each slot in the console now carries its own clear button, so the
-               question the popover asked ("replace which?") is answered by clearing one.
-               Always mounted — a live region inserted already filled is not announced. *@
-            <p class="po-hint home__full-hint" role="status">@_slotsFullHint</p>
+            @* The picker's one status line. Both slots full and a third model clicked: say how to
+               swap, do not guess which side was meant (this was a role="dialog" popover; each
+               slot's own clear button answers "replace which?"). A suggested matchup: say why
+               those two. Always mounted — a live region inserted already filled is not announced. *@
+            <p class="po-hint home__full-hint" role="status">@_pickerNote</p>
 
             @if (_loading)
             {
-                <SkeletonGrid Count="6" StaggerMs="70" ItemClass="home__skeleton" OuterClass="home__grid" />
+                @* Twenty rows: near the catalog's real height, so the list landing does not shove
+                   the console down (CLS 0.13 at 768px with six tiles). On a phone that also puts
+                   the console below the fold from the first frame. *@
+                <SkeletonGrid Count="20" StaggerMs="30" ItemClass="home__skeleton" OuterClass="home__grid" />
             }
             else if (_loadError is not null)
             {
@@ -204,9 +238,10 @@
                     </div>
 
                     <textarea id="@PromptId"
-                              class="home__textarea @(_promptLongWarning ? "home__textarea--warn" : "")"
+                              class="home__textarea @(_promptLongWarning || PromptFlagged ? "home__textarea--warn" : "")"
                               aria-labelledby="home-prompt-heading"
-                              aria-describedby="home-prompt-counter"
+                              aria-describedby="home-prompt-counter home-compare-hint"
+                              aria-invalid="@(PromptFlagged ? "true" : null)"
                               placeholder="e.g. Build a single-page HTML app that shows today's weather for any city the user types."
                               rows="5"
                               maxlength="@PromptRules.MaxPromptLength"
@@ -250,9 +285,9 @@
             <div class="home__console-foot">
                 <section class="home__compare" aria-label="Compare">
                     <div class="home__compare-row">
-                        <p class="po-hint home__compare-copy">@CompareHint</p>
+                        <p id="home-compare-hint" class="po-hint home__compare-copy" role="status">@CompareHint</p>
                         <button type="button" class="po-btn po-btn--success po-btn--lg"
-                                disabled="@(!CanCompare || _starting)"
+                                disabled="@(!CanAttemptCompare)"
                                 @onclick="StartDuelAsync">
                             Compare →
                         </button>
@@ -289,8 +324,20 @@
     private IReadOnlyList<ModelAvailabilityDto>? _availability;
     private bool _healthHasRemotes;
 
-    /// <summary>Set when a third model is clicked with both slots full; cleared by the next pick.</summary>
-    private string? _slotsFullHint;
+    /// <summary>
+    /// The picker's status line: a third model clicked with both slots full, or why a suggested
+    /// matchup was suggested. Cleared by the next pick.
+    /// </summary>
+    private string? _pickerNote;
+
+    private bool _suggesting;
+
+    /// <summary>
+    /// The ±N a model with no judged duels reports — the Bradley–Terry prior (400 Elo × 1.96).
+    /// Used for a model the cached leaderboard does not list yet (one added from /catalog
+    /// moments ago), which is exactly the model a suggestion should favour.
+    /// </summary>
+    private const double UnratedInterval95 = 784;
 
     // ── Models → prompt ───────────────────────────────────────────────────────
     // Completing the pair moves you on to the prompt: the textarea takes focus and the console
@@ -317,6 +364,19 @@
     private bool PromptMeetsMinimum => _prompt.Trim().Length >= PromptRules.MinPromptLength;
     private bool PromptWithinMaximum => _prompt.Length <= PromptRules.MaxPromptLength;
     private bool CanCompare => HasModels && HasPrompt && PromptMeetsMinimum && PromptWithinMaximum;
+
+    /// <summary>
+    /// Whether Compare is pressable — the Tournament's rule, so the app's two start buttons
+    /// behave alike. Missing models disable it: they are not fixed from the button. A missing
+    /// or short prompt does not: it is fixed one field up, so the click goes there instead of
+    /// meeting a disabled button that cannot be clicked to find out why.
+    /// </summary>
+    private bool CanAttemptCompare => HasModels && !_starting;
+
+    /// <summary>Set by a Compare click with no usable prompt; the box turns amber until fixed.</summary>
+    private bool _promptNudged;
+
+    private bool PromptFlagged => _promptNudged && !(HasPrompt && PromptMeetsMinimum);
     private bool _promptLongWarning => _prompt.Length > PromptRules.MaxPromptLength * 0.8;
 
     private string CompareHint => (HasModels, SameModelSelected, HasPrompt, PromptMeetsMinimum) switch
@@ -327,7 +387,7 @@
         // fact picked two — just the same one twice.
         (_, true, _, _) => "Pick two different models — a duel against the same model twice is not a duel.",
         (false, _, _, _) => "Pick two models above to enable Compare.",
-        (true, false, false, _) => "Write a prompt above to enable Compare.",
+        (true, false, false, _) => "Write a prompt to start the duel.",
         (true, false, true, false) => $"Prompt must be at least {PromptRules.MinPromptLength} characters.",
         (true, false, true, _) => "Ready."
     };
@@ -544,7 +604,7 @@
 
     private void AssignModel(ModelDto model)
     {
-        _slotsFullHint = null;
+        _pickerNote = null;
 
         // Both slots full + clicking a 3rd → never overwrite silently, and never guess which
         // side was meant. Each slot has its own clear button; say so.
@@ -553,7 +613,7 @@
             && model.ModelId != _rightModel.ModelId)
         {
             _ = AudioService.PlayTickAsync();
-            _slotsFullHint = $"Both slots are full — clear one (✕ beside its name) to swap in {model.DisplayName}.";
+            _pickerNote = $"Both slots are full — clear one (✕ beside its name) to swap in {model.DisplayName}.";
             return;
         }
 
@@ -578,7 +638,7 @@
     private void ClearSlot(bool left)
     {
         _ = AudioService.PlayTickAsync();
-        _slotsFullHint = null;
+        _pickerNote = null;
         if (left) _leftModel = null;
         else _rightModel = null;
     }
@@ -602,9 +662,65 @@
         _prompt = "Build a self-contained single HTML file with a click-counter app: a centered card showing a large number and a button. Clicking increments the count. Use a clean modern design with rounded corners and a gradient background.";
     }
 
+    /// <summary>
+    /// Fills the empty slot(s) with the duel whose result the leaderboard learns most from — see
+    /// <see cref="MatchupPicker"/>. Browser models are left out unless one is already picked: a
+    /// suggestion should start now, not after a multi-gigabyte download.
+    /// </summary>
+    private async Task SuggestMatchupAsync()
+    {
+        if (_suggesting) return;
+        _suggesting = true;
+        _pickerNote = null;
+        _ = AudioService.PlayTickAsync();
+
+        try
+        {
+            var board = (await ApiClient.GetLeaderboardAsync())?.ToDictionary(e => e.ModelId) ?? [];
+            var anchor = _leftModel ?? _rightModel;
+            var candidates = _models
+                .Where(m => m.ModelId == anchor?.ModelId
+                    || (m.ModelType != ModelType.Local && !IsUnavailable(m)
+                        && _availability?.FirstOrDefault(a => a.ModelId == m.ModelId)?.IsAvailable != false))
+                .Select(m => board.TryGetValue(m.ModelId, out var e)
+                    ? new MatchupPicker.Candidate(m.ModelId, e.Strength, e.RatingInterval)
+                    : new MatchupPicker.Candidate(m.ModelId, m.CurrentElo, UnratedInterval95))
+                .ToList();
+
+            if (MatchupPicker.Suggest(candidates, anchor?.ModelId) is not { } pick)
+            {
+                _pickerNote = "There are not enough runnable models to suggest a duel.";
+                return;
+            }
+
+            var first = _models.First(m => m.ModelId == pick.Left);
+            var second = _models.First(m => m.ModelId == pick.Right);
+            if (anchor is null) (_leftModel, _rightModel) = (first, second);
+            else if (_leftModel is null) _leftModel = second;
+            else _rightModel = second;
+
+            _pickerNote = $"{_leftModel!.DisplayName} vs {_rightModel!.DisplayName}: closely matched, with the least-settled ratings — the result moves the leaderboard most.";
+            _focusPrompt = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _pickerNote = "Could not reach the leaderboard to suggest a duel.";
+        }
+        finally
+        {
+            _suggesting = false;
+        }
+    }
+
     private async Task StartDuelAsync()
     {
-        if (!CanCompare || _starting) return;
+        if (!CanAttemptCompare) return;
+        if (!CanCompare)
+        {
+            _promptNudged = true;
+            _focusPrompt = true;
+            return;
+        }
         if (SameModelSelected)
         {
             _error = "Pick two different models — a duel against the same model twice is not a duel.";

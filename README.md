@@ -2,7 +2,7 @@
 
 > **Live:** [app-polocalcompare-win2.azurewebsites.net](https://app-polocalcompare-win2.azurewebsites.net) · Agent context in [AGENT.MD](AGENT.MD) · Rules in [CLAUDE.md](CLAUDE.md) · Reasoning in [HISTORY.md](HISTORY.md)
 
-**What.** PoLocalCompare is a real-time LLM benchmarking arena. Two models race to generate HTML from the same prompt: **Local** models run entirely in your browser via WebLLM/WebGPU, **Remote** models call Azure AI Foundry, and (locally) **Ollama** models run as a service. Both outputs stream live over SignalR with token velocity, GPU placement, and energy telemetry. You judge the winner in side-by-side sandboxed viewports — or, if you don't pick within `AiJudge:DelaySeconds` (60 by default), an AI judge decides which output followed the prompt more accurately and records the verdict itself (configurable under `AiJudge`; verdicts are stored with the source that produced them). If exactly one model failed to produce output, the survivor takes a walkover without a judge call; if both failed, the duel stays pending and no rating moves. An Elo system (K=32, start 1200) ranks every model, with per-duel history, head-to-head "kill lists," Green Score (tokens/Wh) energy metrics, and exportable self-contained HTML lab reports.
+**What.** PoLocalCompare is a real-time LLM benchmarking arena. Two models race to generate HTML from the same prompt: **Local** models run entirely in your browser via WebLLM/WebGPU, **Remote** models call Azure AI Foundry, and (locally) **Ollama** models run as a service. Both outputs stream live over SignalR with token velocity, GPU placement, and energy telemetry. You judge the winner in side-by-side sandboxed viewports — or, if you don't pick within `AiJudge:DelaySeconds` (10 by default), an AI judge decides which output followed the prompt more accurately and records the verdict itself (configurable under `AiJudge`; verdicts are stored with the source that produced them). If exactly one model failed to produce output, the survivor takes a walkover without a judge call; if both failed, the duel stays pending and no rating moves. An Elo system (K=32, start 1200) ranks every model, with per-duel history, head-to-head "kill lists," Green Score (tokens/Wh) energy metrics, and exportable self-contained HTML lab reports.
 
 **Who.** A solo operator and invited guests, signing in with any Microsoft account through a BFF cookie session (the WASM client never touches tokens). The UI is mobile-portrait-first with an OLED dark theme.
 
@@ -28,6 +28,13 @@ Optional extras:
 python SCRIPTS/download-models.py                 # pre-download WebLLM browser model assets
 $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.Development.json; never user-secrets)
 ```
+
+## How the AI parts work
+
+- **Contestants** run on Azure AI Foundry, Google's Gemini endpoint (with `Gemini:ApiKey`), a local Ollama, or the browser (WebGPU). A deployment whose *name* reads classic but whose model reasons is detected from its first 400 and switched to the reasoning request shape; costs are priced by the model the provider reports serving, not the deployment name. `/diag` flags a deployment that serves a different model than it is named for.
+- **The judge** (`AiJudge:*`) reads both orderings — the second by `AiJudge:CrossCheckDeployment`, a model from another family — and scores both pages against one checklist written per prompt. A split is re-asked on `AiJudge:EscalationDeployment`, then `AiJudge:TiebreakDeployment`, and only a split at the top is a Tie.
+- **Spend** is capped daily by `Limits:DailySpendCapUsd`, counting contestants, the judge, and the `SpendLedger` table (prompt refine, scouting reports).
+- **Compare** can suggest the matchup the leaderboard learns most from, and each **model profile** carries a scouting report written from the judge's notes (`GET /api/leaderboard/{id}/scouting-report`).
 
 ## Tests
 

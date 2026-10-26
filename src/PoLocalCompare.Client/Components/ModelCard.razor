@@ -13,43 +13,44 @@
      aria-label="@AriaLabel"
      @onclick="OnCardClick"
      @onkeydown="OnCardKeyDown">
-    <div class="model-card__header">
-        <span class="model-card__name">@Model.DisplayName</span>
-        <div class="model-card__badges">
-            @if (Slot == "Left")
-            {
-                <span class="model-card__slot-badge model-card__slot-badge--left" title="Left player">L</span>
-            }
-            else if (Slot == "Right")
-            {
-                <span class="model-card__slot-badge model-card__slot-badge--right" title="Right player">R</span>
-            }
-            <ModelTypeBadge Type="Model.ModelType" />
-        </div>
-    </div>
-    @* Rating and record on one line — "how good is it" is one unit. *@
-    <div class="model-card__meta">
-        ELO <strong class="model-card__elo">@Model.CurrentElo.ToString("F0")</strong>
-        · @Model.DuelCount duels · W/L @Model.WinCount/@(Math.Max(Model.DuelCount - Model.WinCount - Model.DrawCount, 0))@(Model.DrawCount > 0 ? $"/{Model.DrawCount}" : "")
-    </div>
-    @if (GetParameterLabel() is { } paramLabel)
+    @* One row: name, then the figures you choose between. It was a five-line datasheet card
+       (~115px), so a 1440x900 desktop showed 15 of 26 models and 25 of them repeated
+       "ELO 1200 · 0 duels · W/L 0/0". The type badge went too — the group heading above
+       already says Remote / Browser / Ollama, and the aria-label still carries the type. *@
+    <span class="model-card__name">@Model.DisplayName</span>
+    @if (Slot == "Left")
     {
-        <div class="model-card__params">
-            Params: <span class="model-card__params-value">@paramLabel</span>
-        </div>
+        <span class="model-card__slot-badge model-card__slot-badge--left" title="Left player">L</span>
     }
-    @if (Model.InputTokenPricePerMillion.HasValue || Model.OutputTokenPricePerMillion.HasValue)
+    else if (Slot == "Right")
     {
-        <div class="model-card__pricing" title="Microsoft Foundry list rates — used to estimate cost per duel.">
-            in: $@FormatPrice(Model.InputTokenPricePerMillion ?? 0) &nbsp;·&nbsp; out: $@FormatPrice(Model.OutputTokenPricePerMillion ?? 0) <span class="model-card__pricing-unit">/ 1M tkns</span>
-        </div>
+        <span class="model-card__slot-badge model-card__slot-badge--right" title="Right player">R</span>
     }
-    else
-    {
-        <div class="model-card__pricing model-card__pricing--free" title="@FreeTooltip">
-            @FreeLabel
-        </div>
-    }
+    <span class="model-card__meta">
+        @* A rating only once there is evidence behind it; an unplayed model is a plain 1200. *@
+        @if (Model.DuelCount > 0)
+        {
+            <span title="@($"ELO {Model.CurrentElo:F0} · {Model.DuelCount} duels · {Model.WinCount}–{Losses} W–L")">
+                <strong class="model-card__elo">@Model.CurrentElo.ToString("F0")</strong> @Model.WinCount–@Losses
+            </span>
+        }
+        else
+        {
+            <span class="model-card__unrated" title="No judged duels yet — starts at 1200">new</span>
+        }
+        @if (GetParameterLabel() is { } paramLabel)
+        {
+            <span title="Parameter count">@paramLabel</span>
+        }
+        @if (Model.InputTokenPricePerMillion.HasValue || Model.OutputTokenPricePerMillion.HasValue)
+        {
+            <span title="Microsoft Foundry list rates per 1M tokens, input / output — used to estimate cost per duel.">$@FormatPrice(Model.InputTokenPricePerMillion ?? 0) / $@FormatPrice(Model.OutputTokenPricePerMillion ?? 0)</span>
+        }
+        else
+        {
+            <span class="model-card__free" title="@FreeTooltip">@FreeLabel</span>
+        }
+    </span>
 </div>
 
 @code {
@@ -68,6 +69,8 @@
     private string AriaPressed => IsSelected ? "true" : "false";
 
     private string AriaDisabled => IsDisabled ? "true" : "false";
+
+    private int Losses => Math.Max(Model.DuelCount - Model.WinCount - Model.DrawCount, 0);
 
     // Selected and disabled are expressed as classes so the whole appearance lives in
     // ModelCard.razor.css; they used to be an inline style string, which is why the

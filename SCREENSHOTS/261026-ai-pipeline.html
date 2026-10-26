@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI pipeline - before and after</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #0b0f14;
+      color: #e8eef5;
+    }
+    body {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, p { margin-top: 0; }
+    h2 { margin-top: 32px; }
+    .pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+      align-items: start;
+    }
+    .pair--phone {
+      grid-template-columns: repeat(2, minmax(0, 390px));
+      justify-content: start;
+    }
+    figure {
+      position: relative;
+      margin: 0;
+      padding: 12px;
+      background: #121923;
+      border: 1px solid #2d3a49;
+      border-radius: 12px;
+    }
+    .shot { position: relative; }
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+    figcaption {
+      padding-top: 10px;
+      color: #b8c7d9;
+    }
+    .tag {
+      position: absolute;
+      top: 22px;
+      right: 22px;
+      z-index: 1;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #111827;
+      border: 2px solid #f59e0b;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 2px 12px #000;
+    }
+    .after .tag { border-color: #22c55e; }
+    /* Callout boxes, as percentages of the capture's viewport, from Playwright bounding boxes. */
+    .mark {
+      position: absolute;
+      border: 3px solid #f59e0b;
+      border-radius: 8px;
+      box-shadow: 0 0 0 2px #0008;
+    }
+    .after .mark { border-color: #22c55e; }
+    .note { color: #8fa3ba; }
+    table { border-collapse: collapse; margin-bottom: 24px; }
+    th, td { border: 1px solid #2d3a49; padding: 6px 10px; text-align: left; vertical-align: top; }
+    th { background: #121923; }
+    @media (max-width: 900px) {
+      .pair, .pair--phone { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>AI pipeline: A1–A10 (the two visible changes)</h1>
+  <p>2026-10-26. Captured with Playwright Chromium (headless) against the local app, light theme unless noted,
+     signed in as the dev guest. Desktop shots are 1440×900 viewports, phone shots 390×844.
+     <strong>How "before" was made:</strong> both UI changes are purely additive, so each "before" is the same live
+     page with the new element hidden in the DOM just before capture — not a build of the previous commit, which
+     would also differ by the uncommitted UI-compaction work.</p>
+
+  <table>
+    <tr><th>Option</th><th>Visible change</th><th>Where</th></tr>
+    <tr><td>A9 — matchups that teach the leaderboard most</td><td>"Suggest matchup" / "Suggest opponent" button; the picker's status line says why the pair was chosen</td><td>Compare (Home)</td></tr>
+    <tr><td>A10 — scouting report</td><td>"Scouting report" section, written from the judge's notes on the model's last 20 AI-judged duels</td><td>Model profile (and the leaderboard's embedded profile)</td></tr>
+    <tr><td>A8 / deployment fix</td><td>Text only: a remote row on /diag now says "answered, but served by &lt;model&gt; — not the model this entry is named for"</td><td>/diag (no screenshot: one string in an existing cell)</td></tr>
+  </table>
+  <p class="note">A1–A7 have no UI: the queue, judge, checklist, cross-check, escalation ladder, costs and catalog
+     changes are server-side. The four new catalog entries (Qwen2.5 Coder 3B, Qwen3 4B, Qwen3 Coder and GPT-OSS on
+     Ollama) appear as ordinary rows in the existing picker groups.</p>
+
+  <h2>Compare — desktop</h2>
+  <div class="pair">
+    <figure class="before">
+      <span class="tag">Before</span>
+      <div class="shot"><img src="ai-pipeline/before-home-1440.png" alt="Compare page; the picker header holds only Add model"></div>
+      <figcaption>Nothing in the picker helps choose a pair.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="ai-pipeline/after-home-1440.png" alt="Compare page with a Suggest matchup button beside Add model">
+        <span class="mark" style="left:47.08%; top:15.58%; width:11.36%; height:2.84%"></span>
+      </div>
+      <figcaption>"🎯 Suggest matchup" beside Add model. With one slot filled it reads "Suggest opponent"; once both are
+        filled it is hidden, like Load starter duel.</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair">
+    <figure class="after">
+      <span class="tag">After the click</span>
+      <div class="shot">
+        <img src="ai-pipeline/after-home-suggested-1440.png" alt="Both slots filled with Grok 4.6 and GPT-5 Nano and an explanation line above the filters">
+        <span class="mark" style="left:3.13%; top:20.20%; width:34.72%; height:4.48%"></span>
+        <span class="mark" style="left:70.90%; top:10.33%; width:25.69%; height:5.73%"></span>
+      </div>
+      <figcaption>Both slots fill and focus moves to the prompt (the same rule as picking the second model by hand). The
+        status line says why: the closest match between the least-settled ratings. Browser models are left out unless
+        one is already picked, so a suggestion never starts with a multi-gigabyte download.</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><p class="note" style="padding:12px">Scoring: p(1−p) × (σ²ᵢ + σ²ⱼ) — the Bradley–Terry win
+        probability from the two strengths, times how unsettled the two ratings are (from the leaderboard's ±N). A
+        mismatch teaches nothing (the favourite wins); two well-measured models teach little (the ratings barely move).
+        Logic lives in <code>Shared/Presentation/MatchupPicker.cs</code> and is unit-tested.</p></div>
+    </figure>
+  </div>
+
+  <h2>Compare — phone</h2>
+  <div class="pair pair--phone">
+    <figure class="before">
+      <span class="tag">Before</span>
+      <div class="shot"><img src="ai-pipeline/before-home-390.png" alt="Phone Compare page, starter duel and Add model on one row"></div>
+      <figcaption>Two actions, one row.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="ai-pipeline/after-home-390.png" alt="Phone Compare page, the action row wraps to two lines">
+        <span class="mark" style="left:48.46%; top:21.99%; width:41.95%; height:3.03%"></span>
+      </div>
+      <figcaption><strong>Trade-off:</strong> three actions do not fit 390px, so the row wraps (+30px). It is present
+        from first paint, so nothing shifts when the catalog lands. No horizontal overflow (scrollWidth 390).</figcaption>
+    </figure>
+  </div>
+
+  <h2>Model profile — desktop</h2>
+  <div class="pair">
+    <figure class="before">
+      <span class="tag">Before</span>
+      <div class="shot"><img src="ai-pipeline/before-profile-1440.png" alt="GPT-4.1 Nano profile ending with the kill list"></div>
+      <figcaption>The judge's analysis was kept per duel and read only one duel at a time, in the Arena.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After</span>
+      <div class="shot">
+        <img src="ai-pipeline/after-profile-1440.png" alt="Profile with a Scouting report section: summary, a green Strong at column and a red Weak at column">
+        <span class="mark" style="left:1.67%; top:74.70%; width:96.67%; height:25.30%"></span>
+      </div>
+      <figcaption>A summary plus up to three "Strong at" / "Weak at" habits. Fetched after the profile (it may be a model
+        call), below the kill list so its arrival never shoves the record down. Absent, not an error, until the model
+        has 3 AI-judged duels. Cached per newest analysed duel; it never feeds ELO.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Model profile — phone and dark theme</h2>
+  <div class="pair pair--phone">
+    <figure class="after">
+      <span class="tag">390px</span>
+      <div class="shot"><img src="ai-pipeline/after-profile-section-390.png" alt="Scouting report stacked in one column on a phone"></div>
+      <figcaption>The columns stack below a 40rem profile width (a container query on .profile, so the leaderboard's
+        embedded panel stacks too).</figcaption>
+    </figure>
+  </div>
+  <div class="pair">
+    <figure class="after">
+      <span class="tag">Dark</span>
+      <div class="shot"><img src="ai-pipeline/after-profile-section-dark.png" alt="Scouting report in the dark theme"></div>
+      <figcaption>Colours are existing pairings only: --accent-green on --success-surface and --accent-red on
+        --danger-surface, exactly as the leaderboard's outcome cells use them; list text stays --text.</figcaption>
+    </figure>
+  </div>
+</body>
+</html>

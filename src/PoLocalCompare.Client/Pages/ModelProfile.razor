@@ -4,7 +4,10 @@
 @using PoLocalCompare.Shared.Enums
 @inject DuelApiClient ApiClient
 
-<PageTitle>@(_profile?.DisplayName ?? "Model") — PoLocalCompare</PageTitle>
+@if (!Embedded)
+{
+    <PageTitle>@(_profile?.DisplayName ?? "Model") — PoLocalCompare</PageTitle>
+}
 
 @* ── Model profile ────────────────────────────────────────────────────────
    The destination the leaderboard never had. Every column in that table was terminal: you
@@ -14,8 +17,13 @@
 
    The kill list moved here wholesale from the leaderboard's expanding panel. It answers a
    question about one model, so it belongs on that model's page rather than in a drawer under
-   a table of all of them. *@
-<div class="po-page po-page--wide">
+   a table of all of them.
+
+   Embedded: the same component is the Leaderboard's side panel from 1024px, so picking a row
+   shows the profile beside the board instead of replacing it. Its layout answers to its own
+   width (a container query on .profile), not the window's — the panel is phone-width on a
+   desktop. *@
+<div class="profile @(Embedded ? "profile--embedded" : "po-page po-page--wide")">
     @if (_loading)
     {
         <p class="po-status">Loading model…</p>
@@ -27,7 +35,7 @@
     else if (_profile is null)
     {
         <EmptyState Icon="❓"
-                    IsPageHeading="true"
+                    IsPageHeading="@(!Embedded)"
                     Title="Model not found"
                     Hint="No model with that id — it may have been retired from the catalog since the link was made."
                     Actions="@(new[] {
@@ -41,7 +49,14 @@
            the Leaderboard's data-vt link waits for (wow.js navigate). *@
         <header class="profile__header profile__card po-header po-glass">
             <div class="profile__identity">
-                <h1 class="po-title">@_profile.DisplayName</h1>
+                @if (Embedded)
+                {
+                    <h2 class="po-title">@_profile.DisplayName</h2>
+                }
+                else
+                {
+                    <h1 class="po-title">@_profile.DisplayName</h1>
+                }
                 <ModelTypeBadge Type="_profile.ModelType" Variant="ModelTypeBadgeVariant.Long" />
             </div>
 
@@ -202,7 +217,7 @@
                                 var pct = total > 0 ? (row.Wins * 100.0 / total) : 0;
                                 <tr @key="row.OpponentModelId">
                                     <td data-label="Opponent" class="profile__killlist-name">
-                                        <a class="profile__opponent" href="@($"/model/{row.OpponentModelId}")">@row.OpponentName</a>
+                                        <a class="profile__opponent" href="@ProfileHref(row.OpponentModelId)">@row.OpponentName</a>
                                     </td>
                                     <td data-label="Record" class="profile__killlist-record">@row.Wins/@row.Losses/@row.Draws@(total > 0 ? $" ({pct:F0}%)" : "")</td>
                                     <td class="po-cell--secondary" data-label="Last duel">@(row.LastDuelAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
@@ -220,6 +235,47 @@
                 </div>
             }
         </section>
+
+        @* ── Scouting report ───────────────────────────────────────────────
+           The judge's analyses, read twenty at a time for habits instead of one duel at a time.
+           Fetched after the profile — writing one is a model call — and absent rather than an
+           error when the model has too few AI-judged duels. It never feeds ELO. Below the kill
+           list so its late arrival does not shove the record down. *@
+        @if (_scout is not null)
+        {
+            <section class="po-section" aria-labelledby="profile-scout-heading">
+                <h2 id="profile-scout-heading" class="po-section-title">Scouting report</h2>
+                @if (_scout.Summary.Length > 0)
+                {
+                    <p class="profile__scout-summary">@_scout.Summary</p>
+                }
+                <div class="profile__scout-lists">
+                    @if (_scout.Strengths.Count > 0)
+                    {
+                        <div class="profile__scout-col profile__scout-col--good">
+                            <h3 class="profile__scout-label">Strong at</h3>
+                            <ul class="profile__scout-list">
+                                @foreach (var line in _scout.Strengths) { <li>@line</li> }
+                            </ul>
+                        </div>
+                    }
+                    @if (_scout.Weaknesses.Count > 0)
+                    {
+                        <div class="profile__scout-col profile__scout-col--bad">
+                            <h3 class="profile__scout-label">Weak at</h3>
+                            <ul class="profile__scout-list">
+                                @foreach (var line in _scout.Weaknesses) { <li>@line</li> }
+                            </ul>
+                        </div>
+                    }
+                </div>
+                <p class="po-hint">From the judge's notes on its last @_scout.DuelsRead AI-judged duel@(_scout.DuelsRead == 1 ? "" : "s"). Habits, not verdicts — it never moves the rating.</p>
+            </section>
+        }
+        else if (_scoutLoading)
+        {
+            <p class="po-status" role="status">Reading the judge's notes…</p>
+        }
 
         @* ── Gallery ───────────────────────────────────────────────────────
            Live sandboxed iframes, not screenshots. Same sandbox as the Arena's viewport —
@@ -266,9 +322,19 @@
 @code {
     [Parameter] public string ModelIdText { get; set; } = string.Empty;
 
+    /// <summary>Rendered inside the Leaderboard's side panel rather than as its own page.</summary>
+    [Parameter] public bool Embedded { get; set; }
+
     private ModelProfileDto? _profile;
+
+    /// <summary>An opponent opens in the same place this profile is showing.</summary>
+    private string ProfileHref(ModelId id) =>
+        Embedded ? $"/leaderboard?model={Uri.EscapeDataString(id.Value)}" : $"/model/{id}";
     private bool _loading = true;
     private string? _error;
+
+    private ScoutingReportDto? _scout;
+    private bool _scoutLoading;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -278,8 +344,9 @@
         _loading = true;
         _error = null;
         _profile = null;
+        _scout = null;
 
-        if (string.IsNullOrWhiteSpace(ModelIdText))
+        if (!RouteIdShape.IsPlausible(ModelIdText))
         {
             _loading = false;
             return;
@@ -289,6 +356,8 @@
         {
             _profile = await ApiClient.GetModelProfileAsync(ModelId.From(ModelIdText));
             BuildChart();
+            // Not awaited: the profile is the page, and writing a report can take seconds.
+            if (_profile is not null) _ = LoadScoutAsync(_profile.ModelId);
         }
         catch (Exception ex)
         {
@@ -297,6 +366,29 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the scouting report for <paramref name="id"/>; dropped if the page has moved on to
+    /// another model by the time it lands. Any failure just leaves the section out.
+    /// </summary>
+    private async Task LoadScoutAsync(ModelId id)
+    {
+        _scoutLoading = true;
+        try
+        {
+            var report = await ApiClient.GetScoutingReportAsync(id);
+            if (_profile?.ModelId == id) _scout = report;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            // The report is an extra; the profile is already on screen.
+        }
+        finally
+        {
+            if (_profile?.ModelId == id) _scoutLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

@@ -24,7 +24,8 @@
 2. User enters a prompt — models race to generate HTML
 3. Both outputs stream live via SignalR
 4. `AutoJudge` is the default: after `AiJudge:DelaySeconds` it asks a Foundry model which output
-   implements the prompt better. The Arena offers a quick human override while that ten-second
+   implements the prompt better — both orderings, the second by a cross-check model from another
+   family, scored against one checklist per prompt, with a split escalated before it is a Tie. The Arena offers a quick human override while that ten-second
    window is open; the controls disappear when the judge starts, and a pick inside the window wins
    the race (PRD §9 item 9).
 5. Elo ratings update, stored in Azure Table Storage. Every verdict carries a `VerdictSource`
@@ -73,8 +74,10 @@ PoLocalCompare.slnx
 │   │   ├── Features/
 │   │   │   ├── Duels/                  ← endpoints, commence/get/list/record-verdict handlers,
 │   │   │   │                             Duel + DuelResult entities & repositories,
-│   │   │   │                             DuelExecutionService, DuelHub
-│   │   │   ├── Leaderboard/            ← endpoints, handlers, EloRecord, EloCalculator, EloHistoryRepository
+│   │   │   │                             DuelExecutionService, DuelHub, LocalResultSignal,
+│   │   │   │                             SpendGuard + SpendLedger (paid calls with no duel row)
+│   │   │   ├── Leaderboard/            ← endpoints, handlers, EloRecord, EloCalculator, EloHistoryRepository,
+│   │   │   │                             GetScoutingReportHandler (GET /api/leaderboard/{id}/scouting-report)
 │   │   │   ├── Models/                 ← endpoints, handlers, Model entity, ModelRepository, ModelSeeder
 │   │   │   ├── Archive/                ← lab-report export handler + HTML renderer
 │   │   │   ├── Ollama/                 ← status/pull endpoints
@@ -249,10 +252,14 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
 | `AiJudge:Deployment` | `appsettings.json` | — (`gpt-5.4-mini`; must accept image input when vision judging is on) |
 | `AiJudge:TiebreakDeployment` | `appsettings.json` | — (`gpt-5.4`; re-judges a split in both orders at medium effort; empty = off; must accept images when vision is on) |
 | `AiJudge:VisionEnabled` | `appsettings.json` | — (false; true in Development — needs headless Chromium) |
-| `AiJudge:TextOnlyDeployment` | `appsettings.json` | — (`gpt-4.1-nano`; used, and stamped as `JudgeModel`, whenever vision is off) |
+| `AiJudge:TextOnlyDeployment` | `appsettings.json` | — (`gpt-4.1-nano`; used, and stamped as `JudgeModel`, whenever vision is off. In po-aiservices-shared2 this deployment SERVES gpt-5.4-mini — see HISTORY 2026-10-26) |
+| `AiJudge:CrossCheckDeployment` | `appsettings.json` | — (`gemini-3.5-flash-lite`; reads the second ordering so a verdict survives a change of judge family; empty, no key, or a failed call = the primary reads it; must accept images when vision is on) |
+| `AiJudge:EscalationDeployment` | `appsettings.json` | — (`gpt-5.4-mini`; first re-ask of a split, both orders at floor effort, before `TiebreakDeployment`; empty = skip) |
+| `AiJudge:RubricEnabled` | `appsettings.json` | — (true; one checklist per prompt, cached a day, that every judge call scores against) |
+| `AiJudge:MaxOutputChars` | `appsettings.json` | — (**40,000** per side on the source-only path; was 12,000) |
 | `Limits:DuelStartsPerMinute` | `appsettings.json` | — (**10**; 120 in Development, 0 in the test hosts; 0 = off). Fixed window per signed-in user on `POST /api/duels` and `POST /api/tournaments` |
-| `Limits:DailySpendCapUsd` | `appsettings.json` | — (**5**; 0 = off). Compared with today's (UTC) summed `ApiCostUsd`; once reached, Remote duels and all tournaments get a 429 |
-| `Gemini:ApiKey` | Key Vault | `Gemini__ApiKey` env var. Optional — without it no Gemini models are seeded |
+| `Limits:DailySpendCapUsd` | `appsettings.json` | — (**5**; 0 = off). Compared with today's (UTC) contestant `ApiCostUsd` + `JudgeCostUsd` + the `SpendLedger` table (prompt refine, scouting reports); once reached, Remote duels and all tournaments get a 429 and no new scouting report is written |
+| `Gemini:ApiKey` | Key Vault (`PoLocalCompare--Gemini--ApiKey`, copied from PoFightJudge's on 2026-10-26) | `Gemini__ApiKey` env var. Optional — without it no Gemini models are seeded and the judge has no cross-check |
 | `Gemini:Endpoint` | `appsettings.json` | — (`https://generativelanguage.googleapis.com/v1beta/openai`) |
 
 ---
@@ -322,7 +329,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-10-11): **100 unit / 40 integration / 25 E2E-API / 23 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-10-26): **99 unit / 43 integration / 25 E2E-API / 25 E2E-UI**,
 all passing, and `SCRIPTS/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 

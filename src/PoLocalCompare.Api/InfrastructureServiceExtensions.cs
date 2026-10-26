@@ -73,6 +73,7 @@ public static class InfrastructureServiceExtensions
         // non-streaming completion, so a per-request timeout is safe here (it would abort SSE
         // on the inference clients) and the judge's own linked CTS bounds it further.
         services.Configure<AutoJudgeOptions>(configuration.GetSection(AutoJudgeOptions.SectionName));
+        services.AddSingleton<JudgeRubricProvider>();
         services.AddHttpClient<IDuelJudge, FoundryDuelJudge>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);

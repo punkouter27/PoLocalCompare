@@ -202,6 +202,11 @@ public sealed class FoundryInferenceProxy(
             if (!response.IsSuccessStatusCode)
             {
                 var fallbackBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (FoundryChatRequest.TryLearnShape(deploymentName, response.StatusCode, fallbackBody))
+                {
+                    response.Dispose();
+                    return await RunInferenceAsync(model, duelId, promptFull, onTokenUpdate, cancellationToken);
+                }
                 result.IsFailure = true;
                 result.FailureReason =
                     $"Model '{deploymentName}' failed on both endpoints. " +
@@ -220,6 +225,13 @@ public sealed class FoundryInferenceProxy(
         else if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            // Once per deployment: a reasoning model behind a classic-looking name. The retry
+            // rebuilds the body with the learned shape; TryLearnShape is false the second time.
+            if (FoundryChatRequest.TryLearnShape(deploymentName, response.StatusCode, body))
+            {
+                response.Dispose();
+                return await RunInferenceAsync(model, duelId, promptFull, onTokenUpdate, cancellationToken);
+            }
             result.IsFailure = true;
             result.FailureReason = $"HTTP {(int)response.StatusCode}: {body[..Math.Min(300, body.Length)]}";
             _logger.LogError("Azure OpenAI HTTP {StatusCode} for {Model}: {Body}", (int)response.StatusCode, deploymentName, body[..Math.Min(500, body.Length)]);
@@ -240,7 +252,11 @@ public sealed class FoundryInferenceProxy(
 
         // Estimate API cost from provider-reported usage. TokenCount falls back to stream chunks
         // only for providers that do not send usage, so cost remains explicitly approximate there.
-        if (TokenCost.Compute(model.InputTokenPricePerMillion, model.OutputTokenPricePerMillion,
+        // Priced by the model the provider says it ran when the price book knows it: a deployment
+        // name is a label, and three names in this resource serve a dearer model than they say.
+        var served = DefaultPriceBook.Resolve(result.ServedModel);
+        if (TokenCost.Compute(served?.InputPerMillion ?? model.InputTokenPricePerMillion,
+                served?.OutputPerMillion ?? model.OutputTokenPricePerMillion,
                 result.PromptTokenCount, result.TokenCount,
                 FoundryChatRequest.ReportsReasoningSeparately(deploymentName) ? result.ReasoningTokenCount : null) is { } cost)
         {

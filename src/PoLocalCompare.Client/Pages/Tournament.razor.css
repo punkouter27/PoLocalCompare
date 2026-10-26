@@ -653,3 +653,33 @@
         overflow-wrap: anywhere;
     }
 }
+
+/* ── Setup: field beside the prompt ──────────────────────────────────────────
+   From 1024px the draw takes the wider left column and the prompt, library and Start the
+   right, the same shape as Home's picker and console. Stacked, the three ran down a 1440x900
+   desktop to y≈620 and left the rest of the page empty. 1.4fr keeps a draw half ~230px wide
+   at 1024, enough for a model name, its seed and its rating on one line. */
+@media (min-width: 1024px) {
+    .tourney__setup {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        align-items: start;
+        gap: var(--space-lg);
+    }
+
+    .tourney__setup-side {
+        position: sticky;
+        top: calc(var(--nav-height) + var(--space-md));
+    }
+
+    /* The section rhythm restarts in each column: the first block of each sits level. */
+    .tourney__setup > .po-section,
+    .tourney__setup-side > .po-section:first-child {
+        margin-top: 0;
+    }
+}
+
+.tourney__setup-field,
+.tourney__setup-side {
+    min-width: 0;
+}

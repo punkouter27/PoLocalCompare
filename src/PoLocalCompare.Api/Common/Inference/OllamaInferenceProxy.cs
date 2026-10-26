@@ -21,6 +21,9 @@ public sealed class OllamaInferenceProxy(
     private readonly IConfiguration _configuration = configuration;
     private readonly ILogger<OllamaInferenceProxy> _logger = logger;
 
+    private static readonly JsonSerializerOptions OmitNulls =
+        new() { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+
     public async Task<DuelResult> RunInferenceAsync(
         Model model,
         DuelId duelId,
@@ -65,10 +68,14 @@ public sealed class OllamaInferenceProxy(
             // 30 s, runs inference, and gets unloaded before round two — paying the 30 s load
             // tax again. One hour covers every realistic tournament bracket; longer sessions
             // also win, at the cost of more VRAM held.
-            keep_alive = "1h"
+            keep_alive = "1h",
+            // gpt-oss reasons at medium unless told otherwise — the same waste FoundryChatRequest
+            // pins every Foundry family against. Ollama's OpenAI route accepts the field for it;
+            // null (every other model) is left out of the body.
+            reasoning_effort = modelName.StartsWith("gpt-oss", StringComparison.OrdinalIgnoreCase) ? "low" : null,
         };
 
-        var json = JsonSerializer.Serialize(requestBody);
+        var json = JsonSerializer.Serialize(requestBody, OmitNulls);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");

@@ -187,7 +187,10 @@
         <PageHeader Title="Run a tournament"
                     Subtitle="8 models, seeded, auto-judged." />
 
-        <section class="po-section" aria-labelledby="tourney-field-heading">
+        @* Field left, prompt and Start right from 1024px — Home's picker-and-console shape.
+           Stacked, the setup left ~280px of empty page under Start on a 1440x900 desktop. *@
+        <div class="tourney__setup">
+        <section class="po-section tourney__setup-field" aria-labelledby="tourney-field-heading">
             <div class="tourney__section-head">
                 <h2 id="tourney-field-heading" class="po-section-title">The field — 8 models</h2>
             </div>
@@ -304,6 +307,7 @@
             </div>
         </section>
 
+        <div class="tourney__setup-side">
         <section class="po-section" aria-labelledby="tourney-prompt-heading">
             <h2 id="tourney-prompt-heading" class="po-section-title">The prompt</h2>
             <textarea class="tourney__textarea"
@@ -354,6 +358,8 @@
         {
             <p class="po-error" role="status">@_error</p>
         }
+        </div>
+        </div>
 
         @if (_recent.Count > 0)
         {

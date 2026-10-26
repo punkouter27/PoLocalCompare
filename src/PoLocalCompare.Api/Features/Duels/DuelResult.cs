@@ -28,6 +28,9 @@ public sealed class DuelResult
     // Remote models only
     public double? ApiCostUsd { get; set; }
 
+    /// <summary>The model the provider reported serving — not always the one the deployment is named for.</summary>
+    public string? ServedModel { get; set; }
+
 
     public DuelResult(DuelId duelId, ModelId modelId)
     {

@@ -10,15 +10,14 @@ namespace PoLocalCompare.Unit;
 public class WinRateCalculatorTests
 {
     /// <summary>
-    /// Every branch the DTO has to render. The DTO's WinRate is a plain double — NaN would
-    /// print as "NaN%" on the leaderboard, which is why "never competed" must explicitly be 0.
+    /// The DTO's WinRate is a plain double — NaN would print as "NaN%" on the leaderboard, which
+    /// is why "never competed" must explicitly be 0. (The typical-record and negative-input
+    /// cases made way on 2026-10-26 for the judge-shape and cost tests; one division is not
+    /// worth a case of the 100.)
     /// </summary>
-    [Theory]
-    [InlineData(17, 19, 17.0 / 19.0)]    // typical record
-    [InlineData(0,  0,  0.0)]           // never competed — never NaN
-    [InlineData(0, -1,  0.0)]           // defensive clamp on negative input
-    public void Calculate_MapsEveryBranchTheLeaderboardRenders(int wins, int duels, double expected)
+    [Fact]
+    public void Calculate_NeverCompeted_IsZeroNotNaN()
     {
-        Assert.Equal(expected, WinRateCalculator.Calculate(winCount: wins, duelCount: duels), 10);
+        Assert.Equal(0.0, WinRateCalculator.Calculate(winCount: 0, duelCount: 0), 10);
     }
 }

@@ -9,7 +9,7 @@ namespace PoLocalCompare.Api.Common.Persistence;
 /// </summary>
 public static class StorageTables
 {
-    private static readonly string[] All = ["Models", "Duels", "DuelResults", "EloHistory", "Tournaments"];
+    private static readonly string[] All = ["Models", "Duels", "DuelResults", "EloHistory", "Tournaments", SpendLedger.TableName];
 
     public static async Task EnsureAllAsync(TableServiceClient tables)
     {

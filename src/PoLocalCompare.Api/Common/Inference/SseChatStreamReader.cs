@@ -102,6 +102,7 @@ internal static class SseChatStreamReader
         result.TokenCount = state.ProviderCompletionTokens ?? state.TokenCount;
         if (state.ProviderPromptTokens is { } p) result.PromptTokenCount = p;
         if (state.ProviderReasoningTokens is { } r) result.ReasoningTokenCount = r;
+        result.ServedModel = state.ServedModel;
         result.FinishReason = state.FinishReason;
         result.WasTruncated = string.Equals(state.FinishReason, "length", StringComparison.OrdinalIgnoreCase);
         result.WarmUpDurationMs = state.FirstTokenMs ?? warmUpMs;
@@ -135,6 +136,7 @@ internal static class SseChatStreamReader
         public int? ProviderCompletionTokens;
         public int? ProviderPromptTokens;
         public int? ProviderReasoningTokens;
+        public string? ServedModel;
     }
 
     /// <summary>Accumulates one visible token and fires the throttled progress callback.</summary>
@@ -282,6 +284,12 @@ internal static class SseChatStreamReader
                     // `"usage":null` on every non-terminal frame — only the object form counts.
                     if (!reader.Read()) return;
                     if (reader.TokenType == JsonTokenType.StartObject) ReadUsage(ref reader, state);
+                }
+                else if (reader.ValueSpan.SequenceEqual("model"u8))
+                {
+                    // What actually ran, which a deployment name does not promise.
+                    if (!reader.Read()) return;
+                    if (reader.TokenType == JsonTokenType.String) state.ServedModel = reader.GetString();
                 }
             }
         }

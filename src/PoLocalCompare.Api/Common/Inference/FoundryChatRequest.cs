@@ -100,6 +100,9 @@ public static class FoundryChatRequest
             deploymentName,
             includeModelField ? "mi" : "dep",
             stream ? "s" : "n",
+            // Learned at runtime (TryLearnShape), so it must be in the key or a body cached
+            // under the classic shape would outlive the lesson.
+            IsReasoningModel(deploymentName) ? "r" : "c",
             maxTokens.ToString(System.Globalization.CultureInfo.InvariantCulture),
             temperature.ToString(System.Globalization.CultureInfo.InvariantCulture),
             systemPrompt.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -202,7 +205,83 @@ public static class FoundryChatRequest
         return n.StartsWith("gpt-5")
             || n.StartsWith("o1")
             || n.StartsWith("o3")
-            || n.StartsWith("o4");
+            || n.StartsWith("o4")
+            || LearnedReasoning.ContainsKey(deploymentName);
+    }
+
+    /// <summary>
+    /// Deployments whose NAME says classic but whose MODEL is a reasoning one, learned from the
+    /// 400 they return. Static for the same reason as the route memo in
+    /// <see cref="FoundryInferenceProxy"/>: it is a property of the deployment.
+    /// </summary>
+    /// <remarks>
+    /// Found on 2026-10-26: in po-aiservices-shared2 the deployments named <c>gpt-4.1-nano</c>,
+    /// <c>gpt-5-nano</c> and <c>gpt-5.4-nano</c> all serve gpt-5.4-mini, because the
+    /// subscription has no quota for the real models. A name is a label an operator typed, not
+    /// a contract. The production text-only judge is <c>gpt-4.1-nano</c>; it was sent
+    /// <c>max_tokens</c> and <c>temperature</c>, answered "Unsupported parameter: 'max_tokens'",
+    /// and every production duel was left Pending.
+    /// </remarks>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> LearnedReasoning =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True — once per deployment — when <paramref name="body"/> is the 400 a reasoning model
+    /// returns for the classic request shape. The deployment is then treated as reasoning, so a
+    /// caller that rebuilds its body and resends gets the shape the model accepts.
+    /// </summary>
+    public static bool TryLearnShape(string? deploymentName, System.Net.HttpStatusCode status, string? body)
+    {
+        if (status != System.Net.HttpStatusCode.BadRequest || string.IsNullOrWhiteSpace(deploymentName)
+            || string.IsNullOrWhiteSpace(body) || IsReasoningModel(deploymentName))
+            return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var error)
+                || !error.TryGetProperty("param", out var param) || param.ValueKind != JsonValueKind.String)
+                return false;
+            return param.GetString() is "max_tokens" or "temperature"
+                && LearnedReasoning.TryAdd(deploymentName, 0);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The <c>model</c> a non-streaming completion says served it, or null.</summary>
+    public static string? ServedModel(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String
+                ? model.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the model a provider reports serving is plausibly the one the deployment is named
+    /// for — "gpt-5.4-mini-2026-03-17" is <c>gpt-5.4-mini</c>, "gpt-5-mini-2025-08-07" is not
+    /// <c>gpt-5.4</c>. Punctuation and case are ignored; an unknown served model is a match, and
+    /// so is "default", which is all the model-inference route says about what it ran.
+    /// </summary>
+    public static bool ServedModelMatches(string? deploymentName, string? servedModel)
+    {
+        if (string.IsNullOrWhiteSpace(deploymentName) || string.IsNullOrWhiteSpace(servedModel)
+            || servedModel.Equals("default", StringComparison.OrdinalIgnoreCase)) return true;
+        static string Squash(string s) => new([.. s.ToLowerInvariant().Where(char.IsLetterOrDigit)]);
+        var served = Squash(servedModel.StartsWith("models/", StringComparison.OrdinalIgnoreCase) ? servedModel[7..] : servedModel);
+        var named = Squash(deploymentName);
+        return served.StartsWith(named, StringComparison.Ordinal) || named.StartsWith(served, StringComparison.Ordinal);
     }
 
     /// <summary>

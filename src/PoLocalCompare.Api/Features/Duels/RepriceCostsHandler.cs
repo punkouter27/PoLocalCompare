@@ -60,8 +60,11 @@ public sealed class RepriceCostsHandler(
             scanned++;
             storedTotal += stored;
 
+            // Same rule as FoundryInferenceProxy: the served model's rate wins when it is known.
+            var served = DefaultPriceBook.Resolve(entity.GetString("ServedModel"));
             var repriced = TokenCost.Compute(
-                model.InputTokenPricePerMillion, model.OutputTokenPricePerMillion,
+                served?.InputPerMillion ?? model.InputTokenPricePerMillion,
+                served?.OutputPerMillion ?? model.OutputTokenPricePerMillion,
                 entity.GetInt32("PromptTokenCount"), entity.GetInt32("TokenCount") ?? 0,
                 FoundryChatRequest.ReportsReasoningSeparately(model.ApiEndpointRef) ? entity.GetInt32("ReasoningTokenCount") : null);
 

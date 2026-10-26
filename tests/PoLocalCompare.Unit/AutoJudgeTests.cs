@@ -71,7 +71,7 @@ public class AutoJudgeTests
 
         var llm = new Mock<IDuelJudge>();
         llm.Setup(j => j.JudgeAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(llmDecision);
 
         var recordVerdict = new RecordVerdictHandler(
@@ -149,7 +149,7 @@ public class AutoJudgeTests
         Assert.Equal(DuelVerdict.Left, duel.Verdict);
         Assert.Equal(VerdictSource.Human, duel.VerdictSource);
         harness.Llm.Verify(j => j.JudgeAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ── No decision ⇒ no ELO movement ─────────────────────────────────────────
@@ -191,7 +191,7 @@ public class AutoJudgeTests
         Assert.Null(duel.WinnerModelId);
         Assert.Null(duel.JudgeModel);
         harness.Llm.Verify(j => j.JudgeAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ── A one-sided failure is now a walkover (PRD §9 item 20) ───────────────
@@ -236,7 +236,7 @@ public class AutoJudgeTests
         Assert.Contains(failureReason, duel.JudgeRationale);
         Assert.Null(duel.JudgeStoodDownReason);
         harness.Llm.Verify(j => j.JudgeAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ── The kill switch genuinely restores human-only verdicts ────────────────
@@ -273,7 +273,7 @@ public class AutoJudgeTests
         // Make IDuelJudge throw the rate-limit exception instead of returning null — that is
         // the contract the production judge now uses.
         harness.Llm
-            .Setup(j => j.JudgeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            .Setup(j => j.JudgeAsync(It.IsAny<string>(), It.IsAny<JudgedPage>(), It.IsAny<JudgedPage>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new JudgeRateLimitedException(TimeSpan.FromSeconds(15), "HTTP 429 from judge endpoint"));
 

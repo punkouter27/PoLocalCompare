@@ -63,10 +63,17 @@
     }
     else
     {
-        @* One line, clamped; the full prompt is in the title and in the DOM (the clamp is
-           visual only). The owner rides at the end of the same line instead of a second one. *@
+        @* One line, clamped, with "more" to unclamp it — the clamp used to be the end of it,
+           and the full prompt was reachable only by hovering for a title. The owner rides at
+           the end of the same line instead of a second one. *@
         <p class="arena__prompt-label" title="@_duel.PromptText">
-            <span class="arena__prompt-text">Prompt: <em>@_duel.PromptText</em></span>
+            <span class="arena__prompt-text @(_promptOpen ? "arena__prompt-text--open" : null)">Prompt: <em>@_duel.PromptText</em></span>
+            @if (_duel.PromptText.Length > PromptClampChars)
+            {
+                <button type="button" class="po-btn po-btn--sm po-btn--ghost arena__prompt-toggle"
+                        aria-expanded="@(_promptOpen ? "true" : "false")"
+                        @onclick="() => _promptOpen = !_promptOpen">@(_promptOpen ? "less" : "more")</button>
+            }
             @if (!string.IsNullOrWhiteSpace(_duel.OwnerId))
             {
                 <span class="arena__owner">· by <strong>@_duel.OwnerId</strong></span>
@@ -238,14 +245,15 @@
            the way back to the bracket, for a match opened from one — the bracket keeps running
            while you watch. That link used to be duplicated above the title; it is here alone.
 
-           Once it has finished, the exits are New duel and Archive — two, both leading
-           somewhere. The old row carried five same-weight buttons (Retry / Share / Head-to-head
-           / Lab report / New duel) plus the two vote buttons above it: eleven controls on a
-           decided duel. Head-to-head is gone with the page it opened; Retry now appears only
-           when a side actually failed, which is what it is for; and the export actions — which
-           are not exits — went with the Archive row, which is where a duel is looked up after
-           the fact. GET /api/duels/{id}/report is reachable from there and nowhere else, so
-           ArenaUiTests asserts that anchor on the Archive page. *@
+           Once it has finished, the exit is New duel — and Retry, primary, when a side failed,
+           because that is the thing to do next on a failed duel. The old row carried five
+           same-weight buttons (Retry / Share / Head-to-head / Lab report / New duel) plus the
+           two vote buttons above it: eleven controls on a decided duel. Archive went on
+           2026-10-26: it is in the nav bar directly above. Head-to-head is gone with the page
+           it opened, and the export actions — which are not exits — went with the Archive row,
+           which is where a duel is looked up after the fact. GET /api/duels/{id}/report is
+           reachable from there and nowhere else, so ArenaUiTests asserts that anchor on the
+           Archive page. *@
         @if (!_duelStillRunning || _tournamentId is not null)
         {
             <PageActions Align="PageActionsAlign.Center">
@@ -257,16 +265,14 @@
                 }
                 @if (!_duelStillRunning)
                 {
-                    <a class="po-btn @(_tournamentId is null ? "po-btn--primary" : "")" href="/"><span aria-hidden="true">⚔</span> New duel</a>
-                    <a class="po-btn" href="/archive"><span aria-hidden="true">📁</span> Archive</a>
-
+                    var failed = EitherSideFailed();
                     @* Re-runs the same pairing and prompt as a brand-new duel. Shown only when a
                        model failed, because a transient failure (model load, cache, rate limit) is
                        the situation it exists for — on a clean duel it competed with New duel while
-                       meaning almost the same thing. *@
-                    @if (EitherSideFailed())
+                       meaning almost the same thing. First and primary when it shows. *@
+                    @if (failed)
                     {
-                        <button type="button" class="po-btn po-btn--warn"
+                        <button type="button" class="po-btn @(_tournamentId is null ? "po-btn--primary" : "po-btn--warn")"
                                 disabled="@(_retrying || _submitting)"
                                 @onclick="RetryDuelAsync">
                             @if (_retrying)
@@ -279,6 +285,7 @@
                             }
                         </button>
                     }
+                    <a class="po-btn @(_tournamentId is null && !failed ? "po-btn--primary" : "")" href="/"><span aria-hidden="true">⚔</span> New duel</a>
                 }
             </PageActions>
         }

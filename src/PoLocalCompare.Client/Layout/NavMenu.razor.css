@@ -125,58 +125,54 @@
    surface where a wrong breakpoint is immediately visible (the hamburger appearing at the
    wrong width), and that pass had no way to verify the result in a browser. Fix it with the
    E2E-UI suite open. */
+/* Short label forms exist for the phone bar only. */
+.navmenu__link-text--short,
+.navmenu__user-initial {
+    display: none;
+}
+
 @media (max-width: 767.98px) {
-    /* ── Two rows, no drawer ─────────────────────────────────────────────────
-       The bar used to be brand + hamburger, with the four destinations, the ticker and the
-       session menu all inside a collapsed drawer: every navigation on a phone cost two taps
-       for a list of four. Now the wrapper dissolves (display: contents) and its children sit
-       on the bar themselves — ticker and session menu on the brand's row, the links as a
-       second row underneath. app.css raises --nav-height to match at this width. */
+    /* ── One row, no drawer ──────────────────────────────────────────────────
+       The bar was brand + hamburger with everything in a drawer (two taps for a list of
+       four), then brand + session on one row and the links on a second — 100px of every phone
+       screen. Now it is one 3.5rem row: the brand's mark without its wordmark, the four links
+       with short forms for the two long labels, and the identity badge as an initial. That is
+       ~324px of content, so it fits a 360px phone with its 16px gutters. The ticker gives way,
+       as it already did between 768 and 992; the Archive it links to is one tap away. */
     .navmenu__inner {
-        flex-wrap: wrap;
-        align-items: center;
-        row-gap: 0;
+        gap: var(--space-xs);
     }
 
     .navmenu__collapse {
         display: contents;
     }
 
-    .navmenu__ticker {
-        order: 1;
-        margin: 0 0 0 auto;
+    ::deep .navmenu__brand .brand-mark__label,
+    .navmenu__ticker,
+    .navmenu__link-text--long,
+    .navmenu__user-badge-name,
+    .navmenu__user-badge-domain {
+        display: none;
     }
 
-    .navmenu__auth {
-        order: 2;
-    }
-
-    /* With no ticker showing, the session controls take the push to the right edge. */
-    .navmenu__links + .navmenu__auth {
-        margin-inline-start: auto;
+    .navmenu__link-text--short {
+        display: inline;
     }
 
     .navmenu__links {
-        order: 3;
-        flex: 1 0 100%;
+        flex: 1 1 auto;
         justify-content: space-between;
         gap: 0;
-        border-top: 1px solid var(--border);
-        /* A phone too narrow for all four scrolls the row rather than clipping a link. */
+        /* A bar too narrow for all four (a MOCK chip on a 360px phone) scrolls the row rather
+           than clipping a link. */
         overflow-x: auto;
         scrollbar-width: none;
     }
 
-    .navmenu__links > li {
-        flex: 1 0 auto;
-    }
-
     ::deep .navmenu__link {
         justify-content: center;
-        /* 44px: a touch target, and the second row's height in --nav-height. */
         min-block-size: 2.75rem;
-        padding: 0 var(--space-sm);
-        border-radius: 0;
+        padding: 0 var(--space-xs);
         font-size: var(--text-sm);
     }
 
@@ -184,9 +180,38 @@
         font-size: var(--text-sm);
     }
 
-    /* Signed out, the brand's row also holds Sign in and Guest; the wordmark gives way. */
-    .navmenu__inner:has(.navmenu__auth > :not(.navmenu__menu)) ::deep .brand-mark__label {
-        display: none;
+    /* A fixed slot for the session control while signed in (or not yet known), so the links
+       are laid out once: as a flexible box, the badge arriving took width from them and every
+       link shifted. 3rem is the disc plus its caret. */
+    .navmenu__inner:not(:has(.navmenu__auth > :not(.navmenu__menu))) .navmenu__auth {
+        flex: 0 0 3rem;
+    }
+
+    /* The badge becomes a 28px disc holding the initial. */
+    .navmenu__user-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        inline-size: 1.75rem;
+        block-size: 1.75rem;
+        padding: 0;
+    }
+
+    .navmenu__user-initial {
+        display: inline;
+    }
+
+    /* Signed out, the session controls are Sign in, Guest and the gear — too wide to share the
+       row — so the links drop to a second one as they used to. This bar is then 6.25rem, taller
+       than --nav-height; the only page it shows on is the sign-in card, which pins nothing. */
+    .navmenu__inner:has(.navmenu__auth > :not(.navmenu__menu)) {
+        flex-wrap: wrap;
+    }
+
+    .navmenu__inner:has(.navmenu__auth > :not(.navmenu__menu)) .navmenu__links {
+        order: 3;
+        flex: 1 0 100%;
+        border-top: 1px solid var(--border);
     }
 }
 
@@ -210,12 +235,15 @@
 }
 
 /* ── Auth / GUEST identity (standards §6) ──────────────────────────────────── */
+/* Takes the rest of the row and packs its controls to the right edge. With margin-left: auto
+   it was only as wide as its content, so when the session resolved and the badge arrived the
+   box grew leftwards — a layout shift on every route. Now its left edge never moves. */
 .navmenu__auth {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: var(--space-sm);
-    flex-shrink: 0;
-    margin-left: auto;
+    flex: 1 0 auto;
 }
 
 /* The buttons keep their intrinsic width; only the identity badge below is allowed to
