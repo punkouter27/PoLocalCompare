@@ -64,7 +64,7 @@ jobs:
 
       # PoLocalCompare.E2EUI is deliberately NOT run here: it drives a real headed Chrome
       # against a running instance and exercises WebGPU paths a runner has no GPU for.
-      # Run it locally after touching UI markup — see AGENT.MD §8.
+      # Run it locally after touching UI markup — see AGENTS.md §8.
 
       # Named per leg: a shared name would have the three uploads collide.
       - name: Upload test results

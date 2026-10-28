@@ -6,7 +6,7 @@ namespace PoLocalCompare.E2EUI;
 /// Header contract, routing, and the accessibility affordances that only exist at runtime
 /// (focus order, the skip link, geometry).
 ///
-/// Trimmed to the AGENT.MD §8 ratio in the 2026-08-13 prune: assertions that used to sit in
+/// Trimmed to the AGENTS.md §8 ratio in the 2026-08-13 prune: assertions that used to sit in
 /// their own method are folded into the journey that already navigates there, so coverage is
 /// kept while the case count drops. Trimmed again on 2026-09-10 for the same reason — the
 /// first-load console check now rides along with the route journey that already visited those

@@ -1,6 +1,6 @@
 # PoLocalCompare — LLM Duel Arena
 
-> **Live:** [app-polocalcompare-win2.azurewebsites.net](https://app-polocalcompare-win2.azurewebsites.net) · Agent context in [AGENT.MD](AGENT.MD) · Rules in [CLAUDE.md](CLAUDE.md) · Reasoning in [HISTORY.md](HISTORY.md)
+> **Live:** [app-polocalcompare-win2.azurewebsites.net](https://app-polocalcompare-win2.azurewebsites.net) · Agent context in [AGENTS.md](AGENTS.md) · Rules in [CLAUDE.md](CLAUDE.md) · Reasoning in [HISTORY.md](HISTORY.md)
 
 **What.** PoLocalCompare is a real-time LLM benchmarking arena. Two models race to generate HTML from the same prompt: **Local** models run entirely in your browser via WebLLM/WebGPU, **Remote** models call Azure AI Foundry, and (locally) **Ollama** models run as a service. Both outputs stream live over SignalR with token velocity, GPU placement, and energy telemetry. You judge the winner in side-by-side sandboxed viewports — or, if you don't pick within `AiJudge:DelaySeconds` (10 by default), an AI judge decides which output followed the prompt more accurately and records the verdict itself (configurable under `AiJudge`; verdicts are stored with the source that produced them). If exactly one model failed to produce output, the survivor takes a walkover without a judge call; if both failed, the duel stays pending and no rating moves. An Elo system (K=32, start 1200) ranks every model, with per-duel history, head-to-head "kill lists," Green Score (tokens/Wh) energy metrics, and exportable self-contained HTML lab reports.
 
@@ -48,7 +48,7 @@ $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.De
 
 | File | What it covers |
 |---|---|
-| [AGENT.MD](AGENT.MD) | Living architectural contract — tech stack, structure, config keys, deployment, testing |
+| [AGENTS.md](AGENTS.md) | Living architectural contract — tech stack, structure, config keys, deployment, testing |
 | [CLAUDE.md](CLAUDE.md) | The rules that span several files, one line each |
 | [HISTORY.md](HISTORY.md) | Why each rule exists — the incident, measurement or dated decision behind it |
 | [docs/20260821/](docs/20260821/) | Generated reports — 5 standalone HTML dashboards plus one interactive artifact page, all with inline Mermaid, dated 2026-08-21 |
