@@ -5,27 +5,27 @@
          2026-10-26 the test host sat on a preview (10.0.0-preview.3) and OIDC on 10.0.0 while
          the rest were on 10.0.13. Microsoft.Extensions.* ship from dotnet/extensions on their
          own version line, so they are pinned individually below. -->
-    <AspNetCoreVersion>10.0.13</AspNetCoreVersion>
+    <AspNetCoreVersion>10.0.14</AspNetCoreVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Storage & Identity -->
-    <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
+    <PackageVersion Include="Azure.Data.Tables" Version="12.13.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
-    <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
-    <PackageVersion Include="Azure.Storage.Blobs" Version="12.26.0" />
+    <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.11.2" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
     <!-- ULID generation -->
     <PackageVersion Include="NUlid" Version="1.7.3" />
     <!-- Git tag-driven semantic versioning (PackageReference lives in Directory.Build.props) -->
-    <PackageVersion Include="MinVer" Version="6.0.0" />
+    <PackageVersion Include="MinVer" Version="6.1.0" />
     <!-- API / SignalR -->
-    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.14.11" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.3" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="$(AspNetCoreVersion)" />
     <!-- Transitive of AspNetCore.OpenApi; floor pinned above the GHSA-v5pm-xwqc-g5wc advisory. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="$(AspNetCoreVersion)" />
-    <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.1" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
     <!-- BFF authentication: server-side OIDC + cookie session -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="$(AspNetCoreVersion)" />
     <!-- Observability: Serilog only. OpenTelemetry was removed on 2026-08-23 because TWO
@@ -34,7 +34,7 @@
          UserSignedIn record reaches App Insights, where the cross-app sign-in query reads it.
          Console/file sinks and the App Service log stream still cover everything else. -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="4.0.0" />
+    <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="4.1.0" />
     <!-- Blazor WASM -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="$(AspNetCoreVersion)" />
@@ -43,13 +43,13 @@
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Testcontainers" Version="4.15.0" />
-    <PackageVersion Include="Testcontainers.Azurite" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.Azurite" Version="4.16.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreVersion)" />
-    <PackageVersion Include="Moq" Version="4.20.72" />
-    <PackageVersion Include="Microsoft.Playwright" Version="1.49.0" />
+    <PackageVersion Include="Moq" Version="4.21.0" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.64.1" />
 
     <!-- Re-added 2026-09-02. Removed on 2026-08-23 over payload (1.43 MB gzipped,
          11.9% of the download); the owner re-took that decision explicitly. See the
