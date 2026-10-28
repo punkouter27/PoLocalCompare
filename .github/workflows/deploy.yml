@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # pwsh ships on ubuntu-latest, and check-clean reads source only — no dotnet needed.
       - name: Check clean
         shell: pwsh
@@ -49,11 +49,11 @@ jobs:
       matrix:
         suite: [Unit, Integration, E2EAPI]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
@@ -71,7 +71,7 @@ jobs:
       # Named per leg: a shared name would have the three uploads collide.
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.suite }}
           path: '**/TestResults/*.trx'
@@ -86,7 +86,7 @@ jobs:
       # lfs: the vendored web-llm.js bundle is an LFS object and gets published into wwwroot.
       # Without this the runner checks out the ~130-byte pointer file instead and every browser
       # model fails at import time in the deployed app.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: true
       # The catalog lives in two files that must agree: ModelSeeder.cs (which seeds Table
@@ -98,22 +98,22 @@ jobs:
       # Deliberately here and not in the `test` job: only this job checks out with lfs, and
       # without it web-llm.js is a ~130-byte pointer, so the script would find no models and
       # report a mismatch it cannot actually see.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Check the browser-model catalog agrees
         run: python SCRIPTS/plan-webllm-artifacts.py
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
           restore-keys: nuget-${{ runner.os }}-
       # publish implies restore + build — no separate steps needed.
       - run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release -o publish
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: webapp
           path: publish
@@ -127,12 +127,12 @@ jobs:
     timeout-minutes: 20
     steps:
       # Checkout is required so the freshness check can read this commit's index.html.
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: webapp
           path: publish
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
