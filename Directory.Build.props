@@ -7,6 +7,10 @@
     <!-- Standards mandate C# 15; the installed .NET 10 SDK tops out at 14, so `latest`
          tracks the newest version the toolchain supports and rolls forward automatically. -->
     <LangVersion>latest</LangVersion>
+    <!-- Fail the build on a NuGet advisory rather than emitting a warning nobody reads. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleaseIdentifiers>preview.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
