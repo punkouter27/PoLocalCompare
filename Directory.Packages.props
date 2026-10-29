@@ -34,7 +34,7 @@
          UserSignedIn record reaches App Insights, where the cross-app sign-in query reads it.
          Console/file sinks and the App Service log stream still cover everything else. -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="4.0.0" />
+    <PackageVersion Include="Serilog.Sinks.ApplicationInsights" Version="5.0.1" />
     <!-- Blazor WASM -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="$(AspNetCoreVersion)" />
