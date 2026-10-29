@@ -6,7 +6,7 @@
     Four checks, each of which exists because the corresponding defect had already happened and
     nothing warned about it:
 
-      1. Test budget. AGENT.MD §8 fixes 100 / 50 / 25 / 25 cases per tier. The contract used to be
+      1. Test budget. AGENTS.md §8 fixes 100 / 50 / 25 / 25 cases per tier. The contract used to be
          prose that people remembered; three of the four tiers were over budget when it was first
          measured. Counts mirror how xUnit counts: [Fact] is one case, a [Theory] is one per
          [InlineData], and each E2EUI method carries [MemberData(nameof(Viewports))] and so runs
@@ -64,7 +64,7 @@ function Get-SourceFiles([string]$relativeDir, [string[]]$include) {
 # ── 1. Test budget ────────────────────────────────────────────────────────────
 
 if (-not $SkipTests) {
-    Write-Header 'Test budget (AGENT.MD §8: 100 / 50 / 25 / 25)'
+    Write-Header 'Test budget (AGENTS.md §8: 100 / 50 / 25 / 25)'
 
     $budgets = [ordered]@{ Unit = 100; Integration = 50; E2EAPI = 25; E2EUI = 25 }
 

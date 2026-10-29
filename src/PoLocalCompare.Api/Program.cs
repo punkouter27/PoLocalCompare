@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Threading.RateLimiting;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -101,6 +102,19 @@ try
 
         if (builder.Configuration["ConnectionStrings:AzureBlobStorage"] != preKvBlobConnection)
             builder.Configuration["ConnectionStrings:AzureBlobStorage"] = preKvBlobConnection ?? "UseDevelopmentStorage=true";
+    }
+
+    // Fail fast in Production on the config the app cannot run without: with no storage connection
+    // string it would silently fall back to UseDevelopmentStorage and die on the first table call.
+    // Both strings come from Key Vault (PoLocalCompare--ConnectionStrings--*); the managed-identity
+    // path (AzureStorage:AccountName) needs neither.
+    if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(builder.Configuration["AzureStorage:AccountName"]))
+    {
+        var missing = new[] { "ConnectionStrings:AzureTableStorage", "ConnectionStrings:AzureBlobStorage" }
+            .Where(key => string.IsNullOrWhiteSpace(builder.Configuration[key]))
+            .ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Missing required production configuration: {string.Join(", ", missing)}");
     }
 
     if (builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Configuration["AzureAiFoundry:ApiKey"]))
@@ -268,6 +282,20 @@ try
     }
 
     // ─── Middleware pipeline ─────────────────────────────────────────────────
+    // Which build answered: the SDK stamps the commit into the informational version as
+    // <version>+<sha>, and the deploy checks this header against the commit it shipped. OnStarting,
+    // so a response the exception handler rewrites keeps it.
+    var commit = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+') is [_, var sha] ? sha : "unknown";
+    app.Use((ctx, next) =>
+    {
+        ctx.Response.OnStarting(() =>
+        {
+            ctx.Response.Headers["X-Commit"] = commit;
+            return Task.CompletedTask;
+        });
+        return next(ctx);
+    });
+
     app.UseSerilogRequestLogging(opts =>
     {
         opts.GetLevel = (httpCtx, elapsed, ex) =>

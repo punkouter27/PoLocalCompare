@@ -1,10 +1,12 @@
 # CLAUDE.md
 
+@AGENTS.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Read first
 
-[AGENT.MD](AGENT.MD) is the living architectural contract — tech stack, project structure, config keys,
+[AGENTS.md](AGENTS.md) is the living architectural contract — tech stack, project structure, config keys,
 deployment, testing strategy, and (§12) the workflow rules for every task. This file is the rules
 that span several files; [HISTORY.md](HISTORY.md) is the reasoning behind each of them. Keep all
 three current when you change architecture.
@@ -20,12 +22,12 @@ code.
 
 This repo is governed by the user's global **NET_RULES** ruleset for all `Po*` .NET solutions
 (`Po` prefix everywhere, .NET 10, CPM, VSA, BFF auth, master-only branching, Azure App Service +
-Table Storage). AGENT.MD documents where this repo deliberately deviates — check it before assuming
+Table Storage). AGENTS.md documents where this repo deliberately deviates — check it before assuming
 a rule is being violated.
 
 ## Working rules
 
-- **[AGENT.MD](AGENT.MD) §12 is a checklist for every task, not background.** The ones that are
+- **[AGENTS.md](AGENTS.md) §12 is a checklist for every task, not background.** The ones that are
   easy to miss, because nothing fails when you skip them: a UI change gets an annotated
   before/after page at `SCREENSHOTS/YYMMDD-feature-name.html` and you give its full path (rule 18);
   a changed dependency, config key or major endpoint updates `README.md` in the same change (10); an answer over 100
@@ -99,7 +101,7 @@ runs them in a `test` job that `build` depends on. **E2EUI is not in CI** (real 
 paths a runner has no GPU for), so it is the one suite that goes stale silently; run it locally after
 touching UI markup.
 
-AGENT.MD §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
+AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
 onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has five

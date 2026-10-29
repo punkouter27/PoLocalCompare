@@ -1,3 +1,9 @@
+# Same line-ending rule in every Po repo: text is stored with LF and checked out native; binaries are left alone.
+* text=auto
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Workflow `run:` blocks execute under bash on Linux runners; CRLF breaks them.
 .github/workflows/*.yml text eol=lf
 .github/workflows/*.yaml text eol=lf
