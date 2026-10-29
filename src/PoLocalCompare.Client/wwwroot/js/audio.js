@@ -19,11 +19,9 @@
 
 let ctx = null;
 let master = null;
-// Sound is opt-in, like every other extra (Settings). Only an explicit 'false' — stored when
-// the user turns sound on — makes it audible.
-let muted = true;
-
-const MUTE_KEY = 'polocalcompare.muted';
+// Sound is one of the Settings extras: prefs.js owns it, off until switched on, and announces
+// every change so the bus follows a toggle without a reload.
+let muted = !window.poPrefs?.get('sound');
 
 /** Ceiling on the master bus. Cues are mixed well below unity so two overlapping never clip. */
 const MASTER_GAIN = 0.28;
@@ -34,6 +32,9 @@ const MASTER_GAIN = 0.28;
  * follows a click resumes it rather than silently doing nothing.
  */
 function ensureCtx() {
+    // Off means no work at all, not a silent graph: no context, no oscillators, and the race
+    // scheduler does not re-arm (raceLoop bails on null), so it cannot cost the Arena tok/s.
+    if (muted) return null;
     if (ctx) {
         if (ctx.state === 'suspended') ctx.resume().catch(() => { });
         return ctx;
@@ -58,26 +59,11 @@ function ensureCtx() {
     return ctx;
 }
 
-try {
-    muted = window.localStorage.getItem(MUTE_KEY) !== 'false';
-} catch {
-    // Storage blocked (private mode). Stay silent.
-}
-
-export function isMuted() {
-    return muted;
-}
-
-export function setMuted(value) {
-    muted = !!value;
-    try {
-        window.localStorage.setItem(MUTE_KEY, muted ? 'true' : 'false');
-    } catch {
-        // Non-fatal: the setting simply will not survive a reload.
-    }
+window.addEventListener('po-pref', e => {
+    if (e.detail.key !== 'sound') return;
+    muted = !e.detail.on;
     if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : MASTER_GAIN, ctx.currentTime, 0.01);
-    return muted;
-}
+});
 
 // ── Building blocks ──────────────────────────────────────────────────────────
 
@@ -381,12 +367,18 @@ function raceLoop() {
     if (!audio) return;
 
     const horizon = audio.currentTime + 0.15;
+    const [a, b] = race.sides;
+    // The leader steps toward the middle of the stereo field and up a touch in level; the
+    // trailer stays out wide. Proportional to the gap, so a dead heat sounds symmetrical.
+    const lead = Math.max(-1, Math.min(1, (a.tps - b.tps) / Math.max(1, a.tps + b.tps)));
     let live = false;
     race.sides.forEach((side, i) => {
         if (side.done || side.tps <= 0) return;
         live = true;
         if (side.next < audio.currentTime) side.next = audio.currentTime + 0.02;
         const interval = 1 / Math.max(2, Math.min(10, side.tps / 5));
+        const ahead = i === 0 ? lead : -lead;
+        const width = 0.75 - Math.max(0, ahead) * 0.35;
         while (side.next < horizon) {
             if (!document.hidden) {
                 tone({
@@ -394,8 +386,8 @@ function raceLoop() {
                     type: 'triangle',
                     at: side.next - audio.currentTime,
                     dur: 0.05,
-                    gain: 0.05,
-                    pan: i === 0 ? -0.75 : 0.75,
+                    gain: 0.05 * (1 + ahead * 0.3),
+                    pan: i === 0 ? -width : width,
                 });
             }
             side.next += interval;
@@ -630,6 +622,31 @@ export function playFanfare(seed) {
 export function playCountdown(remaining) {
     const step = Math.max(0, 3 - Math.max(1, Math.min(3, remaining)));
     tone({ freq: 659.25 * semitone(step * 2), type: 'triangle', at: 0, dur: 0.14, gain: 0.16 });
+}
+
+/**
+ * Compare and Start tournament: the two buttons that spend inference. A rising fifth with a
+ * soft whoosh under it, so "something is starting" sounds different from an ordinary click.
+ */
+export function playLaunch() {
+    tone({ freq: 523.25, type: 'triangle', dur: 0.12, gain: 0.12 });
+    tone({ freq: 783.99, type: 'triangle', at: 0.07, dur: 0.22, gain: 0.12, glide: 1046.5 });
+    noiseBurst({ dur: 0.3, gain: 0.05, freq: 600, sweepTo: 3200, q: 0.8, attack: 0.05 });
+}
+
+/**
+ * The leaderboard reshuffled since the last visit: one rising note per climber, then one
+ * falling note if anything dropped. Capped at four so a big reshuffle stays a sting.
+ *
+ * @param {number} climbs rows that moved up
+ * @param {number} falls rows that moved down
+ */
+export function playRankShift(climbs, falls) {
+    const ups = Math.min(4, Math.max(0, climbs | 0));
+    for (let i = 0; i < ups; i++) {
+        bell({ freq: 659.25 * semitone(PENTATONIC[i]), at: i * 0.08, dur: 0.5, gain: 0.08 });
+    }
+    if (falls > 0) tone({ freq: 392, type: 'triangle', at: ups * 0.08 + 0.05, dur: 0.3, gain: 0.08, glide: 293.66 });
 }
 
 /** UI tick for a click. Very short and quiet — it fires often. */

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using PoLocalCompare.Shared.Presentation;
 
 namespace PoLocalCompare.E2EUI;
 
@@ -43,8 +44,8 @@ public sealed class SettingsUiTests : UiTestBase
 
         // The simplest app is the default: every optional feature, and sound, starts off.
         var switches = page.Locator(".settings__switch");
-        await Assertions.Expect(switches).ToHaveCountAsync(5);
-        for (var i = 0; i < 5; i++)
+        await Assertions.Expect(switches).ToHaveCountAsync(Preferences.All.Count);
+        for (var i = 0; i < Preferences.All.Count; i++)
             await Assertions.Expect(switches.Nth(i)).Not.ToBeCheckedAsync();
         Assert.Null(await page.EvaluateAsync<string?>("() => document.documentElement.getAttribute('data-fx')"));
 
@@ -73,7 +74,7 @@ public sealed class SettingsUiTests : UiTestBase
     [MemberData(nameof(Viewports))]
     public async Task Settings_SurviveAReloadAndAreAppliedBeforeFirstPaint(int width, int height)
     {
-        // theme.js and prefs.js load in <head> precisely so their attributes are already set by
+        // prefs.js loads in <head> precisely so its attributes are already set by
         // the time the document finishes parsing — otherwise every navigation flashes the wrong
         // palette, and wow.js's navigation hook would read effects as off.
         var page = await SignedInPageAsync(width, height, "/settings", ColorScheme.Dark);

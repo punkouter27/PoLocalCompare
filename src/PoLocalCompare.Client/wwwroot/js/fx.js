@@ -53,15 +53,10 @@ function gpuBusy() {
     }
 }
 
-// Effects are opt-in (Settings → Visual effects; prefs.js stamps <html data-fx="on">). Off,
-// they stand down exactly as they do under reduced motion.
-function prefersReducedMotion() {
-    if (document.documentElement.dataset.fx !== 'on') return true;
-    try {
-        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    } catch {
-        return false;
-    }
+// Off unless Settings → Visual effects is on and the OS is not asking for reduced motion
+// (prefs.js owns that rule).
+function motionOff() {
+    return !window.poPrefs?.motionAllowed();
 }
 
 /**
@@ -116,7 +111,7 @@ function burst(options = {}) {
     if (gpuBusy()) return;
     // Respecting reduced-motion by not animating at all, rather than by animating faster.
     // A confetti burst has no non-moving equivalent worth substituting.
-    if (prefersReducedMotion()) return;
+    if (motionOff()) return;
     if (active >= MAX_ACTIVE) return;
     if (!document.body) return;
 
@@ -302,13 +297,15 @@ export function cannons(colliders) {
  * does all of it — and they remove themselves when done.
  */
 export function impact(selector) {
+    // The haptic is decoration too, so it obeys the same switch as the rings.
+    if (motionOff()) return;
     try {
         navigator.vibrate?.([28, 40, 64]);
     } catch {
         // No vibration API, or no user activation yet: the rings alone.
     }
 
-    if (gpuBusy() || prefersReducedMotion() || !document.body) return;
+    if (gpuBusy() || !document.body) return;
 
     let rect = null;
     try {

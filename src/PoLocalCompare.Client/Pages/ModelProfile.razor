@@ -159,6 +159,23 @@
                         </p>
                     }
 
+                    @* The curve's causes: every history row already records who it was against and
+                       what it was worth, and a drop on the line means nothing until you can see that.
+                       Newest first, each one a link to the duel that moved it. *@
+                    @if (RecentChanges.Count > 0)
+                    {
+                        <h3 class="profile__changes-title">Recent rating changes</h3>
+                        <ol class="profile__changes">
+                            @foreach (var point in RecentChanges)
+                            {
+                                <li @key="point.DuelId" class="profile__change">
+                                    <span class="profile__shift @ShiftClass(point.Shift)">@(point.Shift >= 0 ? "+" : "−")@Math.Abs(point.Shift).ToString("F1", Inv)</span>
+                                    <a class="profile__opponent" href="@($"/arena/{point.DuelId}")">@point.Outcome vs @point.OpponentName</a>
+                                    <span class="profile__change-meta">@point.Elo.ToString("F0", Inv) · @point.At.ToLocalTime().ToString("MMM d", Inv)</span>
+                                </li>
+                            }
+                        </ol>
+                    }
                 </section>
 
                 @* Its own grid item, not the tail of the history section: from 1024px it sits
@@ -439,6 +456,16 @@
         var step = ChartWidth / (double)(profile.EloHistory.Count - 1);
         _chartPoints = string.Join(' ', profile.EloHistory.Select((p, i) => $"{(i * step).ToString("F1", Inv)},{Y(p.Elo)}"));
     }
+
+    /// <summary>How many of the newest rating moves the profile lists under the curve.</summary>
+    private const int RecentChangeCount = 8;
+
+    private IReadOnlyList<EloPointDto> RecentChanges =>
+        _profile is null ? [] : _profile.EloHistory.TakeLast(RecentChangeCount).Reverse().ToList();
+
+    /// <summary>The sign carries the meaning; the colour only repeats it.</summary>
+    private static string? ShiftClass(double shift) =>
+        shift > 0 ? "profile__shift--up" : shift < 0 ? "profile__shift--down" : null;
 
     /// <summary>Text alternative for the curve — the shape means nothing to a screen reader.</summary>
     private string ChartDescription

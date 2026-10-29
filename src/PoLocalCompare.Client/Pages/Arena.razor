@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject WebLlmService WebLlm
 @inject FxService Fx
+@inject PreferencesService Prefs
 
 <PageTitle>Arena — PoLocalCompare</PageTitle>
 
@@ -168,8 +169,8 @@
                     EloRolled="@_eloRolled"
                     UpsetGap="@_upsetGap"
                     Spark="@_spark[(int)Side.Left]"
-                    Live="@(_duelStillRunning ? _sides[(int)Side.Left] : null)"
-                    Progress="@RaceProgress(Side.Left)" />
+                    Live="@(_duelStillRunning && TelemetryOn ? _sides[(int)Side.Left] : null)"
+                    Progress="@(TelemetryOn ? RaceProgress(Side.Left) : 0)" />
             </div>
 
             <div class="arena__viewport-slot arena__viewport-slot--right">
@@ -186,8 +187,8 @@
                     EloRolled="@_eloRolled"
                     UpsetGap="@_upsetGap"
                     Spark="@_spark[(int)Side.Right]"
-                    Live="@(_duelStillRunning ? _sides[(int)Side.Right] : null)"
-                    Progress="@RaceProgress(Side.Right)" />
+                    Live="@(_duelStillRunning && TelemetryOn ? _sides[(int)Side.Right] : null)"
+                    Progress="@(TelemetryOn ? RaceProgress(Side.Right) : 0)" />
             </div>
         </div>
 

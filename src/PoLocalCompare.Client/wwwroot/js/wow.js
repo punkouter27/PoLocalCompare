@@ -14,15 +14,9 @@
  * Everything respects prefers-reduced-motion by not animating at all.
  */
 window.poWow = (() => {
-    // Off unless Settings → Visual effects is on (prefs.js stamps <html data-fx="on">).
-    const reduced = () => {
-        if (document.documentElement.dataset.fx !== 'on') return true;
-        try {
-            return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        } catch {
-            return false;
-        }
-    };
+    // Off unless Settings → Visual effects is on and the OS is not asking for reduced motion
+    // (prefs.js owns that rule).
+    const motionOff = () => !window.poPrefs?.motionAllowed();
 
     // ── 1. View Transitions ──────────────────────────────────────────────────
     //
@@ -67,7 +61,7 @@ window.poWow = (() => {
      * @param {Element} [hero] marked as the shared element for this one navigation
      */
     function navigate(url, waitForSelector, hero) {
-        if (!document.startViewTransition || reduced()) {
+        if (!document.startViewTransition || motionOff()) {
             blazorNavigate(url);
             return;
         }
@@ -90,7 +84,7 @@ window.poWow = (() => {
         if (!link || link.target === '_blank') return;
 
         const href = link.getAttribute('href');
-        if (!href || !document.startViewTransition || reduced()) return;
+        if (!href || !document.startViewTransition || motionOff()) return;
 
         event.preventDefault();
         navigate(href, link.dataset.vt, link.closest('[data-vt-hero]') ?? link);
@@ -147,7 +141,7 @@ window.poWow = (() => {
      * @param {Record<string, {from?: number, to?: number}>} moved
      */
     function flipRows(moved) {
-        if (reduced()) return;
+        if (motionOff()) return;
         const rows = Array.from(document.querySelectorAll('tr[data-rank-row]'));
         const tops = rows.map(r => r.getBoundingClientRect().top);
 
@@ -182,7 +176,7 @@ window.poWow = (() => {
      * @param {string[]} modelIds models that just appeared in a later-round slot
      */
     function advance(modelIds) {
-        if (reduced()) return;
+        if (motionOff()) return;
 
         let delay = 0;
         for (const id of modelIds ?? []) {
@@ -216,11 +210,12 @@ window.poWow = (() => {
         if (brands.some(b => /Chromium/i.test(b.brand))) {
             document.documentElement.classList.add('po-liquid');
         }
-        if (reduced()) return;
-
+        // Checked per move rather than once at load, so toggling Visual effects applies without
+        // a reload. The listener itself is passive and does nothing while effects are off.
         let frame = 0;
         let pending = null;
         document.addEventListener('pointermove', e => {
+            if (motionOff()) return;
             pending = e;
             if (frame) return;
             frame = requestAnimationFrame(() => {

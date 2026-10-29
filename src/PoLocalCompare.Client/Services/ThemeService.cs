@@ -11,7 +11,7 @@ public enum AppTheme
 }
 
 /// <summary>
-/// Thin wrapper over <c>wwwroot/js/theme.js</c>. The JS module owns the state — it has to, because
+/// Thin wrapper over <c>wwwroot/js/prefs.js</c> (its theme half). The JS module owns the state — it has to, because
 /// it runs in <c>&lt;head&gt;</c> before Blazor boots to avoid a wrong-palette flash — so this type
 /// reads through to it rather than caching a copy that could drift.
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class ThemeService(IJSRuntime js)
         }
         catch (JSException)
         {
-            // theme.js failed to load — the CSS defaults still render, so report the fallback
+            // prefs.js failed to load — the CSS defaults still render, so report the fallback
             // rather than surfacing an error the viewer cannot act on.
             return AppTheme.System;
         }

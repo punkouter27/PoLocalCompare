@@ -26,6 +26,10 @@
          appears to do nothing — which cost real time when the box-sizing fix was briefly
          "verified" against a stale sheet.
 
+      5. One motion gate. Visual effects and reduced motion are combined once, in prefs.js
+         (poPrefs.motionAllowed). An effect script that reads data-fx or queries the media
+         query itself is a second copy of the rule; three copies existed until 2026-10-29.
+
 .PARAMETER SkipTests
     Skip check 1 (it does not build or run tests, only counts attributes, so this is rarely useful).
 
@@ -237,7 +241,9 @@ if (Test-Path $indexPath) {
 $interop = Get-SourceFiles 'src/PoLocalCompare.Client/Services' @('*.cs')
 foreach ($file in $interop) {
     $text = Get-Content $file.FullName -Raw
-    foreach ($match in [regex]::Matches($text, "'/js/(?<name>[\w.-]+\.js)(?<query>[^']*)'")) {
+    # Either quote: C# string literals use double quotes, and a single-quote-only pattern matched
+    # nothing in these files until 2026-10-29.
+    foreach ($match in [regex]::Matches($text, "[`"']/js/(?<name>[\w.-]+\.js)(?<query>[^`"']*)[`"']")) {
         if ($match.Groups['query'].Value -notmatch '\?v=') {
             $missing.Add("$($file.Name): /js/$($match.Groups['name'].Value)")
         }
@@ -249,6 +255,32 @@ if ($missing.Count -eq 0) {
 } else {
     foreach ($item in $missing) { Write-Host "  $item" -ForegroundColor Yellow }
     $failures.Add("$($missing.Count) asset(s) are loaded without a ?v= cache-buster.")
+}
+
+# ── 5. One motion gate ────────────────────────────────────────────────────────
+
+Write-Header 'One motion gate (effects ask poPrefs.motionAllowed)'
+
+# Settings → Visual effects and prefers-reduced-motion are combined once, in prefs.js. An
+# effect script that reads data-fx or the media query itself is a second copy of that rule —
+# exactly what fx.js, gpu-fx.js and wow.js each carried until 2026-10-29, where a change to the
+# rule had to be found in three places and nothing reported a missed one.
+$gated = @('fx.js', 'gpu-fx.js', 'wow.js', 'audio.js', 'sparkline.js')
+$copies = [System.Collections.Generic.List[string]]::new()
+foreach ($file in Get-SourceFiles 'src/PoLocalCompare.Client/wwwroot/js' @('*.js')) {
+    if ($file.Name -eq 'prefs.js') { continue }
+    $text = Get-Content $file.FullName -Raw
+    if ($text -match 'dataset\.fx|data-fx') { $copies.Add("$($file.Name): reads data-fx") }
+    if ($gated -contains $file.Name -and $text -match 'matchMedia\([^)]*prefers-reduced-motion') {
+        $copies.Add("$($file.Name): queries prefers-reduced-motion")
+    }
+}
+
+if ($copies.Count -eq 0) {
+    Write-Host '  one gate' -ForegroundColor Green
+} else {
+    foreach ($item in $copies) { Write-Host "  $item" -ForegroundColor Yellow }
+    $failures.Add("$($copies.Count) effect script(s) re-implement the motion gate instead of calling poPrefs.motionAllowed().")
 }
 
 # ── Verdict ───────────────────────────────────────────────────────────────────

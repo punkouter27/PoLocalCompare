@@ -66,14 +66,15 @@ used to sit here and was deleted in the 2026-08-13 prune: it still expected the 
 layout and failed on a healthy tree. Don't reintroduce it.)
 
 ```powershell
-pwsh SCRIPTS/check-clean.ps1    # repo-hygiene gate: budgets, dead/unused CSS, unreferenced types, cache-busters
+pwsh SCRIPTS/check-clean.ps1    # repo-hygiene gate: budgets, dead/unused CSS, unreferenced types, cache-busters, one motion gate
 ```
 
 `check-clean.ps1` is not a linter — it is the things that had already gone wrong silently and that
 nothing else watches: a tier over its test budget; a class applied in markup that no stylesheet
 defines (the element just renders unstyled); a class a stylesheet defines that nothing applies; a
-C# type named nowhere but its own declaration; and a stylesheet or script loaded without a `?v=`
-cache-buster. It reads source only, so it is deterministic and cheap, and the `hygiene` job in
+C# type named nowhere but its own declaration; a stylesheet or script loaded without a `?v=`
+cache-buster; and an effect script that reads `data-fx` or queries reduced motion itself instead
+of calling `poPrefs.motionAllowed()`. It reads source only, so it is deterministic and cheap, and the `hygiene` job in
 [deploy.yml](.github/workflows/deploy.yml) runs it beside the suites.
 
 ### Tests
@@ -102,12 +103,12 @@ AGENT.MD §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration �
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
 onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has five
-cases spare** (100/44/20/25 as of 2026-10-26, after five E2EAPI duplicates of Integration cases
-were cut) and `SCRIPTS/check-clean.ps1` fails when a tier
+cases spare** (100/45/20/25 as of 2026-10-29) and `SCRIPTS/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
-(two `WinRateCalculator` arithmetic cases and two redundant stream-usage inline cases made way).
+(two `WinRateCalculator` arithmetic cases and two redundant stream-usage inline cases made way),
+and how `SwissPlannerTests` got in on 2026-10-29 (five `BracketPlannerTests` cases made way).
 Say so rather than quietly raising the cap.
 
 **E2E-UI needs the machine to itself.** The suite drives a real browser against the one running dev
@@ -229,6 +230,9 @@ protects. A rule with no obvious reason usually has an expensive one.
   runner holds no state; two matches run at once and not four, because of the rate limit.
   `autoJudgeDelaySeconds` is a per-duel override whose only caller is the tournament (0). The draw
   is automatic by default, with an optional exactly-eight entrant picker before server-side seeding.
+  **Swiss is the other format** (`SwissPlanner`, 8 only): 3 rounds, round 1 is 1v5 2v6 3v7 4v8, each
+  later round is paired from stored results when the last one is fully decided (score, then seed,
+  no rematch); a draw is ½ each, not a seed tie-break; champion = top of points → Buchholz → seed.
 
 ### Persistence and server structure
 
@@ -260,8 +264,9 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Optional features are off until /settings turns them on** — decoration and paid extras only:
   visual effects, sound, Arena telemetry, the leaderboard chart, and the paid AI helpers (Sharpen
   prompt, scouting report). What makes ratings converge (the ±, Suggest matchup, tournaments) is
-  never optional — the app is a benchmark. `prefs.js` reads a missing key as off and stamps `<html data-fx="on">`, which
-  `fx.js`, `gpu-fx.js` and `wow.js` read; Blazor asks `PreferencesService.IsOn`. A new extra is one
+  never optional — the app is a benchmark. `prefs.js` reads a missing key as off and stamps `<html data-fx="on">`;
+  `fx.js`, `gpu-fx.js` and `wow.js` ask `poPrefs.motionAllowed()` (one gate, not three copies),
+  `audio.js` reads `sound` and follows the `po-pref` event; Blazor asks `PreferencesService.IsOn`. A new extra is one
   entry in `Preferences.All` (Shared) and an `IsOn` check where it renders — never on by default.
 - **Every surface owns exactly one BEM block, named after its file.**
 - **Scoped CSS is per-`.razor`-file, and nothing warns when it isn't.** Moving markup into a child
@@ -305,10 +310,21 @@ protects. A rule with no obvious reason usually has an expensive one.
   compute, 100k particles, 7.2 s). Both start only with Settings → Visual effects on and the GPU lease free, tear down mid-frame
   the moment a worker takes it, and destroy their device afterwards. No other render loop, no
   Three.js, PixiJS or Rapier, no backdrop — a WebGL backdrop has been added and removed twice.
-  The confetti is one-shot and stands down while the GPU lease is held. The verdict reveal plays
-  once, and the loser returns to full opacity.
-- **Audio is synthesised, never a file** — including the race sonification and the judge's
-  deliberation drone, which `DetachFromDuel` must always stop.
+  The winning panel's travelling rim light is a term **inside** the nebula's fragment shader (a
+  panel-rect uniform), not a third effect. The confetti — including the first-token burst — is
+  one-shot and stands down while the GPU lease is held. The HUD's tok/s sparkline is a Canvas2D
+  repaint per telemetry update, not a loop. The verdict reveal plays once, and the loser returns
+  to full opacity.
+- **Audio is synthesised, never a file** — including the race sonification (the leader's grains
+  step toward the centre of the stereo field), the judge's deliberation drone, which
+  `DetachFromDuel` must always stop, the launch cue on Compare / Start tournament and the
+  leaderboard's rank-shift sting. With Sound off `ensureCtx` returns null: no context, no graph.
+- **`[JSImport]` is for synchronous reads and buffers, `IJSRuntime` for everything else.**
+  `PreferencesService` binds `globalThis.poPrefs` (sync, trim-safe) and `Sparkline` passes a
+  `Span<double>` as a `MemoryView`. The Client assembly is `[SupportedOSPlatform("browser")]`, so
+  call sites need no guard; `AllowUnsafeBlocks` is on only for the source generator.
+- **`prefs.js` is the one `<head>` script for user choices** — theme (`poTheme`) and extras
+  (`poPrefs`). `theme.js` was folded into it on 2026-10-29.
 - **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12, -10-26)
   without a user-facing reason: HISTORY.md lists each one. The Archive's outcome chips came back
   on 2026-10-26 with one (U4).

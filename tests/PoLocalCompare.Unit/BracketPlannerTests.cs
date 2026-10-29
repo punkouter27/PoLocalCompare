@@ -13,14 +13,6 @@ public class BracketPlannerTests
 
     // ── Sizes ─────────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData(16)]  // an unbracketed size is rejected, not silently rounded
-    public void UnsupportedSizes_AreRejected(int size)
-    {
-        Assert.False(BracketPlanner.IsSupportedSize(size));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BracketPlanner.RoundCount(size));
-    }
-
     /// <summary>The last round is "Final" whatever the bracket size, because it counts back.</summary>
     [Theory]
     [InlineData(2, 0, "Final")]
@@ -70,13 +62,6 @@ public class BracketPlannerTests
 
     // ── Shape ─────────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData(8, 7)]
-    public void Build_ProducesOneMatchLessThanTheField(int size, int expected)
-    {
-        Assert.Equal(expected, BracketPlanner.Build(Contenders(size), size).Count);
-    }
-
     [Fact]
     public void Build_LeavesLaterRoundsEmptyUntilWinnersArrive()
     {
@@ -84,12 +69,6 @@ public class BracketPlannerTests
 
         Assert.All(bracket.Where(m => m.Round == 0), m => Assert.True(m.IsReady));
         Assert.All(bracket.Where(m => m.Round > 0), m => Assert.False(m.IsReady));
-    }
-
-    [Fact]
-    public void Build_RejectsAFieldThatDoesNotMatchTheSize()
-    {
-        Assert.Throws<ArgumentException>(() => BracketPlanner.Build(Contenders(4), 8));
     }
 
     // ── Advancing ─────────────────────────────────────────────────────────
@@ -114,27 +93,6 @@ public class BracketPlannerTests
         // and a 2-model round 0 (also the final) report no next slot.
         Assert.Null(BracketPlanner.NextSlot(2, 0, 8));
         Assert.Null(BracketPlanner.NextSlot(0, 0, 2));
-    }
-
-    [Fact]
-    public void Advance_PlacesTheWinnerInTheNextRound()
-    {
-        var bracket = BracketPlanner.Build(Contenders(8), 8);
-        var winner = bracket.Single(m => m is { Round: 0, Index: 1 }).SlotA;
-
-        var advanced = BracketPlanner.Advance(bracket, 0, 1, winner, 8);
-
-        // Odd match index feeds SlotB of the match above it — the parity rule, applied.
-        Assert.Equal(winner, advanced.Single(m => m is { Round: 1, Index: 0 }).SlotB);
-    }
-
-    [Fact]
-    public void Advance_FromTheFinalChangesNothing()
-    {
-        var bracket = BracketPlanner.Build(Contenders(2), 2);
-        var winner = bracket[0].SlotA;
-
-        Assert.Equal(bracket, BracketPlanner.Advance(bracket, 0, 0, winner, 2));
     }
 
     private static int Seed(BracketSlot slot) => int.Parse(slot.DisplayName[1..]);

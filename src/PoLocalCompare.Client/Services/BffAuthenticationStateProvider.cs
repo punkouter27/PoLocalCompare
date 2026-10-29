@@ -21,7 +21,7 @@ public sealed class BffAuthenticationStateProvider : AuthenticationStateProvider
     {
         try
         {
-            var me = await _http.GetFromJsonAsync<AuthMe>("auth/me");
+            var me = await _http.GetFromJsonAsync("auth/me", ClientJson.Default.AuthMe);
             if (me is null || !me.IsAuthenticated || string.IsNullOrEmpty(me.Name))
                 return Anonymous;
 
@@ -46,5 +46,5 @@ public sealed class BffAuthenticationStateProvider : AuthenticationStateProvider
     public void NotifyStateChanged()
         => NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
 
-    private sealed record AuthMe(bool IsAuthenticated, string? Name, string[]? Roles);
+    internal sealed record AuthMe(bool IsAuthenticated, string? Name, string[]? Roles);
 }

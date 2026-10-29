@@ -123,8 +123,8 @@ public sealed class AutoJudge
 
             // A duel where both models produced nothing can never be judged by a human —
             // RecordVerdictHandler rejects any vote on it with 422 — so there is no grace
-            // window to wait out. Void it immediately rather than leaving it in the
-            // awaiting-verdict list for DelaySeconds.
+            // window to wait out. Void it immediately rather than leaving it Pending in the
+            // Archive for DelaySeconds.
             var leftOk = left is not null && !left.IsFailure && !string.IsNullOrWhiteSpace(left.HtmlOutputRaw);
             var rightOk = right is not null && !right.IsFailure && !string.IsNullOrWhiteSpace(right.HtmlOutputRaw);
             var configuredDelay = (!leftOk && !rightOk) ? 0 : (delaySecondsOverride ?? _options.DelaySeconds);
@@ -265,7 +265,7 @@ public sealed class AutoJudge
         // Nothing to compare. There is no evidence and none is coming — both result rows exist
         // and both are failures — so the duel is VOIDED rather than left Pending. Leaving it
         // Pending stranded it forever: the Arena offered winner buttons the server would reject,
-        // the lobby counted it as "awaiting judgment" until the end of time, and the only exit
+        // the Archive listed it as Pending until the end of time, and the only exit
         // was a human reading two failure banners. A void is the honest terminal: it banks no
         // duel count, no draw, no ELO, and drops out of every awaiting-judgment projection.
         // Recording happens inside RecordAsync, which logs once on success — the void case used

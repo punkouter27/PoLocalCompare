@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swiss tournament - before and after</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b0f14; color: #e8eef5; }
+    body { max-width: 1600px; margin: 0 auto; padding: 24px; }
+    h1, h2, p { margin-top: 0; }
+    h2 { margin-top: 32px; }
+    .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    figure { position: relative; margin: 0; padding: 12px; background: #121923; border: 1px solid #2d3a49; border-radius: 12px; }
+    img { display: block; width: 100%; height: auto; border-radius: 8px; }
+    figcaption { padding-top: 10px; color: #b8c7d9; }
+    .tag { display: inline-block; margin-bottom: 8px; padding: 4px 10px; border-radius: 999px; border: 2px solid #f59e0b; font-weight: 700; }
+    .after .tag { border-color: #22c55e; }
+    .note { color: #8fa3ba; }
+    .mock { padding: 16px; border-radius: 8px; background: #0f141b; }
+    .mark { outline: 3px solid #22c55e; outline-offset: 4px; border-radius: 6px; }
+    .chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .chip { padding: 4px 12px; border: 1px solid #3b4a5c; border-radius: 999px; background: #18212c; color: #e8eef5; font: inherit; }
+    .chip[aria-pressed="true"] { background: #1f3b2c; border-color: #22c55e; }
+    .start { padding: 10px 20px; border-radius: 8px; border: 0; background: #22c55e; color: #000; font-weight: 700; font: inherit; }
+    .hint { flex-basis: 100%; text-align: center; color: #8fa3ba; font-size: 0.9rem; }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+    th, td { border-bottom: 1px solid #2d3a49; padding: 6px 10px; text-align: left; font-variant-numeric: tabular-nums; }
+    th { color: #8fa3ba; font-size: 0.8rem; text-transform: uppercase; }
+    .lead td { background: #12301f; font-weight: 700; }
+    .seed { color: #8fa3ba; font-size: 0.75rem; margin-right: 6px; }
+    .rounds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .card { border: 1px solid #2d3a49; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; font-size: 0.85rem; }
+    .won { font-weight: 700; }
+    .draw { color: #8fa3ba; font-style: italic; font-size: 0.75rem; }
+    @media (max-width: 900px) { .pair { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Swiss tournament format</h1>
+  <p>2026-10-29. <strong>Before</strong> is the existing 1440×900 capture of <code>/tournament</code>
+     (<code>ui-compaction/after-tournament-1440.webp</code>). <strong>After</strong> is an HTML
+     <em>mock-up</em> of the two new elements, not a capture: the app could not be started in the
+     isolated worktree this change was built in, because port 5001 was taken by another project. Replace it with a real
+     capture after the first local run.</p>
+
+  <h2>Draw page: format choice beside Start</h2>
+  <div class="pair">
+    <figure class="before">
+      <span class="tag">Before</span>
+      <img src="ui-compaction/after-tournament-1440.webp" alt="Tournament draw page before the change: Start tournament with no format choice">
+      <figcaption>Start draws an 8-model single-elimination bracket. There is no other format.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After (mock-up)</span>
+      <div class="mock">
+        <div class="chips">
+          <span class="chips mark" role="group" aria-label="Tournament format">
+            <button class="chip" aria-pressed="false">Bracket</button>
+            <button class="chip" aria-pressed="true">Swiss</button>
+          </span>
+          <button class="start">Start tournament →</button>
+          <span class="hint">8 models · 3 rounds · 12 duels · judged automatically.</span>
+        </div>
+      </div>
+      <figcaption>① <code>.po-btn--chip</code> pair with <code>aria-pressed</code>, Bracket by default.
+        With Swiss chosen, the first-round preview shows 1v5 2v6 3v7 4v8, the centre label reads "Round 1",
+        and the hint counts 12 duels.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Run page: standings above the rounds</h2>
+  <div class="pair">
+    <figure class="before">
+      <span class="tag">Before</span>
+      <div class="mock note">A bracket run shows three columns (Quarter-finals, Semi-finals, Final). Nothing about it changes.</div>
+      <figcaption>Bracket runs are unchanged.</figcaption>
+    </figure>
+    <figure class="after">
+      <span class="tag">After (mock-up)</span>
+      <div class="mock">
+        <div class="mark">
+          <table>
+            <thead><tr><th>Rank</th><th>Model</th><th>Points</th><th>Buchholz</th><th>W-D-L</th></tr></thead>
+            <tbody>
+              <tr class="lead"><td>1</td><td><span class="seed">1</span>Model A 🏆</td><td>2.5</td><td>4</td><td>2-1-0</td></tr>
+              <tr><td>2</td><td><span class="seed">3</span>Model C</td><td>2</td><td>4.5</td><td>2-0-1</td></tr>
+              <tr><td>3</td><td><span class="seed">2</span>Model B</td><td>2</td><td>3.5</td><td>2-0-1</td></tr>
+              <tr><td>…</td><td colspan="4" class="note">five more rows</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="rounds">
+          <div><div class="note">ROUND 1</div><div class="card"><span class="won">1 Model A</span><br>5 Model E</div><div class="card">4 Model D<br>8 Model H<br><span class="draw">drawn — half a point each</span></div></div>
+          <div><div class="note">ROUND 2</div><div class="card"><span class="won">1 Model A</span><br>2 Model B</div></div>
+          <div><div class="note">ROUND 3</div><div class="note">Paired by score once round 2 finishes.</div></div>
+        </div>
+      </div>
+      <figcaption>② A <code>.po-table--cards</code> standings table (labelled cards below 640px), ranked by points,
+        then Buchholz, then seed, with the champion row tinted and in bold. ③ The rounds reuse the bracket's match cards. A drawn
+        game says so, and a round not yet paired shows a placeholder.</figcaption>
+    </figure>
+  </div>
+</body>
+</html>

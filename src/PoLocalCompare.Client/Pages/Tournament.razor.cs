@@ -34,6 +34,9 @@ public partial class Tournament
     private List<TournamentEntrantDto> _entrants = [];
     private readonly List<ModelId> _selected = [];
     private bool _choosingEntrants;
+
+    /// <summary>Bracket by default; Swiss is the one other format, chosen beside Start.</summary>
+    private TournamentFormat _format = TournamentFormat.Bracket;
     private string _prompt = string.Empty;
     private bool _loadingEntrants = true;
     private bool _starting;
@@ -122,6 +125,8 @@ public partial class Tournament
                 (false, _) => $"Choose exactly {FieldSize} entrants ({_selected.Count} selected).",
                 (true, false) when _prompt.Trim().Length == 0 => "Write a prompt above to start the bracket.",
                 (true, false) => $"The prompt needs at least {MinPromptLength} characters.",
+                _ when _format == TournamentFormat.Swiss =>
+                    $"{FieldSize} models · {SwissPlanner.RoundCount} rounds · {SwissPlanner.MatchCount} duels · judged automatically.",
                 _ => $"{FieldSize} models · {FieldSize - 1} duels · judged automatically.",
             };
         }
@@ -153,9 +158,10 @@ public partial class Tournament
     /// </summary>
     /// <remarks>
     /// Mirrors what <c>CreateTournamentHandler</c> will do on the server: seed the field by
-    /// rating, strongest first, then lay it out through <see cref="BracketPlanner.SeedOrder"/>.
-    /// Reusing the planner rather than hard-coding 1v8/4v5/2v7/3v6 is the point — if the seeding
-    /// convention ever changes, this preview cannot drift away from the bracket it previews.
+    /// rating, strongest first, then lay it out through <see cref="BracketPlanner.SeedOrder"/>
+    /// (or, for Swiss, <see cref="SwissPlanner.FirstRoundSeeds"/>). Reusing the planners rather
+    /// than hard-coding 1v8/4v5/2v7/3v6 is the point — if the seeding convention ever changes,
+    /// this preview cannot drift away from the draw it previews.
     /// </remarks>
     private IReadOnlyList<Pairing> FirstRoundPairs
     {
@@ -168,22 +174,38 @@ public partial class Tournament
                 .ThenBy(e => e.DisplayName, StringComparer.Ordinal)
                 .ToList();
 
-            var order = BracketPlanner.SeedOrder(FieldSize);
-            var pairs = new List<Pairing>(FieldSize / 2);
-
-            for (var i = 0; i < order.Count; i += 2)
+            IEnumerable<(int SeedA, int SeedB)> seeds;
+            if (_format == TournamentFormat.Swiss)
             {
-                // SeedOrder is 1-based; the seeded list is 0-based.
-                var seedA = order[i];
-                var seedB = order[i + 1];
-                pairs.Add(new Pairing(seedA, seeded[seedA - 1], seedB, seeded[seedB - 1]));
+                seeds = SwissPlanner.FirstRoundSeeds();
+            }
+            else
+            {
+                var order = BracketPlanner.SeedOrder(FieldSize);
+                seeds = Enumerable.Range(0, order.Count / 2).Select(i => (order[i * 2], order[i * 2 + 1]));
             }
 
-            return pairs;
+            // Seeds are 1-based; the seeded list is 0-based.
+            return seeds
+                .Select(s => new Pairing(s.SeedA, seeded[s.SeedA - 1], s.SeedB, seeded[s.SeedB - 1]))
+                .ToList();
         }
     }
 
-    private int RoundCount => _tournament is null ? 0 : BracketPlanner.RoundCount(_tournament.Size);
+    private bool IsSwiss => _tournament?.Format == TournamentFormat.Swiss;
+
+    private int RoundCount => _tournament is null
+        ? 0
+        : IsSwiss ? SwissPlanner.RoundCount : BracketPlanner.RoundCount(_tournament.Size);
+
+    /// <summary>Swiss rounds not yet paired — each is drawn by score when the one before it finishes.</summary>
+    private IEnumerable<int> UnpairedSwissRounds => IsSwiss
+        ? Enumerable.Range(0, SwissPlanner.RoundCount).Where(r => _tournament!.Matches.All(m => m.Round != r))
+        : [];
+
+    /// <summary>"2", "1.5" — Swiss points and Buchholz are whole or half numbers.</summary>
+    private static string FormatPoints(double points) =>
+        points.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     private TournamentMatchDto? RunningMatch => _tournament?.Matches.FirstOrDefault(m => m.IsRunning);
 
@@ -198,10 +220,11 @@ public partial class Tournament
     private string DuelUrl(DuelId duelId) =>
         $"/arena/{duelId}?tournament={Uri.EscapeDataString(_tournament!.TournamentId.Value)}";
 
-    private static string SizeLabel(int size) => size switch
+    private static string SizeLabel(TournamentDto tournament) => tournament switch
     {
-        2 => "1v1",
-        _ => $"{size}-model bracket",
+        { Format: TournamentFormat.Swiss } => $"{tournament.Size}-model Swiss",
+        { Size: 2 } => "1v1",
+        _ => $"{tournament.Size}-model bracket",
     };
 
     private static string StatusLabel(TournamentDto tournament) => tournament.Status switch
@@ -345,7 +368,8 @@ public partial class Tournament
         try
         {
             await JS.InvokeVoidAsync("poNotify.ask");
-            var drawn = await ApiClient.CreateTournamentAsync(_selected, _prompt.Trim());
+            _ = AudioService.PlayLaunchAsync();
+            var drawn = await ApiClient.CreateTournamentAsync(_selected, _prompt.Trim(), _format);
 
             if (drawn is not null)
                 Nav.NavigateTo($"/tournament/{drawn.TournamentId}");
@@ -495,7 +519,7 @@ public partial class Tournament
                         {
                             _ = AudioService.PlayFanfareAsync(fresh.TournamentId.ToString());
                             _ = CelebrateChampionAsync(fresh.ChampionName);
-                            await JS.InvokeVoidAsync("poNotify.notify", "Tournament complete", $"{fresh.ChampionName} wins the {SizeLabel(fresh.Size)}.");
+                            await JS.InvokeVoidAsync("poNotify.notify", "Tournament complete", $"{fresh.ChampionName} wins the {SizeLabel(fresh)}.");
                         }
                         else
                         {
@@ -548,7 +572,8 @@ public partial class Tournament
     /// </summary>
     private static List<string> NewlyAdvanced(TournamentDto? before, TournamentDto after)
     {
-        if (before is null || after.Matches.Count == 0) return [];
+        // Nobody advances in Swiss: a new round is a fresh pairing, not a winner moving on.
+        if (before is null || after.Matches.Count == 0 || after.Format == TournamentFormat.Swiss) return [];
 
         var firstRound = after.Matches.Min(m => m.Round);
         var filled = before.Matches

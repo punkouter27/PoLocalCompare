@@ -30,6 +30,8 @@
                 <span class="telemetry-hud__value">@((Live.TokenVelocity ?? 0).ToString("F1", CultureInfo.InvariantCulture)) tok/s</span>
             </div>
         </div>
+        @* tok/s over the run so far. Decorative: the current figure is in the readout above. *@
+        <canvas id="@_sparkId" class="telemetry-hud__spark" aria-hidden="true"></canvas>
     }
     else if (Result is null)
     {
@@ -133,8 +135,49 @@
     {
         (int, double?, DuelStatus, double)? live = Live is null ? null : (Live.TokenCount, Live.TokenVelocity, Live.Status, Progress);
         _renderDirty = !ReferenceEquals(Result, _lastResult) || live != _lastLive;
+        if (Live?.TokenVelocity is { } tps && live != _lastLive) RecordSample(tps);
         _lastLive = live;
         _lastResult = Result;
+    }
+
+    // ── Sparkline ────────────────────────────────────────────────────────────
+    // A fixed ring of the latest tok/s readings, handed to sparkline.js as a span after each
+    // render that changed them. Fixed size, so a long run costs the same as a short one.
+
+    private const int SparkCapacity = 60;
+    private readonly double[] _samples = new double[SparkCapacity];
+    private readonly double[] _ordered = new double[SparkCapacity];
+    private int _sampleCount;
+    private int _sampleNext;
+    private bool _sparkDirty;
+    private readonly string _sparkId = $"spark-{Guid.NewGuid():N}";
+
+    private void RecordSample(double tps)
+    {
+        _samples[_sampleNext] = tps;
+        _sampleNext = (_sampleNext + 1) % SparkCapacity;
+        _sampleCount = Math.Min(_sampleCount + 1, SparkCapacity);
+        _sparkDirty = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_sparkDirty || _sampleCount < 2 || Live is null) return;
+        _sparkDirty = false;
+
+        // Oldest first: the tail of the ring, then its head.
+        var start = _sampleCount < SparkCapacity ? 0 : _sampleNext;
+        for (var i = 0; i < _sampleCount; i++) _ordered[i] = _samples[(start + i) % SparkCapacity];
+
+        try
+        {
+            await Sparkline.EnsureLoadedAsync();
+            Sparkline.Draw(_sparkId, _ordered.AsSpan(0, _sampleCount));
+        }
+        catch (System.Runtime.InteropServices.JavaScript.JSException)
+        {
+            // Decoration: the readout above already carries the number.
+        }
     }
 
     private static string FormatMs(long ms)

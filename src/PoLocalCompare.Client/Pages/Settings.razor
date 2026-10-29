@@ -2,8 +2,9 @@
 @attribute [AllowAnonymous]
 
 @inject ThemeService Theme
-@inject AudioService Audio
 @inject PreferencesService Prefs
+@inject FxService Fx
+@inject AudioService Audio
 
 <PageTitle>Settings — PoLocalCompare</PageTitle>
 
@@ -12,14 +13,15 @@
    the extras below are the features that made the default app busier than its job (pick two
    models, run a prompt, see who won). Each is off until switched on here — prefs.js reads a
    missing key as off — and the list itself is Preferences.All, so a new extra registers there,
-   not here. Anonymous on purpose: theme and sound were reachable signed out, and still are.
+   not here — sound included. Theme keeps its own row because it is three-way, not on/off.
+   Anonymous on purpose: theme and sound were reachable signed out, and still are.
    Saved per browser; nothing here reaches the server. *@
 <div class="po-page settings">
     <PageHeader Title="Settings"
                 Subtitle="Saved in this browser. The extras are off until you turn them on." />
 
     <section class="po-section" aria-labelledby="settings-look-heading">
-        <h2 id="settings-look-heading" class="po-section-title">Look and sound</h2>
+        <h2 id="settings-look-heading" class="po-section-title">Look</h2>
         <div class="settings__list">
             <div class="settings__row">
                 <span class="settings__text">
@@ -35,13 +37,6 @@
                     }
                 </div>
             </div>
-            <label class="settings__row settings__toggle">
-                <span class="settings__text">
-                    <span class="settings__label">Sound</span>
-                    <span class="po-hint settings__hint">Short synthesised cues when a duel starts, finishes and is judged.</span>
-                </span>
-                <input type="checkbox" class="settings__switch" checked="@_soundOn" @onchange="SetSoundAsync" />
-            </label>
         </div>
     </section>
 
@@ -50,17 +45,35 @@
         <div class="settings__list">
             @foreach (var pref in Preferences.All)
             {
+                var on = Prefs.IsOn(pref.Key);
                 <label class="settings__row settings__toggle">
                     <span class="settings__text">
                         <span class="settings__label">@pref.Label</span>
                         <span class="po-hint settings__hint">@pref.Description</span>
                     </span>
                     <input type="checkbox" class="settings__switch" data-pref="@pref.StorageKey"
-                           checked="@Prefs.IsOn(pref.Key)"
+                           checked="@on"
                            @onchange="e => Prefs.SetAsync(pref.Key, e.Value is true)" />
                 </label>
+                @* The two sensory extras can be tried here rather than by running a duel. Its own
+                   row, not inside the label, so the button is not nested in another control. *@
+                @if (on && pref.Key is Preference.Effects or Preference.Sound)
+                {
+                    <div class="settings__row settings__preview">
+                        <span class="po-hint">See what it does.</span>
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                @onclick="() => PreviewAsync(pref.Key)">Try @pref.Label.ToLowerInvariant()</button>
+                    </div>
+                }
             }
         </div>
+        @* One way back to the plain app: every extra off in a click. Only while something is on. *@
+        @if (Preferences.All.Any(p => Prefs.IsOn(p.Key)))
+        {
+            <div class="settings__quiet">
+                <button type="button" class="po-btn po-btn--ghost" @onclick="QuietAsync">Turn every extra off</button>
+            </div>
+        }
     </section>
 </div>
 
@@ -73,13 +86,8 @@
     ];
 
     private AppTheme _theme = AppTheme.System;
-    private bool _soundOn;
 
-    protected override async Task OnInitializedAsync()
-    {
-        _theme = await Theme.GetAsync();
-        _soundOn = !await Audio.IsMutedAsync();
-    }
+    protected override async Task OnInitializedAsync() => _theme = await Theme.GetAsync();
 
     private async Task SetThemeAsync(AppTheme theme)
     {
@@ -87,6 +95,14 @@
         await Theme.SetAsync(theme);
     }
 
-    private async Task SetSoundAsync(ChangeEventArgs e) =>
-        _soundOn = !await Audio.SetMutedAsync(e.Value is not true);
+    /// <summary>A sample of the extra: a burst off the button, or the cue that opens a duel.</summary>
+    private Task PreviewAsync(Preference key) => key == Preference.Effects
+        ? Fx.BurstFromAsync(".settings__preview .po-btn", 40)
+        : Audio.PlayLaunchAsync();
+
+    private async Task QuietAsync()
+    {
+        foreach (var pref in Preferences.All.Where(p => Prefs.IsOn(p.Key)))
+            await Prefs.SetAsync(pref.Key, false);
+    }
 }

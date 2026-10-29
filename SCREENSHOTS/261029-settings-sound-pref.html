@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings: sound joins the extras</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#5b6470; --line:#d8dde3; --add:#0a7a3e; --del:#b42318; --note:#7a4d00; --note-bg:#fff4dc; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1216; --card:#181c22; --ink:#e8ebef; --muted:#9aa4b0; --line:#2c333c; --add:#5fd394; --del:#ff8a80; --note:#ffd27a; --note-bg:#2e2410; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; }
+  .pane { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .pane h2 { font-size:.85rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 12px; }
+  .sec { font-weight:600; margin:14px 0 6px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; }
+  .row small { display:block; color:var(--muted); }
+  .sw { width:34px; height:20px; border-radius:10px; border:2px solid var(--muted); flex:none; }
+  .chips span { border:1px solid var(--line); border-radius:999px; padding:2px 10px; margin-left:4px; font-size:.85rem; }
+  .gone { outline:2px dashed var(--del); } .new { outline:2px solid var(--add); }
+  .tag { font-size:.75rem; font-weight:700; margin-left:6px; } .tag.del { color:var(--del); } .tag.add { color:var(--add); }
+  .notes { margin-top:20px; background:var(--note-bg); color:var(--note); border-radius:12px; padding:12px 16px; }
+  .notes li { margin:4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Settings: sound becomes a regular optional feature</h1>
+  <p class="sub">2026-10-29 · /simplify cleanup of commit 70925e0 · drawn from the markup (the app could not be restarted: port 5001 was held by another project)</p>
+  <div class="grid">
+    <section class="pane">
+      <h2>Before</h2>
+      <div class="sec">Look and sound</div>
+      <div class="row"><span>Theme<small>Auto follows your system…</small></span><span class="chips"><span>Auto</span><span>Light</span><span>Dark</span></span></div>
+      <div class="row gone"><span>Sound <span class="tag del">① hand-built row</span><small>Short synthesised cues…</small></span><span class="sw"></span></div>
+      <div class="sec">Optional features</div>
+      <div class="row"><span>Visual effects</span><span class="sw"></span></div>
+      <div class="row"><span>Arena telemetry</span><span class="sw"></span></div>
+      <div class="row"><span>Leaderboard chart</span><span class="sw"></span></div>
+      <div class="row"><span>Paid AI helpers</span><span class="sw"></span></div>
+    </section>
+    <section class="pane">
+      <h2>After</h2>
+      <div class="sec">Look <span class="tag add">② renamed</span></div>
+      <div class="row"><span>Theme<small>Auto follows your system…</small></span><span class="chips"><span>Auto</span><span>Light</span><span>Dark</span></span></div>
+      <div class="sec">Optional features</div>
+      <div class="row"><span>Visual effects</span><span class="sw"></span></div>
+      <div class="row new"><span>Sound <span class="tag add">③ from Preferences.All</span><small>Short synthesised cues…</small></span><span class="sw"></span></div>
+      <div class="row"><span>Arena telemetry</span><span class="sw"></span></div>
+      <div class="row"><span>Leaderboard chart</span><span class="sw"></span></div>
+      <div class="row"><span>Paid AI helpers</span><span class="sw"></span></div>
+    </section>
+  </div>
+  <ol class="notes">
+    <li>Sound had its own storage key (<code>polocalcompare.muted</code>, inverted), its own row and its own C# round-trip.</li>
+    <li>With sound gone, the first section holds only Theme, the one three-way choice.</li>
+    <li>Sound is now one entry in <code>Preferences.All</code>, stored by prefs.js as <code>po-pref-sound</code>. Off by default, as before. When off, audio.js does no work at all instead of playing into a silent bus. Still five switches in total.</li>
+  </ol>
+</main>
+</body>
+</html>

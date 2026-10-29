@@ -347,8 +347,8 @@
     --violet-surface:  color-mix(in srgb, var(--accent-purple) 12%, var(--surface-1));
     --violet-border:   color-mix(in srgb, var(--accent-purple) 38%, var(--surface-1));
 
-    /* Added when the hand-rolled tints were folded in: the nav ticker's "running" pill and
-       the two cyan accents on Home had no token to move to, which is part of why they were
+    /* Added when the hand-rolled tints were folded in: the two cyan accents on Home (and the
+       since-removed nav ticker) had no token to move to, which is part of why they were
        hand-rolled in the first place. */
     --cyan-surface:    color-mix(in srgb, var(--accent-cyan) 12%, var(--surface-1));
     --cyan-border:     color-mix(in srgb, var(--accent-cyan) 38%, var(--surface-1));
@@ -364,7 +364,7 @@
    `rgba(45, 220, 132, 0.08)`, `color-mix(in srgb, var(--accent-cyan) 12%, transparent)` — and
    that broke the guarantee twice over. A translucent tint composites against whatever is
    behind it, so the same chip measured differently on the nav (--surface-base) than on a card
-   (--surface-1): the ticker pills landed at 4.26 and 4.45 against the nav, both under 4.5,
+   (--surface-1): the old nav ticker pills landed at 4.26 and 4.45 against the nav, both under 4.5,
    while the identical treatment passed elsewhere. And every one of those literals was the
    DARK-theme accent value frozen into the stylesheet, so a light-theme viewer got a dark
    palette's hue behind light-palette text — the tokens exist precisely so a colour cannot be

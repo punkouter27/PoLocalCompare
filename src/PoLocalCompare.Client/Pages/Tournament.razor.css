@@ -289,6 +289,22 @@
     letter-spacing: 0.08em;
 }
 
+/* ── Swiss table ────────────────────────────────────────────────────── */
+
+.tourney__standings {
+    margin-top: var(--space-lg);
+}
+
+.tourney__standings-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* The crowned row: tint plus weight, so the leader reads without relying on colour alone. */
+.tourney__standings-row--champion td {
+    background: var(--success-surface);
+    font-weight: 700;
+}
+
 .tourney__tiebreak,
 .tourney__match-error {
     margin-top: var(--space-xs);
@@ -345,6 +361,12 @@
 
 
 /* ── Actions and history ────────────────────────────────────────────── */
+
+/* Bracket / Swiss, beside Start. */
+.tourney__format {
+    display: flex;
+    gap: var(--space-xs);
+}
 
 /* Its own line under the button. Beside it, the hint read as a caption for whatever was to its
    right, and the one sentence explaining the button was the easiest thing on the page to miss. */

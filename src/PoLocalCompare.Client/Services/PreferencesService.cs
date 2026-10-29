@@ -1,49 +1,50 @@
-using Microsoft.JSInterop;
+using System.Runtime.InteropServices.JavaScript;
 using PoLocalCompare.Shared.Presentation;
 
 namespace PoLocalCompare.Client.Services;
 
 /// <summary>
 /// Thin wrapper over <c>wwwroot/js/prefs.js</c>, which owns the state for the same reason
-/// theme.js does: the effects switch has to be on <c>&lt;html&gt;</c> before Blazor boots.
+/// the theme does: the effects switch has to be on <c>&lt;html&gt;</c> before Blazor boots.
 /// </summary>
 /// <remarks>
-/// Reads are synchronous (<see cref="IJSInProcessRuntime"/>, which is what a WebAssembly host
-/// hands out) so markup can ask <see cref="IsOn"/> inline, and are cached per session because
-/// only <see cref="SetAsync"/> changes them.
+/// Bound with [JSImport] to the <c>window.poPrefs</c> global prefs.js defines in &lt;head&gt;:
+/// synchronous, so markup can ask <see cref="IsOn"/> inline, and trim-safe, where
+/// IJSInProcessRuntime.Invoke&lt;T&gt; is not. Deliberately not cached: prefs.js follows other
+/// tabs through the <c>storage</c> event, and a C# copy would keep answering with the old value
+/// — for the paid helpers, that is a paid call the user turned off.
 /// </remarks>
-public sealed class PreferencesService(IJSRuntime js)
+public sealed partial class PreferencesService
 {
-    private readonly Dictionary<Preference, bool> _cache = [];
-
-    /// <summary>Raised after <see cref="SetAsync"/>, so a page already on screen can re-render.</summary>
-    public event Action? OnChanged;
-
     public bool IsOn(Preference key)
     {
-        if (_cache.TryGetValue(key, out var on)) return on;
         try
         {
-            on = ((IJSInProcessRuntime)js).Invoke<bool>("poPrefs.get", Preferences.Info(key).StorageKey);
+            return Get(Preferences.Info(key).StorageKey);
         }
         catch (JSException)
         {
             // prefs.js failed to load: every extra stays off, which is the default anyway.
-            on = false;
+            return false;
         }
-        return _cache[key] = on;
     }
 
-    public async Task SetAsync(Preference key, bool on)
+    public Task SetAsync(Preference key, bool on)
     {
         try
         {
-            _cache[key] = await js.InvokeAsync<bool>("poPrefs.set", Preferences.Info(key).StorageKey, on);
+            Set(Preferences.Info(key).StorageKey, on);
         }
         catch (JSException)
         {
-            _cache[key] = on;
+            // prefs.js failed to load: nothing to persist to, and IsOn already answers off.
         }
-        OnChanged?.Invoke();
+        return Task.CompletedTask;
     }
+
+    [JSImport("globalThis.poPrefs.get")]
+    private static partial bool Get(string key);
+
+    [JSImport("globalThis.poPrefs.set")]
+    private static partial bool Set(string key, bool on);
 }

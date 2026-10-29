@@ -36,6 +36,7 @@ $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.De
 - **Spend** is capped daily by `Limits:DailySpendCapUsd`, counting contestants, the judge, and the `SpendLedger` table (prompt refine, scouting reports).
 - **Compare** can suggest the matchup the leaderboard learns most from, and each **model profile** carries a scouting report written from the judge's notes (`GET /api/leaderboard/{id}/scouting-report`). Suggest matchup is always there; the scouting report and Sharpen prompt are paid, so they are off until switched on in Settings.
 - **Settings** (`/settings`, from the user menu) hold the theme, sound and the optional features — visual effects, Arena telemetry, the leaderboard chart, and the paid AI helpers. Every one is off by default, so a first visit gets the plain pick → duel → verdict flow. Saved per browser.
+- **Tournaments** (`/tournament`, `POST /api/tournaments`) run eight models on one prompt, seeded by ELO and auto-judged on the server. `format` picks **Bracket** (the default: single elimination, 7 duels) or **Swiss** (3 rounds, everyone plays every round, paired by score: 12 duels, ranked by points, then Buchholz, then seed). Every match is an ordinary rated duel.
 - **Judge calibration** (`POST /api/dev/judge-calibration`, Development only) replays the judge over human-decided duels and reports agreement and Cohen's κ. The other `/api/dev/*` endpoints (reset, cost repricing) were removed on 2026-10-26.
 
 ## Tests

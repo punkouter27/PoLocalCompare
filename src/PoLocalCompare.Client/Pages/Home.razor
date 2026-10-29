@@ -738,7 +738,7 @@
         try
         {
             await JS.InvokeVoidAsync("poNotify.ask");
-            _ = AudioService.PlayTickAsync();
+            _ = AudioService.PlayLaunchAsync();
             _ = Fx.BurstFromAsync(".home__compare .po-btn", 40);
 
             var dto = await ApiClient.CommenceDuelAsync(

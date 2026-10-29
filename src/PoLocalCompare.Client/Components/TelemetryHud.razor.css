@@ -18,6 +18,15 @@
     color: var(--text);
 }
 
+/* tok/s history. `color` is what sparkline.js strokes with, so the line follows the theme. */
+.telemetry-hud__spark {
+    display: block;
+    width: 100%;
+    height: var(--space-xl);
+    margin-top: var(--space-sm);
+    color: var(--accent-cyan);
+}
+
 /* Diagnostics disclosure. Closed by default — these are the numbers you go looking for,
    not the ones you compare two models on. */
 .telemetry-hud__more {

@@ -54,7 +54,7 @@
            instead — the board and the "why" on one page. The chart steps aside while it is
            open; closing the panel brings it back. *@
         <div class="leaderboard__layout @(PanelOpen ? "leaderboard__layout--panel" : null)">
-        @if (!PanelOpen && ShowChart)
+        @if (!PanelOpen && _showChart)
         {
             <div class="leaderboard__chart">
                 <ValueChart Entries="_displayedEntries" />
@@ -255,11 +255,8 @@
     /// </summary>
     private bool _wide;
 
-    /// <summary>Set after load: whether the value chart has anything to plot.</summary>
-    private bool _chartHasData;
-
-    /// <summary>The chart is switched on in Settings and has something to plot.</summary>
-    private bool ShowChart => _chartHasData && Prefs.IsOn(Preference.LeaderboardChart);
+    /// <summary>Set after load: the chart is switched on in Settings and has anything to plot.</summary>
+    private bool _showChart;
 
     /// <summary>
     /// The model in the panel: the one picked, or — from 1024px, when there is no chart
@@ -267,7 +264,7 @@
     /// </summary>
     private string? PanelModel =>
         RouteIdShape.IsPlausible(SelectedModel) ? SelectedModel
-        : _wide && !ShowChart && _displayedEntries.Count > 0 ? _displayedEntries[0].ModelId.Value
+        : _wide && !_showChart && _displayedEntries.Count > 0 ? _displayedEntries[0].ModelId.Value
         : null;
 
     private bool PanelOpen => PanelModel is not null;
@@ -364,6 +361,9 @@
             else if (_flipPending)
             {
                 _flipPending = false;
+                _ = AudioService.PlayRankShiftAsync(
+                    _moved.Values.Count(m => m.To < m.From),
+                    _moved.Values.Count(m => m.To > m.From));
                 await JS.InvokeVoidAsync("poWow.flipRows", _moved);
             }
         }
@@ -387,7 +387,7 @@
             var rows = await ApiClient.GetLeaderboardAsync(SortBy);
             _entries = rows?.ToList() ?? [];
             _displayedEntries = ActiveOnly ? _entries.Where(e => e.DuelCount > 0).ToList() : _entries;
-            _chartHasData = ValueChartLayout.Build(_displayedEntries) is not null;
+            _showChart = Prefs.IsOn(Preference.LeaderboardChart) && ValueChartLayout.Build(_displayedEntries) is not null;
         }
         catch (Exception ex)
         {

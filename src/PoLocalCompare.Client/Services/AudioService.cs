@@ -34,7 +34,7 @@ namespace PoLocalCompare.Client.Services;
 /// </remarks>
 public sealed class AudioService(IJSRuntime js) : IAsyncDisposable
 {
-    private const string ModulePath = "/js/audio.js?v=11";
+    private const string ModulePath = "/js/audio.js?v=13";
 
     private Task<IJSObjectReference>? _module;
 
@@ -101,6 +101,12 @@ public sealed class AudioService(IJSRuntime js) : IAsyncDisposable
     /// <summary>One rising note for each of the judge window's last three seconds.</summary>
     public Task PlayCountdownAsync(int remaining) => CallAsync("playCountdown", remaining);
 
+    /// <summary>Compare and Start tournament — the clicks that spend inference get their own cue.</summary>
+    public Task PlayLaunchAsync() => CallAsync("playLaunch");
+
+    /// <summary>The leaderboard reshuffled since the last visit: rising notes per climber, one falling if any dropped.</summary>
+    public Task PlayRankShiftAsync(int climbs, int falls) => CallAsync("playRankShift", climbs, falls);
+
     /// <summary>Short UI tick for a click. Quiet on purpose — it fires often.</summary>
     public Task PlayTickAsync() => CallAsync("playTick");
 
@@ -110,34 +116,6 @@ public sealed class AudioService(IJSRuntime js) : IAsyncDisposable
         ModelType.LocalService => "ollama",
         _ => "remote",
     };
-
-    /// <summary>Reads the persisted mute preference.</summary>
-    public async Task<bool> IsMutedAsync()
-    {
-        try
-        {
-            return await (await ModuleAsync()).InvokeAsync<bool>("isMuted");
-        }
-        catch (Exception ex) when (IsBenign(ex))
-        {
-            ResetIfFaulted();
-            return false;
-        }
-    }
-
-    /// <summary>Sets and persists the mute preference. Returns the value actually applied.</summary>
-    public async Task<bool> SetMutedAsync(bool muted)
-    {
-        try
-        {
-            return await (await ModuleAsync()).InvokeAsync<bool>("setMuted", muted);
-        }
-        catch (Exception ex) when (IsBenign(ex))
-        {
-            ResetIfFaulted();
-            return muted;
-        }
-    }
 
     private Task<IJSObjectReference> ModuleAsync() =>
         _module ??= js.InvokeAsync<IJSObjectReference>("import", ModulePath).AsTask();

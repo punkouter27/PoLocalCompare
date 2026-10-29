@@ -306,6 +306,12 @@ public partial class Arena
 
     // The race's words and marker positions are RaceCommentary (Shared/Presentation), where the
     // Unit tier can reach them; these only hand it this page's state.
+    /// <summary>
+    /// Settings → Arena telemetry. Off, the panels get no live inputs, so the streaming render
+    /// path skips the progress math for a HUD that is not on screen.
+    /// </summary>
+    private bool TelemetryOn => Prefs.IsOn(Preference.ArenaDetails);
+
     private double RaceProgress(Side side) =>
         RaceCommentary.Progress(side, _sides[(int)Side.Left], _sides[(int)Side.Right]);
 
@@ -1104,6 +1110,10 @@ public partial class Arena
         if (tokensBefore > 0 || _sides[(int)side].TokenCount <= 0 || _spark[(int)side]) return;
         _spark[(int)side] = true;
         _ = AudioService.PlaySparkAsync(side == Side.Left ? -0.6 : 0.6);
+        // A small burst off the panel that spoke first. fx.js stands down while the GPU lease
+        // is held, so a browser model mid-inference never pays for it; a remote side's tok/s
+        // is timed on the server and cannot be skewed by a canvas here.
+        _ = Fx.BurstFromAsync($".arena__viewport-slot--{(side == Side.Left ? "left" : "right")} .arena-panel__box", 24);
     }
 
     /// <summary>

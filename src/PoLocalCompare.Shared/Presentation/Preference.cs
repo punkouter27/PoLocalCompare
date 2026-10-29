@@ -4,6 +4,7 @@ namespace PoLocalCompare.Shared.Presentation;
 public enum Preference
 {
     Effects,
+    Sound,
     ArenaDetails,
     LeaderboardChart,
     Assistants,
@@ -29,6 +30,8 @@ public static class Preferences
     [
         new(Preference.Effects, "effects", "Visual effects",
             "Page transitions, confetti, the verdict nebula and the champion storm. Reduced motion still turns them off."),
+        new(Preference.Sound, "sound", "Sound",
+            "Short synthesised cues when a duel starts, finishes and is judged."),
         new(Preference.ArenaDetails, "arena-details", "Arena telemetry",
             "Live tokens, speed, cost and energy under each panel while a duel runs."),
         new(Preference.LeaderboardChart, "leaderboard-chart", "Leaderboard chart",

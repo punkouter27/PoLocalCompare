@@ -5,6 +5,10 @@ using PoLocalCompare.Client;
 using PoLocalCompare.Client.Services;
 using System;
 
+// WebAssembly only: lets the [JSImport] bindings (PreferencesService, Sparkline) be called
+// without a platform guard at every call site.
+[assembly: System.Runtime.Versioning.SupportedOSPlatform("browser")]
+
 try
 {
     var builder = WebAssemblyHostBuilder.CreateDefault(args);

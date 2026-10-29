@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options batch, before and after</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#5b6470; --line:#d8dde3; --up:#0f7a45; --down:#c62828; --add:#0a7a3e; --cyan:#0a7684; --note:#7a4d00; --note-bg:#fff4dc; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1216; --card:#181c22; --ink:#e8ebef; --muted:#9aa4b0; --line:#2c333c; --up:#2ddc84; --down:#ef4444; --add:#5fd394; --cyan:#12b8cf; --note:#ffd27a; --note-bg:#2e2410; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; } h2 { font-size:1.05rem; margin:28px 0 8px; }
+  .sub { color:var(--muted); margin:0 0 12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+  .pane { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .pane h3 { font-size:.8rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  .new { outline:2px solid var(--add); outline-offset:3px; border-radius:6px; }
+  .tag { font-size:.75rem; font-weight:700; color:var(--add); margin-left:6px; }
+  ol.ch { list-style:none; padding:0; margin:0; display:grid; gap:4px; }
+  .up { color:var(--up); font-weight:600; } .down { color:var(--down); font-weight:600; }
+  .m { color:var(--muted); font-size:.85rem; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; gap:8px; }
+  .btn { border:1px solid var(--line); border-radius:6px; padding:2px 10px; font-size:.85rem; }
+  svg { width:100%; height:32px; color:var(--cyan); }
+  .notes { margin-top:24px; background:var(--note-bg); color:var(--note); border-radius:12px; padding:12px 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Options 5, 11–20, 41–50: what changes on screen</h1>
+  <p class="sub">2026-10-29 · mock-ups drawn from the markup. The app could not be started (port 5001 was held by another project), so these are not captures. The Swiss page has its own: 261029-swiss-tournament.html.</p>
+
+  <h2>① Model profile: rating history (5)</h2>
+  <div class="grid">
+    <section class="pane"><h3>Before</h3><p>Rating curve · "Peak 1312 on 2026-10-20 · longest win streak 4"</p><p class="m">No way to see what moved it.</p></section>
+    <section class="pane"><h3>After</h3><p>Rating curve · peak line, then:</p>
+      <div class="new"><strong>Recent rating changes</strong><span class="tag">new</span>
+        <ol class="ch">
+          <li><span class="up">+14.2</span> Win vs Llama 3.2 3B <span class="m">1312 · Oct 28</span></li>
+          <li><span class="down">−9.8</span> Loss vs GPT-4.1 mini <span class="m">1298 · Oct 27</span></li>
+          <li><span class="up">+2.1</span> Draw vs Qwen 2.5 7B <span class="m">1307 · Oct 27</span></li>
+        </ol></div></section>
+  </div>
+
+  <h2>② Settings: Try it, and one way back (19, 20)</h2>
+  <div class="grid">
+    <section class="pane"><h3>Before (with effects + sound on)</h3>
+      <div class="row">Visual effects <span>☑</span></div><div class="row">Sound <span>☑</span></div></section>
+    <section class="pane"><h3>After</h3>
+      <div class="row">Visual effects <span>☑</span></div>
+      <div class="row new m">See what it does. <span class="btn">Try visual effects</span></div>
+      <div class="row">Sound <span>☑</span></div>
+      <div class="row new m">See what it does. <span class="btn">Try sound</span></div>
+      <div style="text-align:right" class="new"><span class="btn">Turn every extra off</span></div></section>
+  </div>
+
+  <h2>③ Arena telemetry HUD: tok/s sparkline (17)</h2>
+  <div class="grid">
+    <section class="pane"><h3>Before</h3><p>Tokens 812 · Token Velocity 41.3 tok/s</p></section>
+    <section class="pane"><h3>After</h3><p>Tokens 812 · Token Velocity 41.3 tok/s</p>
+      <div class="new"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1.5" points="0,26 10,20 20,22 30,14 40,12 50,15 60,9 70,8 80,10 90,6 100,7"/></svg></div></section>
+  </div>
+
+  <ol class="notes">
+    <li>Not visible in a still: the winner's travelling rim light (13), the first-token burst (16), the launch and rank-shift sounds (11, 12), the race panning (18). All are off unless Settings turns them on.</li>
+    <li>Shift colours are the existing accent tokens with the sign repeated in text. Measured 5.08:1 or better in both themes.</li>
+  </ol>
+</main>
+</body>
+</html>

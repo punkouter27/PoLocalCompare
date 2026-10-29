@@ -36,19 +36,14 @@ function gpuBusy() {
     }
 }
 
-// Effects are opt-in (Settings → Visual effects; prefs.js stamps <html data-fx="on">). Off,
-// they stand down exactly as they do under reduced motion.
-function prefersReducedMotion() {
-    if (document.documentElement.dataset.fx !== 'on') return true;
-    try {
-        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    } catch {
-        return false;
-    }
+// Off unless Settings → Visual effects is on and the OS is not asking for reduced motion
+// (prefs.js owns that rule).
+function motionOff() {
+    return !window.poPrefs?.motionAllowed();
 }
 
 function mayRun() {
-    return !running && !gpuBusy() && !prefersReducedMotion() && !document.hidden && !!document.body;
+    return !running && !gpuBusy() && !motionOff() && !document.hidden && !!document.body;
 }
 
 /** A design token as linear-ish [r, g, b] in 0…1, normalised through a 2D context. */
@@ -179,6 +174,7 @@ struct U {
     c1: vec4f,
     c2: vec4f,
     c3: vec4f,
+    rect: vec4f,
 };
 @group(0) @binding(0) var<uniform> u: U;
 
@@ -215,6 +211,19 @@ fn fbm(p0: vec2f) -> f32 {
     return v;
 }
 
+// The winning panel's rim: a rounded-box distance in canvas pixels, lit as a thin glow with one
+// bright arc travelling round it. Part of the nebula pass, not a third effect or loop.
+fn rim(frag: vec2f, t: f32) -> f32 {
+    if (u.rect.z <= 0.0) { return 0.0; }
+    let halfSize = u.rect.zw * 0.5;
+    let p = frag - (u.rect.xy + halfSize);
+    let q = abs(p) - halfSize + vec2f(6.0);
+    let dist = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - 6.0;
+    let glow = exp(-abs(dist) / 3.0);
+    let arc = fract(atan2(p.y, p.x) / 6.2831853 + 0.5 - t * 0.7);
+    return glow * (0.35 + 1.4 * smoothstep(0.82, 1.0, arc)) * smoothstep(0.0, 0.25, t);
+}
+
 @fragment fn fs(@builtin(position) frag: vec4f) -> @location(0) vec4f {
     let d = (frag.xy - u.origin) / u.res.y;
     let r = length(d);
@@ -238,8 +247,10 @@ fn fbm(p0: vec2f) -> f32 {
 
     let sparkle = step(0.9985, hash2(floor(frag.xy) + floor(t * 12.0))) * shell;
     let fade = 1.0 - smoothstep(0.5, 1.0, u.life);
-    let a = clamp(density * 0.45 + sparkle, 0.0, 1.0) * fade;
-    return vec4f(min(col + vec3f(sparkle), vec3f(1.0)) * a, a);
+    let edge = rim(frag.xy, t);
+    let a = clamp(density * 0.45 + sparkle + edge, 0.0, 1.0) * fade;
+    let lit = mix(col, u.c1.rgb, clamp(edge, 0.0, 1.0));
+    return vec4f(min(lit + vec3f(sparkle + edge * 0.4), vec3f(1.0)) * a, a);
 }
 `;
 
@@ -259,6 +270,7 @@ uniform float uLife;
 uniform vec3 uC1;
 uniform vec3 uC2;
 uniform vec3 uC3;
+uniform vec4 uRect;
 out vec4 outColor;
 
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -286,6 +298,17 @@ float fbm(vec2 p) {
     return v;
 }
 
+float rim(vec2 frag, float t) {
+    if (uRect.z <= 0.0) return 0.0;
+    vec2 halfSize = uRect.zw * 0.5;
+    vec2 p = frag - (uRect.xy + halfSize);
+    vec2 q = abs(p) - halfSize + vec2(6.0);
+    float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - 6.0;
+    float glow = exp(-abs(dist) / 3.0);
+    float arc = fract(atan(p.y, p.x) / 6.2831853 + 0.5 - t * 0.7);
+    return glow * (0.35 + 1.4 * smoothstep(0.82, 1.0, arc)) * smoothstep(0.0, 0.25, t);
+}
+
 void main() {
     vec2 frag = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
     vec2 d = (frag - uOrigin) / uRes.y;
@@ -310,8 +333,10 @@ void main() {
 
     float sparkle = step(0.9985, hash2(floor(frag) + floor(t * 12.0))) * shell;
     float fade = 1.0 - smoothstep(0.5, 1.0, uLife);
-    float a = clamp(density * 0.45 + sparkle, 0.0, 1.0) * fade;
-    outColor = vec4(min(col + vec3(sparkle), vec3(1.0)) * a, a);
+    float edge = rim(frag, t);
+    float a = clamp(density * 0.45 + sparkle + edge, 0.0, 1.0) * fade;
+    vec3 lit = mix(col, uC1, clamp(edge, 0.0, 1.0));
+    outColor = vec4(min(lit + vec3(sparkle + edge * 0.4), vec3(1.0)) * a, a);
 }`;
 
 /** The nebula's palette and origin, in the canvas's own pixels. */
@@ -328,6 +353,8 @@ function nebulaScene(canvas, selector) {
     const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
     return {
         origin: [cx * sx, cy * sy],
+        // The panel itself, for the rim. Zero width means no panel was found, so no rim.
+        rect: rect ? [rect.left * sx, rect.top * sy, rect.width * sx, rect.height * sy] : [0, 0, 0, 0],
         c1: tokenRgb('--accent-green', '#2ddc84'),
         c2: tokenRgb('--accent-cyan', '#12b8cf'),
         c3: tokenRgb('--accent-purple', '#7d96ff'),
@@ -358,14 +385,14 @@ async function startNebula({ device, context, format }, canvas, scene) {
         return false;
     }
 
-    const uniforms = new Float32Array(20);
+    const uniforms = new Float32Array(24);
     const buffer = device.createBuffer({ size: uniforms.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: { buffer } }],
     });
     uniforms.set([canvas.width, canvas.height, ...scene.origin], 0);
-    uniforms.set([...scene.c1, 1, ...scene.c2, 1, ...scene.c3, 1], 8);
+    uniforms.set([...scene.c1, 1, ...scene.c2, 1, ...scene.c3, 1, ...scene.rect], 8);
 
     runLoop(NEBULA_MS, t => {
         uniforms[4] = t;
@@ -420,6 +447,7 @@ function nebulaWebGl(canvas, scene) {
     gl.uniform3fv(at('uC1'), scene.c1);
     gl.uniform3fv(at('uC2'), scene.c2);
     gl.uniform3fv(at('uC3'), scene.c3);
+    gl.uniform4fv(at('uRect'), scene.rect);
     const time = at('uTime');
     const life = at('uLife');
 

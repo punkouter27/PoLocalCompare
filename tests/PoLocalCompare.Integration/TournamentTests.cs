@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using PoLocalCompare.Api.Features.Tournaments;
 using PoLocalCompare.Shared.DTOs;
+using PoLocalCompare.Shared.Ids;
 
 namespace PoLocalCompare.Integration;
 
@@ -192,6 +193,56 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         var response = await _client.GetAsync("/api/tournaments/01NOSUCHTOURNAMENTIDXXXXXX");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ── Swiss ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A Swiss run played to the end through storage, re-read before every round the way the
+    /// stateless runner does: each round is paired from the stored results alone, the format
+    /// survives the round trip, and the API serves the final table with the leader crowned.
+    /// Results are written straight to the aggregate because the judge is off in this host —
+    /// the duel side is the same as a bracket's and is covered there.
+    /// </summary>
+    [Fact]
+    public async Task Swiss_PlayedThroughStorage_CompletesWithStandings()
+    {
+        var field = await RegisterFieldAsync($"TE Swiss {Guid.NewGuid():N}", 8);
+
+        TournamentId id;
+        using (var scope = _host.Services.CreateScope())
+        {
+            var handler = scope.ServiceProvider.GetRequiredService<CreateTournamentHandler>();
+            var drawn = await handler.HandleAsync(
+                field.Select(f => ModelId.From(f)).ToList(), Prompt, actor: null, TournamentFormat.Swiss);
+            id = drawn.TournamentId;
+        }
+
+        for (var round = 0; round < 3; round++)
+        {
+            using var scope = _host.Services.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<TournamentRepository>();
+            var tournament = (await repository.GetByIdAsync(id))!;
+
+            Assert.Equal(TournamentFormat.Swiss, tournament.Format);
+            foreach (var m in tournament.Matches.Where(m => m.Round == round).ToList())
+            {
+                if (m.Index == 3) tournament.RecordTie(round, m.Index);   // one draw a round
+                else tournament.RecordWinner(round, m.Index, m.SlotAModelId, m.SlotAName);
+            }
+            await repository.UpdateAsync(tournament);
+        }
+
+        var dto = await (await _client.GetAsync($"/api/tournaments/{id}")).Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal("Swiss", dto.GetProperty("format").GetString());
+        Assert.Equal("Complete", dto.GetProperty("status").GetString());
+        Assert.Equal(12, MatchesOf(dto).Length);
+
+        var standings = dto.GetProperty("standings").EnumerateArray().ToArray();
+        Assert.Equal(8, standings.Length);
+        Assert.Equal(standings[0].GetProperty("modelId").GetString(), dto.GetProperty("championModelId").GetString());
+        Assert.Equal(12.0, standings.Sum(s => s.GetProperty("points").GetDouble()));   // a point per game
     }
 
     // ── One tournament at a time ───────────────────────────────────────────

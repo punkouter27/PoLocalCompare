@@ -54,9 +54,20 @@ public sealed class CreateTournamentHandler(
     public async Task<TournamentDto> HandleAsync(
         IReadOnlyList<ModelId> modelIds,
         string promptText,
-        string? actor)
+        string? actor,
+        TournamentFormat format = TournamentFormat.Bracket)
     {
         var size = modelIds.Count;
+
+        if (!Enum.IsDefined(format))
+            throw new ArgumentException($"Unknown tournament format '{format}'.", nameof(format));
+
+        if (format == TournamentFormat.Swiss && size != SwissPlanner.FieldSize)
+        {
+            throw new ArgumentException(
+                $"A Swiss tournament needs {SwissPlanner.FieldSize} models — got {size}.",
+                nameof(modelIds));
+        }
 
         if (!BracketPlanner.IsSupportedSize(size))
         {
@@ -90,7 +101,8 @@ public sealed class CreateTournamentHandler(
         }
 
         // Seeding is by current rating, strongest first — BracketPlanner stamps the seed numbers
-        // and places them so the top two can only meet in the final.
+        // and places them so the top two can only meet in the final; SwissPlanner pairs the
+        // top half against the bottom half.
         var seededField = entrants
             .OrderByDescending(m => m.CurrentElo)
             .ThenBy(m => m.DisplayName, StringComparer.Ordinal)
@@ -102,7 +114,8 @@ public sealed class CreateTournamentHandler(
             size,
             seededField,
             promptText.Trim(),
-            actor);
+            actor,
+            format);
 
         await tournamentRepository.SaveAsync(tournament);
 

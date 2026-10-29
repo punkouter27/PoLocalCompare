@@ -96,7 +96,8 @@ public sealed class TournamentRunner(
             {
                 // Nothing playable and no champion: a match failed and the bracket cannot be
                 // seeded any further. Bracket rounds depend on each other, so there is no
-                // way to skip past it.
+                // way to skip past it. A Swiss round is paired by the aggregate the moment
+                // the round before it is fully decided, so the same holds there.
                 tournament.Abandon("A match could not be decided, so the bracket could not be completed.");
                 await repository.UpdateAsync(tournament);
                 return;
@@ -256,10 +257,9 @@ public sealed class TournamentRunner(
 
             case DuelVerdict.Tie:
             {
-                // The better seed advances. See Tournament.SeedTieBreak for why this is a
-                // tie-break rather than a coin toss or an abandoned bracket.
-                var (winnerId, winnerName) = Tournament.SeedTieBreak(match);
-                tournament.RecordWinner(match.Round, match.Index, winnerId, winnerName, wonOnSeedTieBreak: true);
+                // Bracket: the better seed advances (see Tournament.SeedTieBreak for why that
+                // beats a coin toss or an abandoned bracket). Swiss: half a point each.
+                tournament.RecordTie(match.Round, match.Index);
                 break;
             }
 

@@ -149,6 +149,48 @@
     margin: var(--space-sm) 0 0;
 }
 
+/* Recent rating changes: shift · opponent link · rating and date, one line each. */
+.profile__changes-title {
+    margin: var(--space-md) 0 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--text-muted);
+}
+
+.profile__changes {
+    display: grid;
+    gap: var(--space-xs);
+    margin: var(--space-xs) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.profile__change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.profile__shift {
+    min-width: var(--space-2xl);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-semibold);
+}
+
+.profile__shift--up {
+    color: var(--accent-green);
+}
+
+.profile__shift--down {
+    color: var(--accent-red);
+}
+
+.profile__change-meta {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+
 .profile__upsets-block {
     margin-top: var(--space-md);
 }

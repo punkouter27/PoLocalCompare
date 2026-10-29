@@ -61,6 +61,18 @@
     gap: var(--space-xs);
 }
 
+/* The "Try it" row under an extra that is on: indented under the row it samples. */
+.settings__preview {
+    padding-inline-start: var(--space-lg);
+    background: var(--surface-2);
+}
+
+.settings__quiet {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-sm);
+}
+
 /* Native checkbox, sized up from the 13px default so it reads as the row's control. */
 .settings__switch {
     flex: 0 0 auto;

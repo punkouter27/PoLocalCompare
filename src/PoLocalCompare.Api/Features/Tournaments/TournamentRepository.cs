@@ -102,6 +102,7 @@ public sealed class TournamentRepository
         return new TableEntity(PartitionKey, RowKeyFor(tournament))
         {
             ["TournamentId"] = tournament.TournamentId.Value,
+            ["Format"] = tournament.Format.ToString(),
             ["Size"] = tournament.Size,
             ["PromptText"] = tournament.PromptText,
             ["Status"] = tournament.Status.ToString(),
@@ -125,6 +126,10 @@ public sealed class TournamentRepository
         return new Tournament
         {
             TournamentId = TournamentId.FromOrDefault(entity.GetString("TournamentId")),
+            // Rows from before 2026-10-29 have no Format column; every one of them was a bracket.
+            Format = Enum.TryParse<TournamentFormat>(entity.GetString("Format"), out var format)
+                ? format
+                : TournamentFormat.Bracket,
             Size = entity.GetInt32("Size") ?? 0,
             PromptText = entity.GetString("PromptText") ?? string.Empty,
             Status = Enum.TryParse<TournamentStatus>(entity.GetString("Status"), out var status)

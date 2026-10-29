@@ -8,7 +8,7 @@ namespace PoLocalCompare.Client.Services;
 
 /// <summary>
 /// The client's whole view of the API. Every call goes through the same
-/// <see cref="JsonOptions"/> so enum casing cannot drift between endpoints.
+/// <see cref="ClientJson"/> context so enum casing cannot drift between endpoints.
 ///
 /// Kept as one type: this was five partial files totalling ~230 lines, which cost five
 /// using-blocks and five namespace declarations to save nothing. Comment banners mark
@@ -18,11 +18,6 @@ public sealed class DuelApiClient
 {
     private readonly HttpClient _http;
     private readonly ILogger<DuelApiClient> _logger;
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
 
     public DuelApiClient(HttpClient http, ILogger<DuelApiClient> logger)
     {
@@ -42,14 +37,8 @@ public sealed class DuelApiClient
         string promptText,
         int? autoJudgeDelaySeconds = null)
     {
-        var body = new
-        {
-            leftModelId,
-            rightModelId,
-            promptText,
-            autoJudgeDelaySeconds,
-        };
-        var response = await _http.PostAsJsonAsync("/api/duels", body);
+        var body = new CommenceDuelBody(leftModelId, rightModelId, promptText, autoJudgeDelaySeconds);
+        var response = await _http.PostAsJsonAsync("/api/duels", body, ClientJson.Default.CommenceDuelBody);
         // Surface the validation body rather than the raw `net_http_message_not_success…` reason
         // string. The endpoint returns RFC 7807 ProblemDetails; the per-field message is what the
         // user actually needs to read (e.g. "PromptText must be at least 10 characters.").
@@ -58,7 +47,7 @@ public sealed class DuelApiClient
             var problem = await TryReadProblemAsync(response);
             throw new DuelStartException(response.StatusCode, problem);
         }
-        return await response.Content.ReadFromJsonAsync<DuelDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.DuelDto);
     }
 
     /// <summary>
@@ -68,11 +57,11 @@ public sealed class DuelApiClient
     /// </summary>
     public async Task<string> RefinePromptAsync(string prompt)
     {
-        var response = await _http.PostAsJsonAsync("/api/prompts/refine", new RefinePromptRequest(prompt), JsonOptions);
+        var response = await _http.PostAsJsonAsync("/api/prompts/refine", new RefinePromptRequest(prompt), ClientJson.Default.RefinePromptRequest);
         if (!response.IsSuccessStatusCode)
             throw new DuelStartException(response.StatusCode, await TryReadProblemAsync(response));
 
-        var refined = await response.Content.ReadFromJsonAsync<RefinePromptResponse>(JsonOptions);
+        var refined = await response.Content.ReadFromJsonAsync(ClientJson.Default.RefinePromptResponse);
         return refined?.Prompt ?? prompt;
     }
 
@@ -84,7 +73,7 @@ public sealed class DuelApiClient
     {
         try
         {
-            return await response.Content.ReadFromJsonAsync<ProblemDetailsLite>(JsonOptions);
+            return await response.Content.ReadFromJsonAsync(ClientJson.Default.ProblemDetailsLite);
         }
         catch (JsonException)
         {
@@ -141,9 +130,9 @@ public sealed class DuelApiClient
 
     public async Task<VerdictResponseDto?> RecordVerdictAsync(DuelId duelId, VerdictRequestDto request)
     {
-        var response = await _http.PostAsJsonAsync($"/api/duels/{duelId}/verdict", request, JsonOptions);
+        var response = await _http.PostAsJsonAsync($"/api/duels/{duelId}/verdict", request, ClientJson.Default.VerdictRequestDto);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<VerdictResponseDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.VerdictResponseDto);
     }
 
     /// <summary>
@@ -161,7 +150,7 @@ public sealed class DuelApiClient
         var response = await _http.GetAsync($"/api/duels/{duelId}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<DuelDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.DuelDto);
     }
 
     public async Task PostLocalResultAsync(
@@ -174,17 +163,8 @@ public sealed class DuelApiClient
         bool isFailure = false,
         string? failureReason = null)
     {
-        var body = new
-        {
-            modelId,
-            htmlOutputRaw,
-            tokenCount,
-            totalDurationMs,
-            warmUpDurationMs,
-            isFailure,
-            failureReason
-        };
-        var response = await _http.PostAsJsonAsync($"/api/duels/{duelId}/local-result", body);
+        var body = new LocalResultBody(modelId, htmlOutputRaw, tokenCount, totalDurationMs, warmUpDurationMs, isFailure, failureReason);
+        var response = await _http.PostAsJsonAsync($"/api/duels/{duelId}/local-result", body, ClientJson.Default.LocalResultBody);
         response.EnsureSuccessStatusCode();
     }
 
@@ -196,15 +176,15 @@ public sealed class DuelApiClient
         var url = $"/api/duels?limit={limit}";
         if (before is { IsEmpty: false } cursor)
             url += $"&before={Uri.EscapeDataString(cursor.Value)}";
-        return await _http.GetFromJsonAsync<IReadOnlyList<DuelSummaryDto>>(url, JsonOptions);
+        return await _http.GetFromJsonAsync(url, ClientJson.Default.IReadOnlyListDuelSummaryDto);
     }
 
     // ── Leaderboard ──────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<LeaderboardEntryDto>?> GetLeaderboardAsync(string sortBy = "Elo")
     {
-        return await _http.GetFromJsonAsync<IReadOnlyList<LeaderboardEntryDto>>(
-            $"/api/leaderboard?sortBy={Uri.EscapeDataString(sortBy)}", JsonOptions);
+        return await _http.GetFromJsonAsync(
+            $"/api/leaderboard?sortBy={Uri.EscapeDataString(sortBy)}", ClientJson.Default.IReadOnlyListLeaderboardEntryDto);
     }
 
     /// <summary>
@@ -221,7 +201,7 @@ public sealed class DuelApiClient
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ModelProfileDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.ModelProfileDto);
     }
 
     /// <summary>
@@ -233,7 +213,7 @@ public sealed class DuelApiClient
     {
         var response = await _http.GetAsync($"/api/leaderboard/{modelId}/scouting-report");
         if (response.StatusCode != System.Net.HttpStatusCode.OK) return null;
-        return await response.Content.ReadFromJsonAsync<ScoutingReportDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.ScoutingReportDto);
     }
 
     // ── Tournaments ──────────────────────────────────────────────────────────
@@ -241,8 +221,8 @@ public sealed class DuelApiClient
     /// <summary>Models eligible to enter a bracket, strongest first — which is the seeding order.</summary>
     public async Task<IReadOnlyList<TournamentEntrantDto>?> GetTournamentEntrantsAsync()
     {
-        return await _http.GetFromJsonAsync<IReadOnlyList<TournamentEntrantDto>>(
-            "/api/tournaments/entrants", JsonOptions);
+        return await _http.GetFromJsonAsync(
+            "/api/tournaments/entrants", ClientJson.Default.IReadOnlyListTournamentEntrantDto);
     }
 
     /// <summary>
@@ -256,10 +236,13 @@ public sealed class DuelApiClient
     /// <see cref="TournamentInFlightException"/> so the page can link to the running bracket
     /// rather than just showing the message.
     /// </remarks>
-    public async Task<TournamentDto?> CreateTournamentAsync(IReadOnlyList<ModelId> modelIds, string promptText)
+    public async Task<TournamentDto?> CreateTournamentAsync(
+        IReadOnlyList<ModelId> modelIds,
+        string promptText,
+        TournamentFormat format)
     {
-        var body = new { modelIds, promptText };
-        var response = await _http.PostAsJsonAsync("/api/tournaments", body, JsonOptions);
+        var body = new CreateTournamentBody(modelIds, promptText, format);
+        var response = await _http.PostAsJsonAsync("/api/tournaments", body, ClientJson.Default.CreateTournamentBody);
 
         // 429 is the per-minute limit or the daily spend cap; both carry a sentence to show.
         if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.TooManyRequests)
@@ -276,7 +259,7 @@ public sealed class DuelApiClient
         }
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TournamentDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.TournamentDto);
     }
 
     /// <summary>
@@ -302,31 +285,31 @@ public sealed class DuelApiClient
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TournamentDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.TournamentDto);
     }
 
     public async Task<IReadOnlyList<TournamentDto>?> ListTournamentsAsync(int limit = 10)
     {
-        return await _http.GetFromJsonAsync<IReadOnlyList<TournamentDto>>(
-            $"/api/tournaments?limit={limit}", JsonOptions);
+        return await _http.GetFromJsonAsync(
+            $"/api/tournaments?limit={limit}", ClientJson.Default.IReadOnlyListTournamentDto);
     }
 
     // ── Models ───────────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<ModelDto>?> GetModelsAsync()
     {
-        return await _http.GetFromJsonAsync<IReadOnlyList<ModelDto>>("/api/models", JsonOptions);
+        return await _http.GetFromJsonAsync("/api/models", ClientJson.Default.IReadOnlyListModelDto);
     }
 
     public async Task<IReadOnlyList<ModelAvailabilityDto>?> GetModelAvailabilityAsync()
     {
-        return await _http.GetFromJsonAsync<IReadOnlyList<ModelAvailabilityDto>>("/api/models/availability", JsonOptions);
+        return await _http.GetFromJsonAsync("/api/models/availability", ClientJson.Default.IReadOnlyListModelAvailabilityDto);
     }
 
     /// <summary>Models that can be added at runtime and are not in the catalog yet.</summary>
     public async Task<ModelDiscoveryDto?> GetModelDiscoveryAsync()
     {
-        return await _http.GetFromJsonAsync<ModelDiscoveryDto>("/api/models/discover", JsonOptions);
+        return await _http.GetFromJsonAsync("/api/models/discover", ClientJson.Default.ModelDiscoveryDto);
     }
 
     /// <summary>
@@ -336,7 +319,7 @@ public sealed class DuelApiClient
     /// </summary>
     public async Task<ModelDto?> AddDiscoveredModelAsync(AddDiscoveredModelRequest request)
     {
-        var response = await _http.PostAsJsonAsync("/api/models/discovered", request, JsonOptions);
+        var response = await _http.PostAsJsonAsync("/api/models/discovered", request, ClientJson.Default.AddDiscoveredModelRequest);
 
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
@@ -351,7 +334,7 @@ public sealed class DuelApiClient
         }
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ModelDto>(JsonOptions);
+        return await response.Content.ReadFromJsonAsync(ClientJson.Default.ModelDto);
     }
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
@@ -364,7 +347,7 @@ public sealed class DuelApiClient
     {
         try
         {
-            return await _http.GetFromJsonAsync<SmokeSnapshotDto>("/api/diag/smoke", JsonOptions);
+            return await _http.GetFromJsonAsync("/api/diag/smoke", ClientJson.Default.SmokeSnapshotDto);
         }
         catch (Exception ex)
         {

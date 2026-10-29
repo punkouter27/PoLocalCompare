@@ -18,6 +18,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <!-- No ProjectReference: this suite drives the app purely over HTTP. -->
+  <!-- No ProjectReference: this suite drives the app purely over HTTP. The one exception is a
+       linked source file, so the Settings test counts the same list /settings renders instead
+       of a number that goes stale when an extra is added. Preference.cs depends on nothing. -->
+  <ItemGroup>
+    <Compile Include="../../src/PoLocalCompare.Shared/Presentation/Preference.cs" Link="Linked/Preference.cs" />
+  </ItemGroup>
 
 </Project>

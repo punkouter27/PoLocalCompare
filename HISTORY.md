@@ -5,6 +5,85 @@ file since well before it existed — it was never committed (`git log --all -- 
 empty as of 2026-10-26), so the incidents behind the older rules live only in code comments and
 commit messages. Add an entry whenever a rule is added, changed or broken on purpose.
 
+## 2026-10-29 — Swiss tournaments
+
+**Asked for:** a Swiss-system format alongside the 8-model bracket.
+
+**Why it fits a benchmark:** a bracket is 7 duels and four of the eight models play once. Swiss
+is 12 duels from the same prompt and every model plays three, so a tournament feeds ELO more
+evenly, and losing round 1 does not end a model's run.
+
+**Decisions:**
+- **Round 1 is top half against bottom half (1v5 2v6 3v7 4v8)**, the Dutch opening, not the
+  bracket's 1v8. Seeded, never shuffled, like the bracket.
+- **Later rounds** sort by points, then seed. The top unpaired model takes the best-placed
+  opponent it has not met, and the pairing backtracks rather than leave a rematch on the last
+  board. Eight players over three rounds always have a valid pairing; a unit test checks all
+  6,561 outcome histories.
+- **Draw = ½ point each.** The bracket's "better seed advances" is not used here: in Swiss nobody
+  has to advance, so a tie-break would invent a result. The order is points, then Buchholz (the
+  sum of opponents' points, uncut), then seed. The champion is the top of the table.
+- **Stateless, as the bracket is.** Only round 1 is stored at the draw. `Tournament.AdvanceSwiss`
+  pairs the next round from stored match results once the current round is fully decided. The
+  field is read back from round 1, so the only new column is `Format`. Grace window 0, two
+  matches at once, and browser matches are driven by the page, all unchanged.
+- **An undecidable match abandons the run**, the same as in a bracket. A walkover still counts as
+  a win. A Voided or judge-stood-down game has no score to pair the next round on, so it is
+  Abandoned, never Complete.
+- Five `BracketPlannerTests` cases were cut to make room for five Swiss unit tests (the Unit tier
+  is at its cap of 100). Each was covered elsewhere: the size-16 rejection, the "7 matches" shape
+  (covered by Integration's read-back), the wrong-field-size guard, and the two `Advance` cases
+  (the parity test and the top-two-seeds playthrough cover them).
+
+
+## 2026-10-29 — Review pipeline, then 5, 11–20, 41–50
+
+**Asked for:** `/simplify` → `/code-review` → `/security-review` → a perf audit over the
+2026-10-26 work, then fifty options, then "do 4 5 11-20 41-50". (4, the Swiss format, has its
+own entry.)
+
+**Review fixes:**
+- **One motion gate.** fx.js, gpu-fx.js and wow.js each carried a copy of "effects on and not
+  reduced motion". It is `poPrefs.motionAllowed()` now, and `check-clean.ps1` check 5 fails on a
+  fourth copy. The haptic on a verdict obeys it too — it used to vibrate with effects off.
+- **Sound became a `Preference`.** It had its own inverted key (`polocalcompare.muted`), its own
+  Settings row and C# round-trip. Side effect: anyone who had turned sound on is back to off.
+  With sound off, `ensureCtx` returns null — the race scheduler had been building oscillators
+  into a zero-gain bus for every duel, which is main-thread work during a timed race.
+- **`PreferencesService` no longer caches.** Another tab turning the paid helpers off has to
+  stop the paid calls here, and prefs.js now follows the `storage` event.
+- **Security review:** no findings; the 2026-10-26 commit had removed attack surface.
+
+**What shipped from the options:**
+- **5 Rating history.** The curve already existed — the option was wrong about that. What was
+  missing was the cause of each move: "Recent rating changes" lists the last eight with shift,
+  outcome, opponent and a link to the duel.
+- **11 / 12 / 18 Sound.** A launch cue on Compare; a rank-shift sting when the leaderboard's FLIP
+  plays; the race's leader steps toward the stereo centre and up a little in level.
+- **13 Winner rim light** — inside the nebula pass (a rect uniform), so still exactly two shader
+  effects. **16** a small confetti burst on a side's first token (stands down under the GPU
+  lease, so a browser model mid-inference never pays). **17** a tok/s sparkline in the HUD.
+- **15 `[JSImport]`.** Used where it earns its keep: the sparkline's samples cross as a
+  `MemoryView` over a fixed ring buffer, and `PreferencesService` binds `poPrefs` directly
+  (synchronous and trim-safe, where `IJSInProcessRuntime.Invoke<T>` was neither). Selector-and-
+  number calls stay on `IJSRuntime` — JSON is not their cost.
+- **19 / 20 Settings.** A "Try it" row under Visual effects and Sound when on; "Turn every extra
+  off" while anything is.
+- **41 / 43 Trimming: 56 warnings → 0.** `ClientJson` is a source-generated `JsonSerializerContext`
+  for every body the client sends or reads (the three anonymous POST bodies became records);
+  `App.razor.cs` roots `NotFound` for `Router.NotFoundPage` (IL2111, the blocker the csproj
+  names); `PreferencesService` moved to `[JSImport]`. `PublishTrimmed` is still off — a signed-in
+  session against a trimmed build is the step the csproj asks for before flipping it.
+- **44, 45, 47** were already true (no unused package versions; caps enforced; data lists keyed).
+- **46** the Settings E2E test links `Preference.cs` and counts `Preferences.All`.
+- **48** `theme.js` folded into `prefs.js` — one `<head>` script for user choices.
+- **49** check-clean's motion-gate check; its C# cache-buster scan also only matched single
+  quotes, so it had been checking nothing in the interop services.
+- **50** Arena passes the telemetry inputs only when Arena telemetry is on.
+
+**Not done, by rule:** 14 (a shader backdrop — removed twice) and 42 (Native AOT — banned),
+pending an explicit yes.
+
 ## 2026-10-26 — C1–C10: clean, simplify, settings
 
 **Asked for:** ten cleanup options (prune, consolidate, cap tests, settings page, advanced features

@@ -28,7 +28,7 @@
     @if (_tournament is not null)
     {
         @* ── Bracket view ───────────────────────────────────────────────── *@
-        <PageHeader Title="@SizeLabel(_tournament.Size)">
+        <PageHeader Title="@SizeLabel(_tournament)">
             <StatusContent>
                 <span class="tourney__status tourney__status--@_tournament.Status.ToString().ToLowerInvariant()">
                     @StatusLabel(_tournament)
@@ -42,7 +42,7 @@
             <div class="tourney__champion po-glass" role="status">
                 <span class="tourney__champion-crown" aria-hidden="true">🏆</span>
                 <span class="tourney__champion-text">
-                    <strong>@_tournament.ChampionName</strong> wins the @SizeLabel(_tournament.Size).
+                    <strong>@_tournament.ChampionName</strong> wins the @SizeLabel(_tournament).
                 </span>
                 <a class="po-btn po-btn--sm po-btn--secondary"
                    href="@($"/model/{_tournament.ChampionModelId}")">View model</a>
@@ -94,9 +94,55 @@
             }
         }
 
+        @* Swiss: the table is the result, so it leads; the rounds below are how it got there.
+           A plain .po-table--cards, so it becomes labelled cards below 640px like every other
+           table in the app. *@
+        @if (IsSwiss && _tournament.Standings.Count > 0)
+        {
+            <section class="tourney__standings" aria-labelledby="tourney-standings-heading">
+                <h2 id="tourney-standings-heading" class="tourney__round-title">Standings</h2>
+                <div class="po-table-wrap">
+                    <table class="po-table po-table--cards">
+                        <caption class="visually-hidden">Swiss standings, ranked by points, then Buchholz, then seed</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Rank</th>
+                                <th scope="col">Model</th>
+                                <th scope="col">Points</th>
+                                <th scope="col"><abbr title="Sum of every opponent's points — a harder schedule ranks higher on equal points">Buchholz</abbr></th>
+                                <th scope="col"><abbr title="Wins, draws, losses">W-D-L</abbr></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _tournament.Standings)
+                            {
+                                var crowned = row.ModelId == _tournament.ChampionModelId;
+                                <tr @key="row.ModelId" class="@(crowned ? "tourney__standings-row--champion" : null)">
+                                    <td data-label="Rank" class="tourney__standings-num">@row.Rank</td>
+                                    <td data-label="Model">
+                                        <span class="tourney__slot-seed" title="@($"Seed {row.Seed}")">@row.Seed</span>
+                                        @row.Name
+                                        @if (crowned)
+                                        {
+                                            <span aria-hidden="true">🏆</span>
+                                            <span class="visually-hidden">(champion)</span>
+                                        }
+                                    </td>
+                                    <td data-label="Points" class="tourney__standings-num">@FormatPoints(row.Points)</td>
+                                    <td data-label="Buchholz" class="tourney__standings-num">@FormatPoints(row.Buchholz)</td>
+                                    <td data-label="W-D-L" class="tourney__standings-num">@($"{row.Wins}-{row.Draws}-{row.Losses}")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
         @* Columns are rounds. Each column is centred against the one before it, so the pairs
            that feed a match sit either side of it — that alignment is what makes it read as a
-           bracket rather than as three lists. *@
+           bracket rather than as three lists. A Swiss round has four games like every other,
+           so the same columns simply read as the three rounds' pairings. *@
         <div class="tourney__bracket-wrap">
             <div class="tourney__bracket" style="--rounds: @RoundCount">
                 @foreach (var round in _tournament.Matches.GroupBy(m => m.Round).OrderBy(g => g.Key))
@@ -143,6 +189,10 @@
                                             drawn — advanced on seed
                                         </span>
                                     }
+                                    @if (match.IsDraw)
+                                    {
+                                        <span class="tourney__tiebreak">drawn — half a point each</span>
+                                    }
                                     @if (match.FailureReason is not null)
                                     {
                                         <span class="tourney__match-error">@match.FailureReason</span>
@@ -150,6 +200,13 @@
                                 </a>
                             }
                         </div>
+                    </div>
+                }
+                @foreach (var round in UnpairedSwissRounds)
+                {
+                    <div class="tourney__round" @key="round">
+                        <h2 class="tourney__round-title">@SwissPlanner.RoundName(round)</h2>
+                        <p class="po-hint">Paired by score once round @round finishes.</p>
                     </div>
                 }
             </div>
@@ -230,7 +287,9 @@
                        BracketPlanner the server draws with, so this is the real first round
                        rather than a picture of one. *@
                     <div class="tourney__draw" role="group" aria-label="First-round pairings"
-                         title="Drawn at random, then seeded by rating so the top two seeds can only meet in the final.">
+                         title="@(_format == TournamentFormat.Swiss
+                             ? "Drawn at random, then seeded by rating: top half against bottom half. Later rounds pair equal scores."
+                             : "Drawn at random, then seeded by rating so the top two seeds can only meet in the final.")">
                         <div class="tourney__draw-half">
                             @foreach (var pair in FirstRoundPairs.Take(2))
                             {
@@ -239,7 +298,7 @@
                         </div>
 
                         <div class="tourney__draw-centre" aria-hidden="true">
-                            <span class="tourney__draw-final">Final</span>
+                            <span class="tourney__draw-final">@(_format == TournamentFormat.Swiss ? "Round 1" : "Final")</span>
                         </div>
 
                         <div class="tourney__draw-half tourney__draw-half--right">
@@ -280,7 +339,7 @@
                                     .ThenBy(e => e.DisplayName, StringComparer.Ordinal))
                                 {
                                     var selected = _selected.Contains(entrant.ModelId);
-                                    <label class="tourney__entrant-option @(selected ? "tourney__entrant-option--selected" : "")">
+                                    <label @key="entrant.ModelId" class="tourney__entrant-option @(selected ? "tourney__entrant-option--selected" : "")">
                                         <input type="checkbox"
                                                checked="@selected"
                                                disabled="@(!selected && _selected.Count >= FieldSize)"
@@ -330,6 +389,23 @@
         </section>
 
         <PageActions Align="PageActionsAlign.Center">
+            @* The format, beside the button it changes. Bracket stays the default: Swiss is
+               twelve duels instead of seven — more rated comparisons from one prompt, at more
+               cost and time. *@
+            <div class="tourney__format" role="group" aria-label="Tournament format">
+                <button type="button" class="po-btn po-btn--sm po-btn--chip"
+                        aria-pressed="@(_format == TournamentFormat.Bracket ? "true" : "false")"
+                        title="Single elimination: 7 duels, the top two seeds can only meet in the final."
+                        @onclick="@(() => _format = TournamentFormat.Bracket)">
+                    Bracket
+                </button>
+                <button type="button" class="po-btn po-btn--sm po-btn--chip"
+                        aria-pressed="@(_format == TournamentFormat.Swiss ? "true" : "false")"
+                        title="Three rounds, everyone plays every round, paired by score: 12 duels."
+                        @onclick="@(() => _format = TournamentFormat.Swiss)">
+                    Swiss
+                </button>
+            </div>
             <button type="button" class="po-btn po-btn--success po-btn--lg"
                     disabled="@(!CanAttemptStart)"
                     @onclick="StartAsync">
@@ -372,7 +448,7 @@
                             <a class="tourney__recent-item" href="@($"/tournament/{run.TournamentId}")">
                                 <span class="tourney__recent-prompt">@Truncate(run.PromptText, 60)</span>
                                 <span class="tourney__recent-meta">
-                                    @SizeLabel(run.Size) ·
+                                    @SizeLabel(run) ·
                                     @if (run.ChampionName is not null)
                                     {
                                         <span class="tourney__recent-champ">🏆 @run.ChampionName</span>

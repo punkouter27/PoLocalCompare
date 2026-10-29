@@ -107,7 +107,8 @@ PoLocalCompare.slnx
 │   │   │                                 comparison logic; lives here so PoLocalCompare.Unit
 │   │   │                                 can test it without referencing the WASM project
 │   │   ├── Prompts/                    ← PromptLibrary (curated starter prompts)
-│   │   ├── Tournaments/                ← BracketPlanner (pure, seeded bracket layout; sizes 2/8)
+│   │   ├── Tournaments/                ← BracketPlanner (pure, seeded bracket layout; sizes 2/8),
+│   │   │                                 SwissPlanner (pure, 8-model 3-round Swiss pairing + table)
 │   │   └── Presentation/               ← view-models, enums and helpers the .razor files lean
 │   │                                     on (ArenaPhase, ModelTypeGroup, FailureReasonText,
 │   │                                     HealthBadgeText, ArenaFormatting, SideMetrics,
@@ -223,6 +224,12 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
   output an app-origin browsing context.
 - Tournament draws remain automatic by default, but the draw page can optionally select exactly
   eight entrants before the server seeds them by ELO.
+- A format chip pair beside Start picks Bracket (default) or Swiss (`format` on
+  `POST /api/tournaments`, stored as the `Format` column; rows without one read as Bracket). Swiss
+  plays 3 rounds of 4 duels; the aggregate pairs each next round from stored results once the
+  previous round is fully decided, so the runner stays stateless. The page shows a standings table
+  (rank, points, Buchholz, W-D-L) above the rounds. A match that cannot be decided abandons a Swiss
+  run exactly as it does a bracket.
 - Catalog browser models that the current GPU cannot run remain visible for discovery, but cannot
   be registered from that device.
 

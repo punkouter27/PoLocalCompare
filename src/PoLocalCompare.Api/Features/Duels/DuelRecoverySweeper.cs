@@ -26,7 +26,7 @@ internal static partial class DuelRecoveryLog
 /// inference tasks — dies with the process. Nothing used to look at the leftovers: a duel that
 /// was mid-flight at shutdown stayed <see cref="DuelVerdict.Pending"/> forever, the Arena showed
 /// it with live winner buttons (and — before the verdict guard existed — accepted votes on it),
-/// and the lobby counted it as awaiting judgment until the storage was wiped.
+/// and the Archive listed it as Pending until the storage was wiped.
 ///
 /// Two shapes of leftover exist, and each gets the honest ending:
 ///
