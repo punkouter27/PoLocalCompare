@@ -29,9 +29,12 @@ a rule is being violated.
 
 - **[AGENTS.md](AGENTS.md) §12 is a checklist for every task, not background.** The ones that are
   easy to miss, because nothing fails when you skip them: a UI change gets an annotated
-  before/after page at `SCREENSHOTS/YYMMDD-feature-name.html` and you give its full path (rule 18);
+  before/after page at `SCREENSHOTS/YYMMDD-feature-name.html` plus one PNG of both, and you give
+  their full paths (rule 18); a change over 20 lines gets the Toddler/Child/Adult lines and a diagram
+  (19); problems found get a proposed fix, not an unasked one (20); repeated UI or logic is pulled
+  into one shared component (22);
   a changed dependency, config key or major endpoint updates `README.md` in the same change (10); an answer over 100
-  words ends with a 20-word TLDR (13); a git sync commits with a short message in casual
+  words ends with a recap of under 20 words (13); a git sync commits with a short message in casual
   American slang (12); say so when a change removes more than 100 lines (17); run only the
   tests related to the change (14); give one Pro and one Con for a major change (2). A whole
   session's work went out on 2026-10-11 without any of these because that section was not read.
@@ -110,7 +113,8 @@ exceeds its budget, so the contract is enforced rather than remembered. A new Un
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
 (two `WinRateCalculator` arithmetic cases and two redundant stream-usage inline cases made way),
-and how `SwissPlannerTests` got in on 2026-10-29 (five `BracketPlannerTests` cases made way).
+and how `SwissPlannerTests` got in on 2026-10-29 (five `BracketPlannerTests` cases made way;
+on 2026-11-07 Swiss was removed and its five slots went to the 16-bracket and bye tests).
 Say so rather than quietly raising the cap.
 
 **E2E-UI needs the machine to itself.** The suite drives a real browser against the one running dev
@@ -212,8 +216,14 @@ protects. A rule with no obvious reason usually has an expensive one.
   fallback, Gemini included). `FoundryInferenceProxy` keeps its own streaming version.
 - **The model catalog is spread across three files that must agree:** `ModelSeeder.cs`,
   `prebuiltAppConfig` in `web-llm.js`, and `SCRIPTS/plan-webllm-artifacts.py` (run it after any
-  catalog edit). Retired seed ids are never reused. Ollama seeds in Development only; Gemini only
-  with `Gemini:ApiKey`. `DefaultPriceBook` matches the longest key.
+  catalog edit). Retired seed ids are never reused, and are listed in `ModelSeeder.RetiredIds`:
+  their rows (ELO, duels) stay, but the picker, catalog and tournament draw leave them out. Ollama
+  seeds in Development only; Gemini only with `Gemini:ApiKey`. `DefaultPriceBook` matches the
+  longest key. **Before seeding a Foundry deployment, call it once and read the `model` it
+  reports** — on 2026-11-07 three seeded "nano" names and `gpt-5.4` served other models, and
+  `gpt-5.5` was not deployed at all. **A remote model is seeded only with a clear price** — an
+  exact `DefaultPriceBook` entry or seed pricing, not a sibling's rate by prefix: an unpriced
+  model counts as $0 against the daily spend cap (eight were removed for this on 2026-11-07).
 - **Models can also be added at runtime from `/catalog`** (`POST /api/models/discovered`, which
   re-checks the id). That is the only way to add one outside the seeder. A browser build the
   current GPU cannot run stays visible but its Add action is disabled.
@@ -229,12 +239,15 @@ protects. A rule with no obvious reason usually has an expensive one.
   when a remote side fails a real duel. Home renders the catalog before the health probe lands.
 - **Tournaments run on the server, except the browser matches.** Seeded, never shuffled. A bracket
   that cannot finish is Abandoned, never Complete; a drawn match advances the better seed; the
-  runner holds no state; two matches run at once and not four, because of the rate limit.
-  `autoJudgeDelaySeconds` is a per-duel override whose only caller is the tournament (0). The draw
-  is automatic by default, with an optional exactly-eight entrant picker before server-side seeding.
-  **Swiss is the other format** (`SwissPlanner`, 8 only): 3 rounds, round 1 is 1v5 2v6 3v7 4v8, each
-  later round is paired from stored results when the last one is fully decided (score, then seed,
-  no rematch); a draw is ½ each, not a seed tie-break; champion = top of points → Buchholz → seed.
+  runner holds no state; `Tournaments:MaxConcurrentMatches` matches run at once (4 since
+  2026-11-07, was 2 — lower it first if the quota pushes back).
+  `autoJudgeDelaySeconds` is a per-duel override whose only caller is the tournament (0). The
+  bracket is **16** (8 until 2026-11-07); the draw is automatic by default, with an optional 9–16
+  entrant picker before server-side seeding. **A short field gets byes, never a smaller bracket:**
+  each empty seed faces a top seed and is decided at the draw. Round maths accepts any power of
+  two, because stored 8-model brackets still render. **Swiss is read-only** (2026-11-07): stored
+  runs show their table (`SwissStandings`), nothing draws, runs or resumes one, and an unfinished
+  one reads as Abandoned without being written back.
 
 ### Persistence and server structure
 

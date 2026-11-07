@@ -44,20 +44,43 @@ public sealed record BracketMatch(
 public static class BracketPlanner
 {
     /// <summary>
-    /// Bracket sizes the app offers. 2 is a plain 1v1 run through the same machinery; 8 is the
-    /// real bracket. 4 was removed on 2026-08-23 — it was a strictly worse 8 (a semi-final pair
-    /// tells you less than a quarter-final round) and the middle option nobody reached for.
-    /// The maths below is size-generic, so re-adding it is a one-line change.
+    /// Bracket sizes the app offers. 2 is a plain 1v1 run through the same machinery; 16 is the
+    /// real bracket. 4 was removed on 2026-08-23 (a strictly worse 8); 8 became 16 on
+    /// 2026-11-07, when the catalog grew past sixteen Foundry models. The maths below is
+    /// size-generic, so changing the list is a one-line change.
     /// </summary>
-    public static IReadOnlyList<int> SupportedSizes { get; } = [2, 8];
+    public static IReadOnlyList<int> SupportedSizes { get; } = [2, 16];
 
     public static bool IsSupportedSize(int size) => SupportedSizes.Contains(size);
 
-    /// <summary>Number of rounds a bracket of this size takes — 2 → 1, 8 → 3.</summary>
+    /// <summary>
+    /// The smallest field a bracket of <paramref name="size"/> accepts. Below the full size the
+    /// missing seeds are byes, and a bye can only face a real model: with more than half the
+    /// field missing, a first-round match would have nobody in it. So 16 takes 9 to 16 entrants,
+    /// and 2 takes exactly 2.
+    /// </summary>
+    public static int MinimumField(int size)
+    {
+        ThrowIfUnsupported(size);
+        return size == 2 ? 2 : size / 2 + 1;
+    }
+
+    /// <summary>The bracket a field of this many entrants is drawn into, or null when none fits.</summary>
+    public static int? BracketSizeFor(int fieldCount) =>
+        SupportedSizes.Where(size => fieldCount >= MinimumField(size) && fieldCount <= size)
+            .Select(size => (int?)size)
+            .FirstOrDefault();
+
+    /// <summary>Number of rounds a bracket of this size takes — 2 → 1, 8 → 3, 16 → 4.</summary>
+    /// <remarks>
+    /// Any power of two, not only <see cref="SupportedSizes"/>: drawing is limited to those, but
+    /// the 8-model brackets drawn before 2026-11-07 are still stored and still have to render
+    /// and, if one was mid-run, advance.
+    /// </remarks>
     public static int RoundCount(int size)
     {
-        if (!IsSupportedSize(size))
-            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2, 4 or 8.");
+        if (size < 2 || (size & (size - 1)) != 0)
+            throw new ArgumentOutOfRangeException(nameof(size), size, "A bracket's size is a power of two.");
 
         var rounds = 0;
         for (var remaining = size; remaining > 1; remaining /= 2) rounds++;
@@ -76,6 +99,7 @@ public static class BracketPlanner
             0 => "Final",
             1 => "Semi-finals",
             2 => "Quarter-finals",
+            3 => "Round of 16",
             _ => $"Round {round + 1}",
         };
     }
@@ -86,13 +110,13 @@ public static class BracketPlanner
     /// </summary>
     /// <remarks>
     /// Built by repeated reflection — each round doubles the field, and a seed <c>s</c> in a
-    /// bracket of <c>n</c> is paired with <c>n + 1 - s</c>. For 8 this yields
-    /// <c>1,8,4,5,2,7,3,6</c>: the classic layout where the top seed meets the bottom one first.
+    /// bracket of <c>n</c> is paired with <c>n + 1 - s</c>. For 16 this yields
+    /// <c>1,16,8,9,4,13,5,12,2,15,7,10,3,14,6,11</c>: the classic layout where the top seed meets
+    /// the bottom one first — and, in a short field, gets the first bye.
     /// </remarks>
     public static IReadOnlyList<int> SeedOrder(int size)
     {
-        if (!IsSupportedSize(size))
-            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2, 4 or 8.");
+        ThrowIfUnsupported(size);
 
         var seeds = new List<int> { 1, 2 };
 
@@ -117,15 +141,18 @@ public static class BracketPlanner
     /// </summary>
     /// <param name="contenders">
     /// Strongest first — the caller sorts, because "strongest" is a leaderboard question and this
-    /// type does not know about ELO. Must hold exactly <paramref name="size"/> entries.
+    /// type does not know about ELO. Between <see cref="MinimumField"/> and <paramref name="size"/>
+    /// entries; each seed past the last contender is a bye, an empty slot opposite a top seed.
+    /// The caller advances a bye's model (see <see cref="IsBye"/>) — this type only lays it out.
     /// </param>
     public static IReadOnlyList<BracketMatch> Build(IReadOnlyList<BracketSlot> contenders, int size)
     {
-        if (!IsSupportedSize(size))
-            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2, 4 or 8.");
-
-        if (contenders.Count != size)
-            throw new ArgumentException($"A bracket of {size} needs exactly {size} contenders, got {contenders.Count}.", nameof(contenders));
+        if (contenders.Count < MinimumField(size) || contenders.Count > size)
+        {
+            throw new ArgumentException(
+                $"A bracket of {size} needs {MinimumField(size)} to {size} contenders, got {contenders.Count}.",
+                nameof(contenders));
+        }
 
         var order = SeedOrder(size);
         var matches = new List<BracketMatch>();
@@ -136,15 +163,12 @@ public static class BracketPlanner
             // Seed numbers are 1-based; the contenders list is strongest-first, so seed n is at
             // index n - 1. The seed is stamped on here rather than expected from the caller —
             // "strongest first" is the caller's contract, and the number that follows from it
-            // is this type's to assign.
-            var seedA = order[i * 2];
-            var seedB = order[i * 2 + 1];
-
+            // is this type's to assign. A seed with no contender is the bye.
             matches.Add(new BracketMatch(
                 Round: 0,
                 Index: i,
-                SlotA: contenders[seedA - 1] with { Seed = seedA },
-                SlotB: contenders[seedB - 1] with { Seed = seedB }));
+                SlotA: SeedSlot(contenders, order[i * 2]),
+                SlotB: SeedSlot(contenders, order[i * 2 + 1])));
         }
 
         // Later rounds — placeholders that Advance fills in as results land.
@@ -157,6 +181,19 @@ public static class BracketPlanner
         }
 
         return matches;
+    }
+
+    /// <summary>A first-round match with one contender and a bye: decided at the draw, never played.</summary>
+    public static bool IsBye(BracketMatch match) =>
+        match.Round == 0 && match.SlotA.IsEmpty != match.SlotB.IsEmpty;
+
+    private static BracketSlot SeedSlot(IReadOnlyList<BracketSlot> contenders, int seed) =>
+        seed <= contenders.Count ? contenders[seed - 1] with { Seed = seed } : BracketSlot.Empty;
+
+    private static void ThrowIfUnsupported(int size)
+    {
+        if (!IsSupportedSize(size))
+            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2 or 16.");
     }
 
     /// <summary>

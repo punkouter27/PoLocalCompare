@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using PoLocalCompare.Api.Features.Models;
 using PoLocalCompare.Api.Features.Tournaments;
 using PoLocalCompare.Shared.DTOs;
 using PoLocalCompare.Shared.Ids;
@@ -108,7 +109,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Contains(entrants, e => e.GetProperty("modelId").GetString() == browser);
     }
     [Theory]
-    [InlineData(8)]
+    [InlineData(16)]
     public async Task Draw_AcceptsEverySupportedSize(int count)
     {
         var field = await RegisterFieldAsync($"TE Ok{count}", count);
@@ -139,11 +140,14 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    /// <summary>4 was a supported size until 2026-08-23; only 2 and 8 are now.</summary>
+    /// <summary>
+    /// 8 was the bracket until 2026-11-07. Drawn into a 16 it would leave a first-round match
+    /// with nobody in it, so a field needs 2, or 9 to 16.
+    /// </summary>
     [Fact]
-    public async Task Draw_RejectsAFourModelField()
+    public async Task Draw_RejectsAnEightModelField()
     {
-        var field = await RegisterFieldAsync("TE Four", 4);
+        var field = await RegisterFieldAsync("TE Eight", 8);
 
         var response = await DrawAsync(field);
 
@@ -174,7 +178,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     [Fact]
     public async Task Draw_IsReadableBackByItsId()
     {
-        var field = await RegisterFieldAsync("TE Persist", 8);
+        var field = await RegisterFieldAsync("TE Persist", 16);
 
         var drawn = await (await DrawAsync(field)).Content.ReadFromJsonAsync<JsonElement>();
         var id = drawn.GetProperty("tournamentId").GetString()!;
@@ -182,8 +186,8 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         var fetched = await (await _client.GetAsync($"/api/tournaments/{id}")).Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal(id, fetched.GetProperty("tournamentId").GetString());
-        Assert.Equal(8, fetched.GetProperty("size").GetInt32());
-        Assert.Equal(7, MatchesOf(fetched).Length);
+        Assert.Equal(16, fetched.GetProperty("size").GetInt32());
+        Assert.Equal(15, MatchesOf(fetched).Length);
         Assert.Equal(Prompt, fetched.GetProperty("promptText").GetString());
     }
 
@@ -195,54 +199,96 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // ── Swiss ─────────────────────────────────────────────────────────────
+    // ── Byes ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A Swiss run played to the end through storage, re-read before every round the way the
-    /// stateless runner does: each round is paired from the stored results alone, the format
-    /// survives the round trip, and the API serves the final table with the leader crowned.
-    /// Results are written straight to the aggregate because the judge is off in this host —
-    /// the duel side is the same as a bracket's and is covered there.
+    /// A field short of sixteen goes through the endpoint and storage with its byes already
+    /// decided: the API reads back a 16-model bracket whose four byes are not counted as matches
+    /// to play, and whose top four seeds are waiting in round two.
     /// </summary>
     [Fact]
-    public async Task Swiss_PlayedThroughStorage_CompletesWithStandings()
+    public async Task Draw_OfTwelve_IsStoredWithTheTopSeedsThroughOnByes()
     {
-        var field = await RegisterFieldAsync($"TE Swiss {Guid.NewGuid():N}", 8);
+        var field = await RegisterFieldAsync($"TE Byes {Guid.NewGuid():N}", 12);
 
-        TournamentId id;
+        var drawn = await DrawAsync(field);
+        Assert.Equal(HttpStatusCode.Created, drawn.StatusCode);
+        var id = (await drawn.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("tournamentId").GetString()!;
+
+        var fetched = await (await _client.GetAsync($"/api/tournaments/{id}")).Content.ReadFromJsonAsync<JsonElement>();
+        var matches = MatchesOf(fetched);
+
+        Assert.Equal(16, fetched.GetProperty("size").GetInt32());
+        Assert.Equal(15, matches.Length);
+        Assert.Equal(4, matches.Count(m => m.GetProperty("isBye").GetBoolean()));
+        Assert.Equal(11, fetched.GetProperty("totalMatches").GetInt32());
+        Assert.Equal(4, matches.Where(m => m.GetProperty("round").GetInt32() == 1)
+            .Count(m => !string.IsNullOrEmpty(m.GetProperty("slotAModelId").GetString())));
+    }
+
+    /// <summary>
+    /// A retired seed keeps its row (and so its ELO and duels) but leaves the tournament draw
+    /// and the model catalog — GPT-4.1 Nano was one model under two names until 2026-11-07.
+    /// </summary>
+    [Fact]
+    public async Task RetiredSeed_IsKeptOutOfTheDrawAndTheCatalog()
+    {
+        var retired = ModelSeeder.RetiredIds.First(id => id.Value.EndsWith('C'));
         using (var scope = _host.Services.CreateScope())
         {
-            var handler = scope.ServiceProvider.GetRequiredService<CreateTournamentHandler>();
-            var drawn = await handler.HandleAsync(
-                field.Select(f => ModelId.From(f)).ToList(), Prompt, actor: null, TournamentFormat.Swiss);
-            id = drawn.TournamentId;
+            await scope.ServiceProvider.GetRequiredService<IModelRepository>()
+                .SaveAsync(new Model(retired, "GPT-4.1 Nano", PoLocalCompare.Shared.Enums.ModelType.Remote, apiEndpointRef: "gpt-4.1-nano"));
         }
 
-        for (var round = 0; round < 3; round++)
+        var entrants = await (await _client.GetAsync("/api/tournaments/entrants")).Content.ReadFromJsonAsync<JsonElement[]>();
+        var catalog = await (await _client.GetAsync("/api/models")).Content.ReadFromJsonAsync<JsonElement[]>();
+
+        Assert.DoesNotContain(entrants!, e => e.GetProperty("modelId").GetString() == retired.Value);
+        Assert.DoesNotContain(catalog!, m => m.GetProperty("modelId").GetString() == retired.Value);
+    }
+
+    // ── Retired Swiss runs ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Swiss was retired on 2026-11-07 and its stored runs are read-only. One left Running when
+    /// the format went is served with its table but reads as Abandoned, so it is never resumed
+    /// and never blocks a new bracket through the one-at-a-time gate.
+    /// </summary>
+    [Fact]
+    public async Task StoredSwissRun_IsServedReadOnly_AndDoesNotBlockANewBracket()
+    {
+        var field = await RegisterFieldAsync($"TE SwissRO {Guid.NewGuid():N}", 8);
+        var swiss = new Tournament
         {
-            using var scope = _host.Services.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<TournamentRepository>();
-            var tournament = (await repository.GetByIdAsync(id))!;
-
-            Assert.Equal(TournamentFormat.Swiss, tournament.Format);
-            foreach (var m in tournament.Matches.Where(m => m.Round == round).ToList())
+            TournamentId = TournamentId.New(),
+            Format = TournamentFormat.Swiss,
+            Size = 8,
+            PromptText = Prompt,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = TournamentStatus.Running,
+            Matches = Enumerable.Range(0, 4).Select(i => new TournamentMatch
             {
-                if (m.Index == 3) tournament.RecordTie(round, m.Index);   // one draw a round
-                else tournament.RecordWinner(round, m.Index, m.SlotAModelId, m.SlotAName);
-            }
-            await repository.UpdateAsync(tournament);
-        }
+                Round = 0,
+                Index = i,
+                SlotAModelId = ModelId.From(field[i]), SlotAName = $"A{i}", SlotASeed = i + 1,
+                SlotBModelId = ModelId.From(field[i + 4]), SlotBName = $"B{i}", SlotBSeed = i + 5,
+                // Board 0 drawn, board 1 won by A, the rest unplayed.
+                IsDraw = i == 0,
+                WinnerModelId = i == 1 ? ModelId.From(field[1]) : null,
+            }).ToList(),
+        };
+        using (var scope = _host.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<TournamentRepository>().SaveAsync(swiss);
 
-        var dto = await (await _client.GetAsync($"/api/tournaments/{id}")).Content.ReadFromJsonAsync<JsonElement>();
+        var dto = await (await _client.GetAsync($"/api/tournaments/{swiss.TournamentId}")).Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal("Swiss", dto.GetProperty("format").GetString());
-        Assert.Equal("Complete", dto.GetProperty("status").GetString());
-        Assert.Equal(12, MatchesOf(dto).Length);
-
+        Assert.Equal("Abandoned", dto.GetProperty("status").GetString());
         var standings = dto.GetProperty("standings").EnumerateArray().ToArray();
         Assert.Equal(8, standings.Length);
-        Assert.Equal(standings[0].GetProperty("modelId").GetString(), dto.GetProperty("championModelId").GetString());
-        Assert.Equal(12.0, standings.Sum(s => s.GetProperty("points").GetDouble()));   // a point per game
+        Assert.Equal(2.0, standings.Sum(s => s.GetProperty("points").GetDouble()));
+
+        Assert.Equal(HttpStatusCode.Created, (await DrawAsync(await RegisterFieldAsync("TE AfterSwiss", 2))).StatusCode);
     }
 
     // ── One tournament at a time ───────────────────────────────────────────

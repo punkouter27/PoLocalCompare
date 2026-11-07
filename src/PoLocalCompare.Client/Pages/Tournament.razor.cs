@@ -28,15 +28,16 @@ public partial class Tournament
     /// The only bracket the page offers. The API still accepts 2 (a plain 1v1) — see
     /// <see cref="BracketPlanner.SupportedSizes"/> — but picking a size was a decision nobody
     /// wanted to make before writing a prompt, so the page draws a full bracket and gets on
-    /// with it.
+    /// with it. Unticking entrants in the picker down to <see cref="MinField"/> leaves byes
+    /// for the top seeds rather than a smaller bracket.
     /// </summary>
-    private const int FieldSize = 8;
+    private const int BracketSize = 16;
+
+    private static readonly int MinField = BracketPlanner.MinimumField(BracketSize);
     private List<TournamentEntrantDto> _entrants = [];
     private readonly List<ModelId> _selected = [];
     private bool _choosingEntrants;
 
-    /// <summary>Bracket by default; Swiss is the one other format, chosen beside Start.</summary>
-    private TournamentFormat _format = TournamentFormat.Bracket;
     private string _prompt = string.Empty;
     private bool _loadingEntrants = true;
     private bool _starting;
@@ -108,7 +109,12 @@ public partial class Tournament
     /// cannot fix from the button (field not full, a bracket already running) still disable it;
     /// a missing prompt is fixed one field up, so the click goes there instead.
     /// </remarks>
-    private bool CanAttemptStart => _selected.Count == FieldSize
+    private bool FieldReady => _selected.Count >= MinField;
+
+    /// <summary>Seeds the field leaves empty — each one is a first-round bye for a top seed.</summary>
+    private int ByeCount => FieldReady ? BracketSize - _selected.Count : 0;
+
+    private bool CanAttemptStart => FieldReady
         && _inFlight is null
         && !_starting;
 
@@ -119,15 +125,15 @@ public partial class Tournament
             if (_inFlight is { } live)
                 return $"A tournament is already running — finish or abandon it before starting a new one.";
 
-            return (_selected.Count == FieldSize, PromptReady) switch
+            return (FieldReady, PromptReady) switch
             {
-                (false, _) when _entrants.Count < FieldSize => "Not enough models registered to fill a bracket.",
-                (false, _) => $"Choose exactly {FieldSize} entrants ({_selected.Count} selected).",
+                (false, _) when _entrants.Count < MinField => "Not enough models registered to fill a bracket.",
+                (false, _) => $"Choose {MinField} to {BracketSize} entrants ({_selected.Count} selected).",
                 (true, false) when _prompt.Trim().Length == 0 => "Write a prompt above to start the bracket.",
                 (true, false) => $"The prompt needs at least {MinPromptLength} characters.",
-                _ when _format == TournamentFormat.Swiss =>
-                    $"{FieldSize} models · {SwissPlanner.RoundCount} rounds · {SwissPlanner.MatchCount} duels · judged automatically.",
-                _ => $"{FieldSize} models · {FieldSize - 1} duels · judged automatically.",
+                _ when ByeCount > 0 =>
+                    $"{_selected.Count} models · {ByeCount} bye{(ByeCount == 1 ? "" : "s")} · {_selected.Count - 1} duels · judged automatically.",
+                _ => $"{BracketSize} models · {BracketSize - 1} duels · judged automatically.",
             };
         }
     }
@@ -148,60 +154,55 @@ public partial class Tournament
     private IEnumerable<TournamentEntrantDto> DrawnField =>
         _selected.Select(id => _entrants.First(e => e.ModelId == id));
 
-    /// <summary>One first-round pairing: the two entrants and their seed numbers.</summary>
+    /// <summary>
+    /// One first-round pairing: the two entrants and their seed numbers. <c>B</c> is null for a
+    /// bye — seed A is always the better seed in the standard layout, so it is never the empty one.
+    /// </summary>
     private sealed record Pairing(
         int SeedA, TournamentEntrantDto A,
-        int SeedB, TournamentEntrantDto B);
+        int SeedB, TournamentEntrantDto? B);
 
     /// <summary>
-    /// The four first-round matches, in bracket order.
+    /// The eight first-round matches, in bracket order.
     /// </summary>
     /// <remarks>
     /// Mirrors what <c>CreateTournamentHandler</c> will do on the server: seed the field by
-    /// rating, strongest first, then lay it out through <see cref="BracketPlanner.SeedOrder"/>
-    /// (or, for Swiss, <see cref="SwissPlanner.FirstRoundSeeds"/>). Reusing the planners rather
-    /// than hard-coding 1v8/4v5/2v7/3v6 is the point — if the seeding convention ever changes,
-    /// this preview cannot drift away from the draw it previews.
+    /// rating, strongest first, then lay it out through <see cref="BracketPlanner.SeedOrder"/>.
+    /// Reusing the planner rather than hard-coding 1v16/8v9/… is the point — if the seeding
+    /// convention ever changes, this preview cannot drift away from the draw it previews.
     /// </remarks>
     private IReadOnlyList<Pairing> FirstRoundPairs
     {
         get
         {
-            if (_selected.Count < FieldSize) return [];
+            if (!FieldReady) return [];
 
             var seeded = DrawnField
                 .OrderByDescending(e => e.CurrentElo)
                 .ThenBy(e => e.DisplayName, StringComparer.Ordinal)
                 .ToList();
 
-            IEnumerable<(int SeedA, int SeedB)> seeds;
-            if (_format == TournamentFormat.Swiss)
-            {
-                seeds = SwissPlanner.FirstRoundSeeds();
-            }
-            else
-            {
-                var order = BracketPlanner.SeedOrder(FieldSize);
-                seeds = Enumerable.Range(0, order.Count / 2).Select(i => (order[i * 2], order[i * 2 + 1]));
-            }
+            var order = BracketPlanner.SeedOrder(BracketSize);
 
-            // Seeds are 1-based; the seeded list is 0-based.
-            return seeds
-                .Select(s => new Pairing(s.SeedA, seeded[s.SeedA - 1], s.SeedB, seeded[s.SeedB - 1]))
+            // Seeds are 1-based; the seeded list is 0-based. A seed past the field is the bye.
+            return Enumerable.Range(0, order.Count / 2)
+                .Select(i => (SeedA: order[i * 2], SeedB: order[i * 2 + 1]))
+                .Select(s => new Pairing(
+                    s.SeedA, seeded[s.SeedA - 1],
+                    s.SeedB, s.SeedB <= seeded.Count ? seeded[s.SeedB - 1] : null))
                 .ToList();
         }
     }
 
     private bool IsSwiss => _tournament?.Format == TournamentFormat.Swiss;
 
-    private int RoundCount => _tournament is null
-        ? 0
-        : IsSwiss ? SwissPlanner.RoundCount : BracketPlanner.RoundCount(_tournament.Size);
-
-    /// <summary>Swiss rounds not yet paired — each is drawn by score when the one before it finishes.</summary>
-    private IEnumerable<int> UnpairedSwissRounds => IsSwiss
-        ? Enumerable.Range(0, SwissPlanner.RoundCount).Where(r => _tournament!.Matches.All(m => m.Round != r))
-        : [];
+    /// <summary>A stored Swiss run's columns are its rounds; a bracket's come from its size.</summary>
+    private int RoundCount => _tournament switch
+    {
+        null => 0,
+        { Format: TournamentFormat.Swiss, Matches.Count: > 0 } t => t.Matches.Max(m => m.Round) + 1,
+        _ => BracketPlanner.RoundCount(_tournament.Size),
+    };
 
     /// <summary>"2", "1.5" — Swiss points and Buchholz are whole or half numbers.</summary>
     private static string FormatPoints(double points) =>
@@ -239,6 +240,8 @@ public partial class Tournament
         match switch
         {
             { FailureReason: not null } => "tourney__match--failed",
+            // Before IsDecided: a bye is decided, but nobody played it.
+            { IsBye: true } => "tourney__match--bye",
             { IsDecided: true } => "tourney__match--decided",
             { IsRunning: true } => "tourney__match--running",
             // A ready match looks like the base card, so it gets no modifier at all — a class
@@ -315,14 +318,14 @@ public partial class Tournament
         }
     }
 
-    /// <summary>Draws eight models at random, preferring remote ones.</summary>
+    /// <summary>Draws sixteen models at random, preferring remote ones.</summary>
     /// <remarks>
     /// Remote first because they are the only type that needs nothing from this machine — no
     /// GPU, no daemon, no tab left open — so a random draw over them is a bracket that will
     /// actually finish. Ollama and browser models only top the field up when there are not
-    /// eight remotes to draw from, and the page says so when that happens. Random rather than
-    /// top-eight-by-rating: the seeding already decides who meets whom, so taking the top eight
-    /// every time would just mean the same bracket over and over.
+    /// sixteen remotes to draw from, and the page says so when that happens. Random rather than
+    /// top-sixteen-by-rating: the seeding already decides who meets whom, so taking the top
+    /// sixteen every time would just mean the same bracket over and over.
     /// </remarks>
     private void DrawField()
     {
@@ -336,14 +339,14 @@ public partial class Tournament
         Random.Shared.Shuffle(remote);
         Random.Shared.Shuffle(rest);
 
-        _selected.AddRange(remote.Concat(rest).Take(FieldSize).Select(e => e.ModelId));
+        _selected.AddRange(remote.Concat(rest).Take(BracketSize).Select(e => e.ModelId));
     }
 
     private void SetEntrantSelected(ModelId modelId, bool selected)
     {
         if (selected)
         {
-            if (_selected.Count < FieldSize && !_selected.Contains(modelId))
+            if (_selected.Count < BracketSize && !_selected.Contains(modelId))
                 _selected.Add(modelId);
             return;
         }
@@ -369,7 +372,7 @@ public partial class Tournament
         {
             await JS.InvokeVoidAsync("poNotify.ask");
             _ = AudioService.PlayLaunchAsync();
-            var drawn = await ApiClient.CreateTournamentAsync(_selected, _prompt.Trim(), _format);
+            var drawn = await ApiClient.CreateTournamentAsync(_selected, _prompt.Trim());
 
             if (drawn is not null)
                 Nav.NavigateTo($"/tournament/{drawn.TournamentId}");
@@ -410,7 +413,7 @@ public partial class Tournament
     /// </summary>
     /// <remarks>
     /// Reconnecting per match rather than holding one connection is deliberate — the server
-    /// addresses StartLocalInference to the duel group, and a bracket is seven different duels.
+    /// addresses StartLocalInference to the duel group, and a bracket is up to fifteen different duels.
     /// The server re-sends that signal every 5 s, so joining a match already in flight still
     /// picks it up rather than deadlocking on a missed first send.
     /// </remarks>
@@ -572,7 +575,8 @@ public partial class Tournament
     /// </summary>
     private static List<string> NewlyAdvanced(TournamentDto? before, TournamentDto after)
     {
-        // Nobody advances in Swiss: a new round is a fresh pairing, not a winner moving on.
+        // Byes were filled at the draw, so the first read already has them and nothing flies.
+        // A stored Swiss run never changes, and nobody advances in one anyway.
         if (before is null || after.Matches.Count == 0 || after.Format == TournamentFormat.Swiss) return [];
 
         var firstRound = after.Matches.Min(m => m.Round);

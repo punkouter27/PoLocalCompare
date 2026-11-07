@@ -105,10 +105,10 @@ public static class ModelSeeder
         // model shows as unknown cost on the ModelCard, the leaderboard's avg-$/duel column and
         // the Arena total. Fill the two pricing arguments and the reconcile loop backfills the
         // stored rows on the next startup.
-        new Model(ModelId.From("01SEED000000000000000000C"), "GPT-4.1 Nano",      ModelType.Remote, apiEndpointRef: "gpt-4.1-nano"),
         new Model(ModelId.From("01SEED000000000000000000D"), "GPT-OSS 120B",      ModelType.Remote, apiEndpointRef: "gpt-oss-120b"),
-        new Model(ModelId.From("01SEED000000000000000000E"), "DeepSeek V4 Flash", ModelType.Remote, apiEndpointRef: "DeepSeek-V4-Flash"),
         new Model(ModelId.From("01SEED000000000000000000F"), "GPT-5.5",           ModelType.Remote, apiEndpointRef: "gpt-5.5"),
+
+        new Model(ModelId.From("01SEED000000000000000000E"), "DeepSeek V4 Flash", ModelType.Remote, apiEndpointRef: "DeepSeek-V4-Flash"),
         new Model(ModelId.From("01SEED000000000000000000G"), "Grok 4.6",          ModelType.Remote, apiEndpointRef: "grok-4.6"),
 
         // GPT-5.4 Pro was the intended flagship and is NOT seeded, though the deployment exists.
@@ -130,6 +130,40 @@ public static class ModelSeeder
         // Note claude-sonnet-5 is unavailable regardless: its GlobalStandard quota is 0 on this
         // account, which is why 4-6 is the intended middle rung.
     ];
+
+    /// <summary>
+    /// Seed ids taken out of the catalog. Never reused; their stored rows are kept — a row holds
+    /// the model's ELO and the duels name it — but the picker, the catalog and the tournament
+    /// draw leave them out (<see cref="ModelVisibility"/>, <see cref="CreateTournamentHandler"/>).
+    /// </summary>
+    /// <remarks>
+    /// 001, 007, 008 — see the browser tier above. C (GPT-4.1 Nano), 2026-11-07: its deployment
+    /// serves gpt-5.4-mini, the same model as R, so the two were one model under two names. The
+    /// <c>gpt-4.1-nano</c> deployment itself stays: it is <c>AiJudge:TextOnlyDeployment</c>.
+    ///
+    /// 017–024, the same day: GPT-6.1 Sol, GPT-6 Luna, GPT-6 Astra, Kimi K3.1 Pro, Grok 4.7,
+    /// DeepSeek V4.1 Flash, DeepSeek V4 Pro and Mistral Large 3 were seeded and removed within
+    /// hours because none had a clear price — five had none, and three took a sibling's rate by
+    /// <see cref="DefaultPriceBook"/> prefix. An unpriced model counts as $0 against
+    /// <c>Limits:DailySpendCapUsd</c>, so it is a way around the cap, not just a blank cost
+    /// column. Their deployments still exist in po-aiservices-shared2; re-adding one needs a new
+    /// id and an exact price-book entry first.
+    /// </remarks>
+    public static readonly IReadOnlySet<ModelId> RetiredIds = new HashSet<ModelId>
+    {
+        ModelId.From("01SEED0000000000000000001"),
+        ModelId.From("01SEED0000000000000000007"),
+        ModelId.From("01SEED0000000000000000008"),
+        ModelId.From("01SEED000000000000000000C"),
+        ModelId.From("01SEED0000000000000000017"),
+        ModelId.From("01SEED0000000000000000018"),
+        ModelId.From("01SEED0000000000000000019"),
+        ModelId.From("01SEED0000000000000000020"),
+        ModelId.From("01SEED0000000000000000021"),
+        ModelId.From("01SEED0000000000000000022"),
+        ModelId.From("01SEED0000000000000000023"),
+        ModelId.From("01SEED0000000000000000024"),
+    };
 
     /// <summary>
     /// Google models over the Gemini API's OpenAI-compatible endpoint (see

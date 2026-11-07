@@ -123,24 +123,37 @@ public sealed class TournamentRepository
             ? []
             : JsonSerializer.Deserialize<List<TournamentMatch>>(matchesJson, MatchSerializerOptions) ?? [];
 
+        // Rows from before 2026-10-29 have no Format column; every one of them was a bracket.
+        var format = Enum.TryParse<TournamentFormat>(entity.GetString("Format"), out var parsed)
+            ? parsed
+            : TournamentFormat.Bracket;
+        var status = Enum.TryParse<TournamentStatus>(entity.GetString("Status"), out var parsedStatus)
+            ? parsedStatus
+            : TournamentStatus.Pending;
+        var abandonedReason = entity.GetString("AbandonedReason");
+
+        // Swiss was retired on 2026-11-07 with no way left to finish a run. One still Pending or
+        // Running reads as Abandoned — never written back, so the row stays as it was — which
+        // keeps it out of the resume sweep and the one-at-a-time gate and stops the page polling.
+        if (format == TournamentFormat.Swiss && status is TournamentStatus.Pending or TournamentStatus.Running)
+        {
+            status = TournamentStatus.Abandoned;
+            abandonedReason = "Swiss was retired on 2026-11-07 before this run finished.";
+        }
+
         return new Tournament
         {
             TournamentId = TournamentId.FromOrDefault(entity.GetString("TournamentId")),
-            // Rows from before 2026-10-29 have no Format column; every one of them was a bracket.
-            Format = Enum.TryParse<TournamentFormat>(entity.GetString("Format"), out var format)
-                ? format
-                : TournamentFormat.Bracket,
+            Format = format,
             Size = entity.GetInt32("Size") ?? 0,
             PromptText = entity.GetString("PromptText") ?? string.Empty,
-            Status = Enum.TryParse<TournamentStatus>(entity.GetString("Status"), out var status)
-                ? status
-                : TournamentStatus.Pending,
+            Status = status,
             CreatedAt = entity.GetDateTimeOffset("CreatedAt") ?? DateTimeOffset.MinValue,
             CompletedAt = entity.GetDateTimeOffset("CompletedAt"),
             OwnerId = entity.GetString("OwnerId"),
             ChampionModelId = ModelId.FromOrNull(entity.GetString("ChampionModelId")),
             ChampionName = entity.GetString("ChampionName"),
-            AbandonedReason = entity.GetString("AbandonedReason"),
+            AbandonedReason = abandonedReason,
             Matches = matches,
             ETag = entity.ETag.ToString(),
         };

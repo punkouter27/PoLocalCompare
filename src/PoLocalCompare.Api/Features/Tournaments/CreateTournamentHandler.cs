@@ -34,7 +34,7 @@ public sealed class CreateTournamentHandler(
         var models = await modelRepository.GetAllAsync();
 
         return models
-            .Where(m => IsEligible(m.ModelType))
+            .Where(m => IsEligible(m.ModelType) && !ModelSeeder.RetiredIds.Contains(m.ModelId))
             .OrderByDescending(m => m.CurrentElo)
             .ThenBy(m => m.DisplayName, StringComparer.Ordinal)
             .Select(m => new TournamentEntrantDto
@@ -51,32 +51,25 @@ public sealed class CreateTournamentHandler(
     /// Draws and saves the bracket. Throws <see cref="ArgumentException"/> for a field that
     /// cannot make a valid bracket — the endpoint maps that to a 400.
     /// </summary>
+    /// <remarks>
+    /// The field picks the bracket: 2 models are a 1v1, 9 to 16 are a 16-model bracket whose
+    /// missing seeds are byes for the top seeds. Anything else has no bracket to go into.
+    /// </remarks>
     public async Task<TournamentDto> HandleAsync(
         IReadOnlyList<ModelId> modelIds,
         string promptText,
-        string? actor,
-        TournamentFormat format = TournamentFormat.Bracket)
+        string? actor)
     {
-        var size = modelIds.Count;
+        var count = modelIds.Count;
 
-        if (!Enum.IsDefined(format))
-            throw new ArgumentException($"Unknown tournament format '{format}'.", nameof(format));
-
-        if (format == TournamentFormat.Swiss && size != SwissPlanner.FieldSize)
+        if (BracketPlanner.BracketSizeFor(count) is not { } size)
         {
             throw new ArgumentException(
-                $"A Swiss tournament needs {SwissPlanner.FieldSize} models — got {size}.",
+                $"A tournament needs 2 models, or {BracketPlanner.MinimumField(16)} to 16 — got {count}.",
                 nameof(modelIds));
         }
 
-        if (!BracketPlanner.IsSupportedSize(size))
-        {
-            throw new ArgumentException(
-                $"A bracket needs {string.Join(", ", BracketPlanner.SupportedSizes)} models — got {size}.",
-                nameof(modelIds));
-        }
-
-        if (modelIds.Distinct().Count() != size)
+        if (modelIds.Distinct().Count() != count)
             throw new ArgumentException("A model cannot enter the same bracket twice.", nameof(modelIds));
 
         if (string.IsNullOrWhiteSpace(promptText))
@@ -91,7 +84,7 @@ public sealed class CreateTournamentHandler(
 
         var catalog = (await modelRepository.GetAllAsync()).ToDictionary(m => m.ModelId);
 
-        var entrants = new List<Model>(size);
+        var entrants = new List<Model>(count);
         foreach (var id in modelIds)
         {
             if (!catalog.TryGetValue(id, out var model))
@@ -101,8 +94,8 @@ public sealed class CreateTournamentHandler(
         }
 
         // Seeding is by current rating, strongest first — BracketPlanner stamps the seed numbers
-        // and places them so the top two can only meet in the final; SwissPlanner pairs the
-        // top half against the bottom half.
+        // and places them so the top two can only meet in the final, and the byes, if any, go
+        // to the top seeds.
         var seededField = entrants
             .OrderByDescending(m => m.CurrentElo)
             .ThenBy(m => m.DisplayName, StringComparer.Ordinal)
@@ -114,8 +107,7 @@ public sealed class CreateTournamentHandler(
             size,
             seededField,
             promptText.Trim(),
-            actor,
-            format);
+            actor);
 
         await tournamentRepository.SaveAsync(tournament);
 

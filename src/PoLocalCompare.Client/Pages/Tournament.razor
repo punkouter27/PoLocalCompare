@@ -94,13 +94,14 @@
             }
         }
 
-        @* Swiss: the table is the result, so it leads; the rounds below are how it got there.
-           A plain .po-table--cards, so it becomes labelled cards below 640px like every other
-           table in the app. *@
+        @* A stored Swiss run (the format was retired 2026-11-07) is shown read-only: its table
+           leads, because the table is the result; the rounds below are how it got there. A
+           plain .po-table--cards, so it becomes labelled cards below 640px. *@
         @if (IsSwiss && _tournament.Standings.Count > 0)
         {
             <section class="tourney__standings" aria-labelledby="tourney-standings-heading">
                 <h2 id="tourney-standings-heading" class="tourney__round-title">Standings</h2>
+                <p class="po-hint">Swiss was retired on 2026-11-07 — this run is kept read-only.</p>
                 <div class="po-table-wrap">
                     <table class="po-table po-table--cards">
                         <caption class="visually-hidden">Swiss standings, ranked by points, then Buchholz, then seed</caption>
@@ -141,8 +142,7 @@
 
         @* Columns are rounds. Each column is centred against the one before it, so the pairs
            that feed a match sit either side of it — that alignment is what makes it read as a
-           bracket rather than as three lists. A Swiss round has four games like every other,
-           so the same columns simply read as the three rounds' pairings. *@
+           bracket rather than as four lists. *@
         <div class="tourney__bracket-wrap">
             <div class="tourney__bracket" style="--rounds: @RoundCount">
                 @foreach (var round in _tournament.Matches.GroupBy(m => m.Round).OrderBy(g => g.Key))
@@ -202,13 +202,6 @@
                         </div>
                     </div>
                 }
-                @foreach (var round in UnpairedSwissRounds)
-                {
-                    <div class="tourney__round" @key="round">
-                        <h2 class="tourney__round-title">@SwissPlanner.RoundName(round)</h2>
-                        <p class="po-hint">Paired by score once round @round finishes.</p>
-                    </div>
-                }
             </div>
         </div>
 
@@ -242,14 +235,14 @@
     {
         @* ── Draw view ──────────────────────────────────────────────────── *@
         <PageHeader Title="Run a tournament"
-                    Subtitle="8 models, seeded, auto-judged." />
+                    Subtitle="16 models, seeded, auto-judged." />
 
         @* Field left, prompt and Start right from 1024px — Home's picker-and-console shape.
            Stacked, the setup left ~280px of empty page under Start on a 1440x900 desktop. *@
         <div class="tourney__setup">
         <section class="po-section tourney__setup-field" aria-labelledby="tourney-field-heading">
             <div class="tourney__section-head">
-                <h2 id="tourney-field-heading" class="po-section-title">The field — 8 models</h2>
+                <h2 id="tourney-field-heading" class="po-section-title">The field — @(FieldReady ? _selected.Count : BracketSize) models</h2>
             </div>
 
             @* The slot reserves the field's height while it loads. Without it this block was one
@@ -271,43 +264,48 @@
                         you are signed in, then reload.
                     </p>
                 }
-                else if (_selected.Count < FieldSize)
+                else if (_entrants.Count < MinField)
                 {
                     <p class="po-error">
                         Only @_entrants.Count model@(_entrants.Count == 1 ? " is" : "s are") registered —
-                        a bracket needs @FieldSize.
+                        a bracket needs at least @MinField.
                     </p>
                 }
                 else
                 {
-                    @* Mirrored, four a side, converging on the final — the shape a bracket is
-                       normally read in. The flat numbered list it replaced showed the same eight
+                    @* Mirrored, four matches a side, converging on the final — the shape a bracket
+                       is normally read in. The flat numbered list it replaced showed the same
                        models but hid the only thing the seeding is *for*: who actually meets whom,
                        and how far apart the top two seeds are. Pairings come from the same
                        BracketPlanner the server draws with, so this is the real first round
                        rather than a picture of one. *@
                     <div class="tourney__draw" role="group" aria-label="First-round pairings"
-                         title="@(_format == TournamentFormat.Swiss
-                             ? "Drawn at random, then seeded by rating: top half against bottom half. Later rounds pair equal scores."
-                             : "Drawn at random, then seeded by rating so the top two seeds can only meet in the final.")">
+                         title="Drawn at random, then seeded by rating so the top two seeds can only meet in the final.">
                         <div class="tourney__draw-half">
-                            @foreach (var pair in FirstRoundPairs.Take(2))
+                            @foreach (var pair in FirstRoundPairs.Take(4))
                             {
                                 @RenderPair(pair)
                             }
                         </div>
 
                         <div class="tourney__draw-centre" aria-hidden="true">
-                            <span class="tourney__draw-final">@(_format == TournamentFormat.Swiss ? "Round 1" : "Final")</span>
+                            <span class="tourney__draw-final">Final</span>
                         </div>
 
                         <div class="tourney__draw-half tourney__draw-half--right">
-                            @foreach (var pair in FirstRoundPairs.Skip(2))
+                            @foreach (var pair in FirstRoundPairs.Skip(4))
                             {
                                 @RenderPair(pair)
                             }
                         </div>
                     </div>
+
+                    @if (!FieldReady)
+                    {
+                        <p class="po-error" role="status">
+                            @_selected.Count selected — a bracket needs at least @MinField, so tick more in the picker.
+                        </p>
+                    }
 
                     <div class="tourney__field-actions">
                         <button type="button" class="po-btn po-btn--sm po-btn--ghost" @onclick="DrawField">
@@ -326,7 +324,8 @@
                         <div id="tourney-entrant-picker" class="tourney__entrant-picker">
                             <div class="tourney__entrant-picker-head">
                                 <p class="po-hint" role="status">
-                                    @_selected.Count of @FieldSize selected. The bracket will seed them by ELO.
+                                    @_selected.Count of @BracketSize selected (at least @MinField). The bracket will
+                                    seed them by ELO; any seed left empty is a first-round bye for a top seed.
                                 </p>
                                 <button type="button" class="po-btn po-btn--sm po-btn--ghost"
                                         @onclick="DrawField">
@@ -342,7 +341,7 @@
                                     <label @key="entrant.ModelId" class="tourney__entrant-option @(selected ? "tourney__entrant-option--selected" : "")">
                                         <input type="checkbox"
                                                checked="@selected"
-                                               disabled="@(!selected && _selected.Count >= FieldSize)"
+                                               disabled="@(!selected && _selected.Count >= BracketSize)"
                                                @onchange="@(e => SetEntrantSelected(entrant.ModelId, e.Value is true))" />
                                         <span class="tourney__entrant-name">@entrant.DisplayName</span>
                                         <ModelTypeBadge Type="@entrant.ModelType" />
@@ -356,7 +355,7 @@
                     @if (DrawnField.Any(e => e.ModelType != ModelType.Remote))
                     {
                         <p class="po-hint po-fg--err">
-                            ⚠ Fewer than @FieldSize remote models are available, so the field was
+                            ⚠ Fewer than @BracketSize remote models are available, so the field was
                             topped up with local ones. A browser (WebGPU) model runs in this tab —
                             leave it open while the bracket runs, or that match stalls until the
                             duel's watchdog fails it.
@@ -389,23 +388,6 @@
         </section>
 
         <PageActions Align="PageActionsAlign.Center">
-            @* The format, beside the button it changes. Bracket stays the default: Swiss is
-               twelve duels instead of seven — more rated comparisons from one prompt, at more
-               cost and time. *@
-            <div class="tourney__format" role="group" aria-label="Tournament format">
-                <button type="button" class="po-btn po-btn--sm po-btn--chip"
-                        aria-pressed="@(_format == TournamentFormat.Bracket ? "true" : "false")"
-                        title="Single elimination: 7 duels, the top two seeds can only meet in the final."
-                        @onclick="@(() => _format = TournamentFormat.Bracket)">
-                    Bracket
-                </button>
-                <button type="button" class="po-btn po-btn--sm po-btn--chip"
-                        aria-pressed="@(_format == TournamentFormat.Swiss ? "true" : "false")"
-                        title="Three rounds, everyone plays every round, paired by score: 12 duels."
-                        @onclick="@(() => _format = TournamentFormat.Swiss)">
-                    Swiss
-                </button>
-            </div>
             <button type="button" class="po-btn po-btn--success po-btn--lg"
                     disabled="@(!CanAttemptStart)"
                     @onclick="StartAsync">
@@ -486,8 +468,13 @@
         var modelId = isSlotA ? match.SlotAModelId : match.SlotBModelId;
         var name = isSlotA ? match.SlotAName : match.SlotBName;
         var seed = isSlotA ? match.SlotASeed : match.SlotBSeed;
-        var won = match.WinnerModelId is { } winner && winner == modelId;
-        var lost = match.IsDecided && !won && !modelId.IsEmpty;
+        // A bye's seed went through without playing, so it gets no trophy and no "won" styling.
+        var won = !match.IsBye && match.WinnerModelId is { } winner && winner == modelId;
+        // A draw has no loser, so neither side is struck through.
+        var lost = match.WinnerModelId is not null && !match.IsBye && !won && !modelId.IsEmpty;
+
+        // A round-0 slot that will never be filled is a bye, not a winner still to come.
+        var bye = modelId.IsEmpty && match.IsBye;
 
         var css = "tourney__slot"
             + (won ? " tourney__slot--won" : "")
@@ -499,7 +486,7 @@
         return @<div class="@css" data-slot="@(modelId.IsEmpty ? null : modelId.Value)">
             @if (modelId.IsEmpty)
             {
-                <span class="tourney__slot-name">—</span>
+                <span class="tourney__slot-name">@(bye ? "bye" : "—")</span>
             }
             else
             {
@@ -514,8 +501,9 @@
     }
 
     /// <summary>
-    /// One match box: two seeded competitors and the tie that joins them. A local template
-    /// rather than a component because it is markup with no state and is used twice on one page.
+    /// One match box: two seeded competitors and the tie that joins them — or a top seed and its
+    /// bye. A local template rather than a component because it is markup with no state and is
+    /// used twice on one page.
     /// </summary>
     private RenderFragment RenderPair(Pairing pair) =>
         @<div class="tourney__draw-match">
@@ -524,10 +512,20 @@
                 <span class="tourney__draw-name">@pair.A.DisplayName</span>
                 <span class="tourney__draw-elo">@((int)Math.Round(pair.A.CurrentElo))</span>
             </div>
-            <div class="tourney__draw-slot">
-                <span class="tourney__draw-seed">@pair.SeedB</span>
-                <span class="tourney__draw-name">@pair.B.DisplayName</span>
-                <span class="tourney__draw-elo">@((int)Math.Round(pair.B.CurrentElo))</span>
-            </div>
+            @if (pair.B is { } b)
+            {
+                <div class="tourney__draw-slot">
+                    <span class="tourney__draw-seed">@pair.SeedB</span>
+                    <span class="tourney__draw-name">@b.DisplayName</span>
+                    <span class="tourney__draw-elo">@((int)Math.Round(b.CurrentElo))</span>
+                </div>
+            }
+            else
+            {
+                <div class="tourney__draw-slot tourney__draw-slot--bye">
+                    <span class="tourney__draw-seed" aria-hidden="true"></span>
+                    <span class="tourney__draw-name">bye — seed @pair.SeedA goes through</span>
+                </div>
+            }
         </div>;
 }

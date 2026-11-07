@@ -87,7 +87,7 @@
 
 /* ── Bracket ────────────────────────────────────────────────────────── */
 
-/* Scrolls inside its own container rather than pushing the page sideways: three rounds of
+/* Scrolls inside its own container rather than pushing the page sideways: four rounds of
    cards is wider than a phone whatever the card width. */
 .tourney__bracket-wrap {
     margin-top: var(--space-lg);
@@ -96,7 +96,7 @@
 
 .tourney__bracket {
     display: grid;
-    grid-template-columns: repeat(var(--rounds, 3), minmax(13rem, 1fr));
+    grid-template-columns: repeat(var(--rounds, 4), minmax(13rem, 1fr));
     gap: var(--space-md);
     min-width: min-content;
 }
@@ -229,6 +229,13 @@
     background: var(--surface-2);
 }
 
+/* A bye was never played: dashed like the draw's "Final" marker, so it reads as a placeholder
+   that sent its seed through rather than as a match someone won. */
+.tourney__match--bye {
+    border-style: dashed;
+    background: transparent;
+}
+
 .tourney__slot {
     display: flex;
     align-items: baseline;
@@ -289,7 +296,7 @@
     letter-spacing: 0.08em;
 }
 
-/* ── Swiss table ────────────────────────────────────────────────────── */
+/* ── Stored Swiss table (read-only since 2026-11-07) ──────────────────── */
 
 .tourney__standings {
     margin-top: var(--space-lg);
@@ -362,12 +369,6 @@
 
 /* ── Actions and history ────────────────────────────────────────────── */
 
-/* Bracket / Swiss, beside Start. */
-.tourney__format {
-    display: flex;
-    gap: var(--space-xs);
-}
-
 /* Its own line under the button. Beside it, the hint read as a caption for whatever was to its
    right, and the one sentence explaining the button was the easiest thing on the page to miss. */
 .tourney__start-hint {
@@ -429,10 +430,10 @@
 
 @media (max-width: 640px) {
     .tourney__bracket {
-        grid-template-columns: repeat(var(--rounds, 3), minmax(11rem, 1fr));
+        grid-template-columns: repeat(var(--rounds, 4), minmax(11rem, 1fr));
     }
 
-    /* The bracket is the one thing on the page that legitimately scrolls sideways — three
+    /* The bracket is the one thing on the page that legitimately scrolls sideways — four
        rounds cannot be stacked without destroying the shape that makes it a bracket. Make
        that scroll discoverable and finger-friendly rather than accidental. */
     .tourney__bracket-wrap {
@@ -454,16 +455,16 @@
 /* Reserves the drawn bracket's height while it loads, so the prompt box and the Start button
    do not slide down the page as the models arrive — a runtime trace measured that shift at
    CLS 0.289 on a phone, past the 0.1 "needs improvement" mark and the only route in the app
-   that moved at all. Sized to the bracket (two matches a side), not to the eight-row list it
-   replaced, which left a dead half-screen under it. */
+   that moved at all. Sized to the bracket (four matches a side since the 16-model bracket),
+   not to the flat list it replaced, which left a dead half-screen under it. */
 .tourney__entrants-slot {
-    min-height: 11rem;
+    min-height: 19rem;
 }
 
 @media (max-width: 640px) {
     .tourney__entrants-slot {
-        /* The halves stack below this width, so the reserve is the full four matches. */
-        min-height: 21rem;
+        /* The halves stack below this width, so the reserve is the full eight matches. */
+        min-height: 38rem;
     }
 }
 
@@ -483,7 +484,7 @@
 }
 
 /* ── First-round draw ────────────────────────────────────────────────────
-   Four seeds a side converging on the final, the way a bracket is normally read. The two
+   Eight seeds a side converging on the final, the way a bracket is normally read. The two
    halves mirror: the right half reverses its rows so its ties point inward at the centre,
    which is what makes the shape legible rather than just two lists with a word between them. */
 .tourney__draw {
@@ -530,6 +531,17 @@
     gap: var(--space-sm);
     padding: var(--space-xs) var(--space-smd);
     background: var(--surface-2);
+}
+
+/* A bye: the seed goes straight through, so the slot reads as a note, not as an opponent. */
+.tourney__draw-slot--bye {
+    background: var(--surface-1);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.tourney__draw-slot--bye .tourney__draw-name {
+    color: var(--text-muted);
 }
 
 .tourney__draw-seed {

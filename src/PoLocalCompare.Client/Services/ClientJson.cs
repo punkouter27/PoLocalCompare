@@ -55,4 +55,4 @@ internal sealed record LocalResultBody(
     string? FailureReason);
 
 /// <summary><c>POST /api/tournaments</c>.</summary>
-internal sealed record CreateTournamentBody(IReadOnlyList<ModelId> ModelIds, string PromptText, TournamentFormat Format);
+internal sealed record CreateTournamentBody(IReadOnlyList<ModelId> ModelIds, string PromptText);

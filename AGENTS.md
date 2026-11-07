@@ -47,7 +47,7 @@
 | **Real-time** | SignalR (`DuelHub`) |
 | **Storage (local)** | Azurite Docker container (10000 blob, 10002 table) |
 | **Storage (Azure)** | Azure Table Storage |
-| **Secrets** | Azure Key Vault (`kv-poshared-<suffix>` in `PoShared`, **RBAC mode**) + App Service settings fallback |
+| **Secrets** | Azure Key Vault (`kv-poshared2` in `PoShared` — see §9)  + App Service settings fallback |
 | **Identity** | System-assigned Managed Identity (per §5.4); Bicep grants Storage Table/Blob RBAC + Key Vault Secrets User |
 | **Auth** | Microsoft OAuth (Prod) + GUEST mode (Dev/Test) |
 | **Logging** | Serilog → Console (all envs) + rolling File (Development only) |
@@ -107,8 +107,8 @@ PoLocalCompare.slnx
 │   │   │                                 comparison logic; lives here so PoLocalCompare.Unit
 │   │   │                                 can test it without referencing the WASM project
 │   │   ├── Prompts/                    ← PromptLibrary (curated starter prompts)
-│   │   ├── Tournaments/                ← BracketPlanner (pure, seeded bracket layout; sizes 2/8),
-│   │   │                                 SwissPlanner (pure, 8-model 3-round Swiss pairing + table)
+│   │   ├── Tournaments/                ← BracketPlanner (pure, seeded bracket layout; sizes 2/16,
+│   │   │                                 9–16 entrants with byes for the top seeds)
 │   │   └── Presentation/               ← view-models, enums and helpers the .razor files lean
 │   │                                     on (ArenaPhase, ModelTypeGroup, FailureReasonText,
 │   │                                     HealthBadgeText, ArenaFormatting, SideMetrics,
@@ -222,14 +222,16 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
   calls receive the same evidence; they still must agree or the verdict is a Tie.
 - Arena source inspection is an inline native disclosure. It never opens a popup or gives model
   output an app-origin browsing context.
-- Tournament draws remain automatic by default, but the draw page can optionally select exactly
-  eight entrants before the server seeds them by ELO.
-- A format chip pair beside Start picks Bracket (default) or Swiss (`format` on
-  `POST /api/tournaments`, stored as the `Format` column; rows without one read as Bracket). Swiss
-  plays 3 rounds of 4 duels; the aggregate pairs each next round from stored results once the
-  previous round is fully decided, so the runner stays stateless. The page shows a standings table
-  (rank, points, Buchholz, W-D-L) above the rounds. A match that cannot be decided abandons a Swiss
-  run exactly as it does a bracket.
+- The tournament is a 16-model bracket (15 duels). The draw is automatic by default — sixteen
+  models at random, remote first — and the draw page can optionally pick 9 to 16 entrants before
+  the server seeds them by ELO. Seeds the field leaves empty are first-round byes for the top
+  seeds, decided at the draw (`Tournament.Draw`), so the runner never sees a one-sided match and
+  the page counts them out of "N of M matches".
+- Swiss can no longer be drawn (since 2026-11-07). Stored Swiss rows (`Format` = `Swiss`) are
+  read-only: listed and served with their standings (`SwissStandings`, Shared), never run. One
+  left Pending/Running reads as Abandoned (in memory, never written back), so it is not resumed
+  and does not block a new bracket.
+- The runner plays `Tournaments:MaxConcurrentMatches` matches at once (default 4, clamped 1–8).
 - Catalog browser models that the current GPU cannot run remain visible for discovery, but cannot
   be registered from that device.
 
@@ -253,13 +255,14 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
 | `AiJudge:Enabled` | `appsettings.json` | — (default `false` in code, `true` in appsettings) |
 | `AiJudge:DelaySeconds` | `appsettings.json` | — (**10**; code default also 10) |
 | `AiJudge:Deployment` | `appsettings.json` | — (`gpt-5.4-mini`; must accept image input when vision judging is on) |
-| `AiJudge:TiebreakDeployment` | `appsettings.json` | — (`gpt-5.4`; re-judges a split in both orders at medium effort; empty = off; must accept images when vision is on) |
+| `AiJudge:TiebreakDeployment` | `appsettings.json` | — (`gpt-5-mini` since 2026-11-07 — the `gpt-5.4` deployment it used to name served gpt-5-mini until then, and now serves the pricier real gpt-5.4; re-judges a split in both orders at medium effort; empty = off; must accept images when vision is on) |
 | `AiJudge:VisionEnabled` | `appsettings.json` | — (false; true in Development — needs headless Chromium) |
 | `AiJudge:TextOnlyDeployment` | `appsettings.json` | — (`gpt-4.1-nano`; used, and stamped as `JudgeModel`, whenever vision is off. In po-aiservices-shared2 this deployment SERVES gpt-5.4-mini — see HISTORY 2026-10-26) |
 | `AiJudge:CrossCheckDeployment` | `appsettings.json` | — (`gemini-3.5-flash-lite`; reads the second ordering so a verdict survives a change of judge family; empty, no key, or a failed call = the primary reads it; must accept images when vision is on) |
 | `AiJudge:EscalationDeployment` | `appsettings.json` | — (`gpt-5.4-mini`; first re-ask of a split, both orders at floor effort, before `TiebreakDeployment`; empty = skip) |
 | `AiJudge:RubricEnabled` | `appsettings.json` | — (true; one checklist per prompt, cached a day, that every judge call scores against) |
 | `AiJudge:MaxOutputChars` | `appsettings.json` | — (**40,000** per side on the source-only path; was 12,000) |
+| `Tournaments:MaxConcurrentMatches` | `appsettings.json` | — (**4**; clamped 1–8; was a hard-coded 2 until 2026-11-07). Matches a tournament runs at once — each is a duel calling two models, so lower it first if the Foundry quota returns 429s |
 | `Limits:DuelStartsPerMinute` | `appsettings.json` | — (**10**; 120 in Development, 0 in the test hosts; 0 = off). Fixed window per signed-in user on `POST /api/duels` and `POST /api/tournaments` |
 | `Limits:DailySpendCapUsd` | `appsettings.json` | — (**5**; 0 = off). Compared with today's (UTC) contestant `ApiCostUsd` + `JudgeCostUsd` + the `SpendLedger` table (prompt refine, scouting reports); once reached, Remote duels and all tournaments get a 429 and no new scouting report is written |
 | `Gemini:ApiKey` | Key Vault (`PoLocalCompare--Gemini--ApiKey`, copied from PoFightJudge's on 2026-10-26) | `Gemini__ApiKey` env var. Optional — without it no Gemini models are seeded and the judge has no cross-check |
@@ -371,6 +374,12 @@ pwsh SCRIPTS/provision-azure.ps1
 - **Subscription:** punkouter27@gmail.com since 2026-10-25. The original punkouter26@outlook.com
   deployment (`app-polocalcompare-win2`, `polocalcomparedevsa2`, `kv-poshared2`) is left running and is
   no longer deployed to; delete it by hand once the new host is verified.
+- **What is actually there (checked 2026-11-07 with `az`, signed in as punkouter27@gmail.com):**
+  "Azure subscription 1" (tenant `28e2074a-…`, MFA required — `az login --tenant <id>`) holds
+  resource group `PoShared` with Key Vault **`kv-poshared2`** and the Foundry account
+  **`po-aiservices-shared2`** (eastus2). No `kv-poshared-<suffix>` vault exists in it. Both
+  appsettings files point at `kv-poshared2`, which this account can read, so that is the vault
+  in use; the bicep description below is the plan, not the current state.
 - **`infra/main.bicep` is subscription-scoped and creates everything** — nothing is `existing`
   any more. It creates two resource groups (`westus2`):
   - `PoShared` (`infra/shared.bicep`) — Key Vault `kv-poshared-<suffix>` (**RBAC mode**),
@@ -465,9 +474,9 @@ When asked to make changes to this codebase:
     variables; real secrets live in Azure Key Vault (`KeyVault:Uri`).
 12. **Git sync:** When a git sync happens, commit with a short message in casual American slang —
     not technical, so it reads like a human wrote it — and push automatically.
-13. **TLDR:** Any answer longer than 100 words ends with a 20-word TLDR summary.
-14. **Targeted tests only:** Do not run every suite after a code change. Run only the tests related
-    to the change, or none at all if the change is simple.
+13. **TLDR:** Any answer longer than 100 words ends with a recap of under 20 words, at the very end.
+14. **Targeted tests only:** Never run the whole test suite after a code change. Run only the tests
+    related to what was touched, or none at all for a minor edit.
 15. **Do it, don't delegate it:** Avoid making the user type CLI commands or click through a web GUI
     when the agent can do it automatically.
 16. **Warnings are errors:** Treat compile warnings as errors and fix them (`TreatWarningsAsErrors`
@@ -475,17 +484,26 @@ When asked to make changes to this codebase:
 17. **Report big deletions:** If a prompt removes more than 100 lines of code overall, mention it.
 18. **UI changes get a before/after screenshot:** Take an annotated screenshot showing the old and
     new UI with the changes marked up, save it as `SCREENSHOTS/YYMMDD-feature-name.html`, and give
-    the valid full path. (Files before 2026-10-26 use `YYYY-MM-DD-`; they are not renamed.)
+    the valid full path. Also render the before and after, with the notes, into a **single PNG**
+    beside it (`SCREENSHOTS/YYMMDD-feature-name.png`) and give that path too. (Files before
+    2026-10-26 use `YYYY-MM-DD-`; they are not renamed.)
 19. **Three-tier change summary:** For code changes over 20 lines, append a TL;DR of exactly three
-    lines, one sentence each: "Toddler" for the core intuition, "Child" for the behavior, and
-    "Adult" for the technical or architectural details.
+    lines, one sentence each: "Toddler" for the core intuition, "Child" for what the app actually
+    does now, and "Adult" for how it was built — plus a diagram of the change, drawn in the style of
+    [diagram-design](https://github.com/cathrynlavery/diagram-design).
 20. **Follow-up questions for large changes:** After a code change over 100 lines, when the prompt
-    contains no other questions, offer three optional high-level questions about the app's purpose
-    that could guide further changes.
+    contains no other questions, offer three optional high-level questions about future direction
+    or logic. When the work turns up problems, propose a fix for each and wait for approval rather
+    than applying it unasked.
 21. **Deployment build version:** Display the deployment build version in the app's bottom-right
     corner as `YYMMDD`, generated automatically from the current date or Git commit date. Already
     wired: `Directory.Build.props` stamps `BuildStamp` at build time and `MainLayout.razor` renders it
     as `.build-stamp`.
+22. **Consolidate into shared components:** Before adding markup or logic, look for an existing
+    component to reuse or extend, and when two surfaces repeat the same UI or behaviour, pull it
+    into one. UI goes in `src/PoLocalCompare.Client/Components/` (its scoped `.razor.css` moves with
+    it — nothing warns when it doesn't); browser-side logic goes in `PoLocalCompare.Shared`, where
+    the Unit tier can test it.
 
 ## CI/CD and Azure (same section in every Po repo)
 

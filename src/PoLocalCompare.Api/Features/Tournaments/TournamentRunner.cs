@@ -8,19 +8,20 @@ namespace PoLocalCompare.Api.Features.Tournaments;
 /// Plays a bracket from the draw to the final, one match at a time.
 /// </summary>
 /// <remarks>
-/// Server-side rather than driven from the page: a bracket is eight models and up to seven
+/// Server-side rather than driven from the page: a bracket is up to sixteen models and fifteen
 /// duels, and it has to survive the tab being closed. The runner owns no state — every step re-reads the tournament and writes the
 /// result back — so a process restart mid-bracket resumes rather than losing the run, and
 /// <see cref="Tournament.RecordWinner"/> refusing to decide an already-decided match makes a
 /// replayed step a no-op rather than a double advance.
 ///
 /// Matches are run strictly in sequence. Round 1 could in principle run in parallel, but the
-/// duel queue is shared with everything else the app is doing and eight concurrent inference
+/// duel queue is shared with everything else the app is doing and sixteen concurrent inference
 /// jobs against one Foundry deployment is how you find its rate limit rather than a winner.
 /// </remarks>
 public sealed class TournamentRunner(
     IServiceScopeFactory scopeFactory,
     IBackgroundTaskQueue taskQueue,
+    IConfiguration configuration,
     ILogger<TournamentRunner> logger)
 {
     /// <summary>
@@ -31,16 +32,19 @@ public sealed class TournamentRunner(
     private const int AutoJudgeDelaySeconds = 0;
 
     /// <summary>
-    /// How many independent matches may be in flight at once.
+    /// How many independent matches may be in flight at once — <c>Tournaments:MaxConcurrentMatches</c>,
+    /// 1 to 8, default 4.
     /// </summary>
     /// <remarks>
-    /// Two, not four. Each match is a duel, and each duel calls two models — so a batch of two
-    /// is already four concurrent inference streams plus their judges. Fanning out a whole
-    /// round of four would be eight, which on a shared Foundry resource finds the rate limit
-    /// rather than the finish line, and a 429 mid-bracket abandons the run. Two roughly halves
-    /// the wall-clock of an 8-model bracket while staying well inside the quota.
+    /// Each match is a duel and each duel calls two models, so four matches is eight concurrent
+    /// inference streams plus their judges. It was a hard-coded two until 2026-11-07, chosen
+    /// for an 8-model bracket on a shared Foundry quota; the 16-model bracket doubled the run's
+    /// length, and the quota now allows more. A config value rather than a constant because the
+    /// right number is the quota's, not the code's: a 429 mid-bracket abandons the run, so turn
+    /// it down before raising anything else. Round 1's eight matches never all run at once.
     /// </remarks>
-    private const int MaxConcurrentMatches = 2;
+    private readonly int _maxConcurrentMatches =
+        Math.Clamp(configuration.GetValue("Tournaments:MaxConcurrentMatches", 4), 1, 8);
 
     /// <summary>How long a single match may take before the run gives up on it.</summary>
     /// <remarks>
@@ -83,21 +87,21 @@ public sealed class TournamentRunner(
                 return;
             }
 
-            if (tournament.Status is TournamentStatus.Complete or TournamentStatus.Abandoned)
+            // A stored Swiss run is read-only; the repository already reads an unfinished one as
+            // Abandoned, so this is the belt to that braces.
+            if (tournament.Status is TournamentStatus.Complete or TournamentStatus.Abandoned
+                || tournament.Format == TournamentFormat.Swiss)
                 return;
 
             // Matches playable at the same moment are independent of one another — round
-            // 1's quarter-finals share no state — so several run at once instead of each
-            // waiting out the one before it. An 8-model bracket was 7 strictly serial
-            // matches; this makes the first round finish in roughly the time of its
-            // slowest match rather than the sum of all four.
-            var batch = tournament.AllPlayable().Take(MaxConcurrentMatches).ToList();
+            // 1's matches share no state — so several run at once instead of each waiting out
+            // the one before it. Byes were decided at the draw, so they never reach here.
+            var batch = tournament.AllPlayable().Take(_maxConcurrentMatches).ToList();
             if (batch.Count == 0)
             {
                 // Nothing playable and no champion: a match failed and the bracket cannot be
                 // seeded any further. Bracket rounds depend on each other, so there is no
-                // way to skip past it. A Swiss round is paired by the aggregate the moment
-                // the round before it is fully decided, so the same holds there.
+                // way to skip past it.
                 tournament.Abandon("A match could not be decided, so the bracket could not be completed.");
                 await repository.UpdateAsync(tournament);
                 return;
@@ -166,7 +170,7 @@ public sealed class TournamentRunner(
     /// rather than via <c>EnqueueAsync</c>: <c>BackgroundTaskService</c> is single-consumer and
     /// awaits each work item before dequeuing the next, and the runner is itself holding that
     /// slot, so a re-queued duel would sit behind its own runner forever. The runner caps
-    /// concurrency at <see cref="MaxConcurrentMatches"/> so the lack of a separate queue is
+    /// concurrency at <see cref="_maxConcurrentMatches"/> so the lack of a separate queue is
     /// intentional, not an oversight.
     /// </remarks>
     /// <param name="cancellationToken">
@@ -258,7 +262,7 @@ public sealed class TournamentRunner(
             case DuelVerdict.Tie:
             {
                 // Bracket: the better seed advances (see Tournament.SeedTieBreak for why that
-                // beats a coin toss or an abandoned bracket). Swiss: half a point each.
+                // beats a coin toss or an abandoned bracket).
                 tournament.RecordTie(match.Round, match.Index);
                 break;
             }

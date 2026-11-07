@@ -99,7 +99,7 @@ public sealed class DuelExecutionService
     /// The runner used to share the queue with everything else and stalled at the first
     /// match; running inline keeps the bracket on its own thread but lets the duel inference
     /// finish, which is the whole point. The runner is responsible for its own concurrency
-    /// limit (<see cref="Tournaments.TournamentRunner"/> caps it at two), so the single-
+    /// limit (<see cref="Tournaments.TournamentRunner"/> caps it at <c>Tournaments:MaxConcurrentMatches</c>), so the single-
     /// threaded queue is not a bottleneck here.
     /// </remarks>
     public async Task RunAsync(DuelId duelId, int? autoJudgeDelaySecondsOverride, CancellationToken cancellationToken)

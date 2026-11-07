@@ -238,10 +238,9 @@ public sealed class DuelApiClient
     /// </remarks>
     public async Task<TournamentDto?> CreateTournamentAsync(
         IReadOnlyList<ModelId> modelIds,
-        string promptText,
-        TournamentFormat format)
+        string promptText)
     {
-        var body = new CreateTournamentBody(modelIds, promptText, format);
+        var body = new CreateTournamentBody(modelIds, promptText);
         var response = await _http.PostAsJsonAsync("/api/tournaments", body, ClientJson.Default.CreateTournamentBody);
 
         // 429 is the per-minute limit or the daily spend cap; both carry a sentence to show.

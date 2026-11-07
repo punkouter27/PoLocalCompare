@@ -40,10 +40,7 @@ public sealed class TournamentMatch
     /// </summary>
     public bool WonOnSeedTieBreak { get; set; }
 
-    /// <summary>
-    /// A Swiss game the judge called a draw — half a point each. A bracket never sets this:
-    /// its draws are resolved by <see cref="WonOnSeedTieBreak"/>, because someone has to advance.
-    /// </summary>
+    /// <summary>A game of a stored Swiss run that the judge called a draw. Brackets never set it.</summary>
     public bool IsDraw { get; set; }
 
     /// <summary>Why this match could not be decided. Set only on a terminal failure.</summary>
@@ -54,12 +51,12 @@ public sealed class TournamentMatch
 }
 
 /// <summary>
-/// A tournament run — a single-elimination bracket or a three-round Swiss: one prompt, a
-/// seeded field, and the duels that decide it.
+/// A tournament run — a seeded single-elimination bracket: one prompt, a field of up to
+/// sixteen, and the duels that decide it.
 /// </summary>
 /// <remarks>
 /// Persisted as one row with the matches serialised into a single column rather than as a row
-/// per match. A bracket is at most seven matches and is only ever read whole, so a multi-row
+/// per match. A bracket is at most fifteen matches and is only ever read whole, so a multi-row
 /// aggregate would buy nothing but the risk of a half-written bracket.
 ///
 /// Bracket matches are ordinary duels — they persist, they are judged, and they move ELO,
@@ -70,10 +67,18 @@ public sealed class Tournament
 {
     public TournamentId TournamentId { get; init; }
 
-    /// <summary>Bracket or Swiss. A row written before the format existed reads as Bracket.</summary>
+    /// <summary>
+    /// Bracket, or a Swiss run stored before that format was retired on 2026-11-07. Swiss rows are
+    /// read-only: the runner, the resume sweep and the one-at-a-time gate all ignore them, and
+    /// <see cref="TournamentRepository"/> reads an unfinished one as Abandoned.
+    /// </summary>
     public TournamentFormat Format { get; init; } = TournamentFormat.Bracket;
 
-    /// <summary>2, 4 or 8 — validated through <see cref="BracketPlanner.IsSupportedSize"/>; Swiss is 8 only.</summary>
+    /// <summary>
+    /// The bracket's size — 2 or 16 (8 before 2026-11-07), validated through
+    /// <see cref="BracketPlanner.IsSupportedSize"/>. A short field is still a 16: its missing
+    /// seeds are byes.
+    /// </summary>
     public int Size { get; init; }
 
     /// <summary>
@@ -106,30 +111,27 @@ public sealed class Tournament
 
     /// <summary>
     /// Draws a bracket. The field must already be strongest-first — seeding is by ELO, and this
-    /// type does not know about ratings.
+    /// type does not know about ratings. Each bye is decided here, before anything is saved, so
+    /// the runner only ever sees matches with two models in them.
     /// </summary>
     public static Tournament Draw(
         TournamentId tournamentId,
         int size,
         IReadOnlyList<BracketSlot> seededField,
         string promptText,
-        string? ownerId,
-        TournamentFormat format = TournamentFormat.Bracket)
+        string? ownerId)
     {
-        if (format == TournamentFormat.Swiss ? size != SwissPlanner.FieldSize : !BracketPlanner.IsSupportedSize(size))
-            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2 or 8; Swiss must be 8.");
+        if (!BracketPlanner.IsSupportedSize(size))
+            throw new ArgumentOutOfRangeException(nameof(size), size, "Bracket size must be 2 or 16.");
 
         if (string.IsNullOrWhiteSpace(promptText))
             throw new ArgumentException("A tournament needs a prompt.", nameof(promptText));
 
-        var bracket = format == TournamentFormat.Swiss
-            ? SwissPlanner.FirstRound(seededField)
-            : BracketPlanner.Build(seededField, size);
+        var bracket = BracketPlanner.Build(seededField, size);
 
-        return new Tournament
+        var tournament = new Tournament
         {
             TournamentId = tournamentId,
-            Format = format,
             Size = size,
             PromptText = promptText,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -147,6 +149,14 @@ public sealed class Tournament
                 SlotBSeed = m.SlotB.Seed,
             }).ToList(),
         };
+
+        foreach (var bye in bracket.Where(BracketPlanner.IsBye))
+        {
+            var through = bye.SlotA.IsEmpty ? bye.SlotB : bye.SlotA;
+            tournament.RecordWinner(bye.Round, bye.Index, through.ModelId, through.DisplayName);
+        }
+
+        return tournament;
     }
 
     /// <summary>
@@ -159,7 +169,7 @@ public sealed class Tournament
     /// Every match that could be played right now, in bracket order.
     /// </summary>
     /// <remarks>
-    /// Within a round these are genuinely independent — round 1's four quarter-finals share no
+    /// Within a round these are genuinely independent — round 1's eight matches share no
     /// state and neither depends on another's result — so the runner can have several in flight
     /// at once instead of waiting out each in turn. Rounds still gate on each other, and that
     /// falls out of <c>IsReady</c> rather than needing a check here: a semi-final has no
@@ -191,12 +201,6 @@ public sealed class Tournament
         match.WinnerName = winnerName;
         match.WinnerSeed = winnerSeed;
         match.WonOnSeedTieBreak = wonOnSeedTieBreak;
-
-        if (Format == TournamentFormat.Swiss)
-        {
-            AdvanceSwiss();
-            return true;
-        }
 
         var target = BracketPlanner.NextSlot(round, index, Size);
         if (target is var (nextRound, nextIndex, intoSlotA))
@@ -241,30 +245,35 @@ public sealed class Tournament
             : (match.SlotBModelId, match.SlotBName);
 
     /// <summary>
-    /// Records a match the judge called a draw. A bracket advances the better seed
-    /// (<see cref="SeedTieBreak"/>); a Swiss game is simply half a point each, because nobody
-    /// has to advance. Returns false for an unknown or already-decided match.
+    /// Records a match the judge called a draw: the better seed advances
+    /// (<see cref="SeedTieBreak"/>). Returns false for an unknown or already-decided match.
     /// </summary>
     public bool RecordTie(int round, int index)
     {
         var match = Matches.FirstOrDefault(m => m.Round == round && m.Index == index);
         if (match is null || match.IsDecided) return false;
 
-        if (Format != TournamentFormat.Swiss)
-        {
-            var (winnerId, winnerName) = SeedTieBreak(match);
-            return RecordWinner(round, index, winnerId, winnerName, wonOnSeedTieBreak: true);
-        }
-
-        match.IsDraw = true;
-        AdvanceSwiss();
-        return true;
+        var (winnerId, winnerName) = SeedTieBreak(match);
+        return RecordWinner(round, index, winnerId, winnerName, wonOnSeedTieBreak: true);
     }
 
     /// <summary>
-    /// The Swiss field — every entrant with its seed — read back from round one, where each
-    /// appears exactly once. Nothing else is stored: the runner is stateless, so the field, the
-    /// next pairing and the table are all re-derived from the matches on every step.
+    /// Stops the run without a champion. A bracket cannot skip a match — every later round is
+    /// seeded by the winner of an earlier one — so an undecidable match ends the tournament
+    /// rather than being written off as a bye. (Byes exist only at the draw, for seeds the field
+    /// did not fill — never for a match that was played and failed.)
+    /// </summary>
+    public void Abandon(string reason)
+    {
+        if (Status is TournamentStatus.Complete or TournamentStatus.Abandoned) return;
+
+        Status = TournamentStatus.Abandoned;
+        AbandonedReason = reason;
+        CompletedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// The entrants of a stored Swiss run, read back from round one, where each appears once.
     /// </summary>
     private List<BracketSlot> SwissField() =>
         Matches
@@ -277,64 +286,16 @@ public sealed class Tournament
             .OrderBy(s => s.Seed)
             .ToList();
 
-    private List<SwissResult> SwissResults() =>
-        Matches
-            .Where(m => m.IsDecided)
-            .Select(m => new SwissResult(m.SlotAModelId, m.SlotBModelId, m.IsDraw ? null : m.WinnerModelId))
-            .ToList();
-
-    /// <summary>The table as it stands. Empty for a bracket.</summary>
-    public IReadOnlyList<SwissStanding> SwissStandings() =>
-        Format == TournamentFormat.Swiss ? SwissPlanner.Standings(SwissField(), SwissResults()) : [];
-
-    /// <summary>
-    /// Once every game of the latest round is decided: pair the next round, or — after the last
-    /// one — crown the top of the table. Only a fully decided round moves anything, so a
-    /// replayed result or a half-finished round is a no-op.
-    /// </summary>
-    private void AdvanceSwiss()
-    {
-        var latest = Matches.Max(m => m.Round);
-        if (Matches.Any(m => m.Round == latest && !m.IsDecided)) return;
-
-        if (latest + 1 < SwissPlanner.RoundCount)
-        {
-            Matches.AddRange(SwissPlanner.PairRound(SwissField(), SwissResults(), latest + 1)
-                .Select(m => new TournamentMatch
-                {
-                    Round = m.Round,
-                    Index = m.Index,
-                    SlotAModelId = m.SlotA.ModelId,
-                    SlotAName = m.SlotA.DisplayName,
-                    SlotASeed = m.SlotA.Seed,
-                    SlotBModelId = m.SlotB.ModelId,
-                    SlotBName = m.SlotB.DisplayName,
-                    SlotBSeed = m.SlotB.Seed,
-                }));
-            return;
-        }
-
-        var leader = SwissStandings()[0].Entrant;
-        ChampionModelId = leader.ModelId;
-        ChampionName = leader.DisplayName;
-        Status = TournamentStatus.Complete;
-        CompletedAt = DateTimeOffset.UtcNow;
-    }
-
-    /// <summary>
-    /// Stops the run without a champion. A bracket cannot skip a match — every later round is
-    /// seeded by the winner of an earlier one — so an undecidable match ends the tournament
-    /// rather than being written off as a bye. Swiss follows the same rule: the next round is
-    /// paired on scores, and a game with no result has no score to pair on.
-    /// </summary>
-    public void Abandon(string reason)
-    {
-        if (Status is TournamentStatus.Complete or TournamentStatus.Abandoned) return;
-
-        Status = TournamentStatus.Abandoned;
-        AbandonedReason = reason;
-        CompletedAt = DateTimeOffset.UtcNow;
-    }
+    /// <summary>A stored Swiss run's table. Empty for a bracket.</summary>
+    public IReadOnlyList<SwissStanding> SwissTable() =>
+        Format != TournamentFormat.Swiss
+            ? []
+            : SwissStandings.Compute(
+                SwissField(),
+                Matches
+                    .Where(m => m.IsDecided)
+                    .Select(m => new SwissResult(m.SlotAModelId, m.SlotBModelId, m.IsDraw ? null : m.WinnerModelId))
+                    .ToList());
 
     public TournamentDto ToDto() => new()
     {
@@ -357,7 +318,7 @@ public sealed class Tournament
                 Round = m.Round,
                 Index = m.Index,
                 RoundName = Format == TournamentFormat.Swiss
-                    ? SwissPlanner.RoundName(m.Round)
+                    ? $"Round {m.Round + 1}"
                     : BracketPlanner.RoundName(m.Round, Size),
                 SlotAModelId = m.SlotAModelId,
                 SlotAName = m.SlotAName,
@@ -373,7 +334,7 @@ public sealed class Tournament
                 FailureReason = m.FailureReason,
             })
             .ToList(),
-        Standings = SwissStandings()
+        Standings = SwissTable()
             .Select(s => new SwissStandingDto
             {
                 Rank = s.Rank,

@@ -56,10 +56,9 @@ public static class TournamentsEndpoints
                 var dto = await handler.HandleAsync(
                     request.ModelIds ?? [],
                     request.PromptText ?? string.Empty,
-                    actor,
-                    request.Format ?? TournamentFormat.Bracket);
+                    actor);
 
-                // Queued rather than awaited: a bracket is up to seven duels and takes minutes.
+                // Queued rather than awaited: a bracket is up to fifteen duels and takes minutes.
                 // The response carries the drawn bracket so the page can render it immediately
                 // and then watch it fill in. Per-match items (queued by the runner itself) yield
                 // the slot back to the queue between duels, so a sibling tournament created
@@ -78,7 +77,7 @@ public static class TournamentsEndpoints
         }))
         .RequireRateLimiting(DuelsEndpoints.StartRateLimitPolicy)
         .WithName("CreateTournament")
-        .WithSummary("Draws a seeded bracket (or, with format=Swiss, a three-round Swiss) and starts running it.")
+        .WithSummary("Draws a seeded bracket (2 models, or 9 to 16 with byes for the top seeds) and starts running it.")
         .Produces<TournamentDto>(StatusCodes.Status201Created)
         .Produces(StatusCodes.Status409Conflict)
         .ProducesValidationProblem();
@@ -117,11 +116,9 @@ public static class TournamentsEndpoints
 }
 
 /// <param name="ModelIds">
-/// The field, in any order — the handler seeds it by rating. Must hold 2, 4 or 8 distinct ids.
+/// The field, in any order — the handler seeds it by rating. Must hold 2, or 9 to 16, distinct ids.
 /// </param>
 /// <param name="PromptText">The single prompt every match in the bracket receives.</param>
-/// <param name="Format">"Bracket" (the default when omitted) or "Swiss" (exactly 8 models).</param>
 public sealed record CreateTournamentRequest(
     IReadOnlyList<ModelId>? ModelIds,
-    string? PromptText,
-    TournamentFormat? Format = null);
+    string? PromptText);

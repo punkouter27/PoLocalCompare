@@ -5,7 +5,7 @@
          2026-10-26 the test host sat on a preview (10.0.0-preview.3) and OIDC on 10.0.0 while
          the rest were on 10.0.13. Microsoft.Extensions.* ship from dotnet/extensions on their
          own version line, so they are pinned individually below. -->
-    <AspNetCoreVersion>10.0.13</AspNetCoreVersion>
+    <AspNetCoreVersion>10.0.14</AspNetCoreVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Storage & Identity -->
