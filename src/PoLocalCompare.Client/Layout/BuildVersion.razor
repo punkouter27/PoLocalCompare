@@ -1,0 +1,10 @@
+<footer class="build-stamp" aria-label="Build version">@Stamp</footer>
+
+@code {
+    private static readonly string Stamp =
+        typeof(BuildVersion).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .OfType<System.Reflection.AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "BuildStamp")?.Value
+        ?? DateTimeOffset.UtcNow.ToString("yyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+}

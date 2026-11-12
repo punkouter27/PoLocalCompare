@@ -55,8 +55,8 @@ public sealed class DuelRecoverySweeper(
         var autoJudge = scope.ServiceProvider.GetRequiredService<AutoJudge>();
         var recordVerdict = scope.ServiceProvider.GetRequiredService<RecordVerdictHandler>();
 
-        var thisMonth = DateTimeOffset.UtcNow.ToString("yyyyMM");
-        var lastMonth = DateTimeOffset.UtcNow.AddMonths(-1).ToString("yyyyMM");
+        var thisMonth = DateTimeOffset.UtcNow.ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
+        var lastMonth = DateTimeOffset.UtcNow.AddMonths(-1).ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
 
         // `beforeMonth` is `PartitionKey le`, so the two windows overlap — everything from last
         // month also appears in the this-month query. Dedupe by id or the same orphan gets

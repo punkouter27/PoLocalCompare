@@ -53,7 +53,7 @@ public sealed class AddDiscoveredModelHandler(
         }
         else
         {
-            if (!environment.IsDevelopment())
+            if (!environment.IsDevelopment() && !environment.IsEnvironment("Test"))
                 throw new ArgumentException("Ollama models are Development-only.");
 
             var tags = await ollamaModels.HandleAsync(ct);

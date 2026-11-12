@@ -150,6 +150,15 @@
     async function loadCatalog() {
         elRows.innerHTML = '<tr><td colspan="6">Loading catalog…</td></tr>';
         try {
+            const authRes = await fetch('/auth/me', { credentials: 'include', cache: 'no-store' });
+            if (authRes.ok) {
+                const me = await authRes.json();
+                if (!me || !me.isAuthenticated) {
+                    elRows.innerHTML = '<tr><td colspan="6">Not signed in — the model catalog needs a session. '
+                        + '<a class="diag-header__back" href="/">Sign in</a>, then reload this page.</td></tr>';
+                    return;
+                }
+            }
             const response = await fetch('/api/models', { credentials: 'include', cache: 'no-store' });
             if (response.status === 401) {
                 // /diag is anonymous but /api/models is not, and that asymmetry is deliberate —

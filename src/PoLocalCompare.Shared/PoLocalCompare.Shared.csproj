@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- ULID minting for the strongly-typed ids in Ids/. -->
     <PackageReference Include="NUlid" />
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
 </Project>

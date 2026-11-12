@@ -16,17 +16,17 @@ public class LeaderboardInsightTests
 
     private static EloRecord Row(ModelId model, ModelId opponent, string outcome, string duel,
         double before = 1200, double after = 1200, double opponentBefore = 1200, int minute = 0) => new()
-    {
-        ModelId = model,
-        OpponentModelId = opponent,
-        Outcome = outcome,
-        DuelId = DuelId.From(duel),
-        EloBefore = before,
-        EloAfter = after,
-        EloShift = after - before,
-        OpponentEloBefore = opponentBefore,
-        RecordedAt = DateTimeOffset.UnixEpoch.AddMinutes(minute),
-    };
+        {
+            ModelId = model,
+            OpponentModelId = opponent,
+            Outcome = outcome,
+            DuelId = DuelId.From(duel),
+            EloBefore = before,
+            EloAfter = after,
+            EloShift = after - before,
+            OpponentEloBefore = opponentBefore,
+            RecordedAt = DateTimeOffset.UnixEpoch.AddMinutes(minute),
+        };
 
     [Fact]
     public void BradleyTerry_RanksByEvidence_NarrowsWithGames_AndCountsEachDuelOnce()

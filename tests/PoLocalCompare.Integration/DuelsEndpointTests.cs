@@ -102,7 +102,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
 
     // ── POST /api/duels → 429 from the two guards on paid inference ───────
 
-    private async Task<HttpResponseMessage> StartDuelAsync(IntegrationHost host)
+    private static async Task<HttpResponseMessage> StartDuelAsync(IntegrationHost host)
     {
         var left = await TestModels.RemoteAsync(host.Services, "Guard Left");
         var right = await TestModels.RemoteAsync(host.Services, "Guard Right");

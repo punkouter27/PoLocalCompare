@@ -11,7 +11,7 @@
 // Everything the theme touches is a CSS custom property in app.css, so stamping the
 // attribute is the whole job -- there is no per-theme stylesheet left to swap.
 (() => {
-    const KEY = 'po-theme';
+    const KEY = 'polocalcompare:theme';
 
     const systemPrefersDark = () =>
         window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -81,7 +81,7 @@
 // (through poPrefs.motionAllowed) and wow.js's navigation hook is listening before Blazor has
 // booted. "sound" is read by audio.js.
 (() => {
-    const PREFIX = 'po-pref-';
+    const PREFIX = 'polocalcompare:pref-';
     // Fallback when storage is blocked (private mode): the choice holds for this page view.
     const memory = {};
 

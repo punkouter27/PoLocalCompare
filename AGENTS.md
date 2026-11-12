@@ -132,7 +132,7 @@ PoLocalCompare.slnx
 │   ├── PoLocalCompare.Integration/     ← Testcontainers Azurite behind WebApplicationFactory
 │   ├── PoLocalCompare.E2EAPI/          ← Black-box HTTP journeys over Testcontainers + fake auth
 │   └── PoLocalCompare.E2EUI/           ← Playwright, headed Chrome, mobile + desktop viewports
-├── SCRIPTS/                            ← setup.ps1, download-models.py, plan-webllm-artifacts.py
+├── scripts/                            ← setup.ps1, download-models.py, plan-webllm-artifacts.py
 ├── infra/                              ← Bicep (main.bicep / keyvault-access.bicep)
 ├── Directory.Build.props               ← Global: TreatWarningsAsErrors, Nullable, LangVersion=latest
 ├── Directory.Packages.props            ← Central Package Management
@@ -182,10 +182,10 @@ Dynamic switching is automatic based on `ASPNETCORE_ENVIRONMENT`.
 populated `wwwroot/models/` keeps weights off the network entirely. Weights are *not* the whole
 story: `prebuiltAppConfig` resolves `model_lib` against **raw.githubusercontent.com**, a separate
 host, so both fetch paths also vendor the `.wasm` libraries into `wwwroot/models/_libs/` and
-`webllm-worker.js` prefers them. Populate both with `SCRIPTS/download-models.py` — that is the
+`webllm-worker.js` prefers them. Populate both with `scripts/download-models.py` — that is the
 only vendoring path this repo has, and it drives `curl` rather than `huggingface_hub` for the
 reason PRD §9 item 8 records. (This paragraph used to point at a "Fetch WebLLM artifacts" GitHub
-workflow and a `SCRIPTS/receive-artifacts.ps1`; neither has ever existed in this repo —
+workflow and a `scripts/receive-artifacts.ps1`; neither has ever existed in this repo —
 `.github/workflows/` holds only `deploy.yml`. Don't go looking for them.)
 
 ### 4.4 Authentication (BFF)
@@ -278,10 +278,10 @@ docker run -p 10000:10000 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite
 
 # 2. (Optional) Download browser model assets - weights + .wasm libs, ~5 GB.
 #     Retries/resumes through the reset-prone TLS path; MODELS=small for a 1 GB subset.
-python SCRIPTS/download-models.py
+python scripts/download-models.py
 
 # 2b. There is no offline/air-gapped workflow in this repo. The "Fetch WebLLM artifacts"
-#     workflow and SCRIPTS/receive-artifacts.ps1 that older revisions of this file mention
+#     workflow and scripts/receive-artifacts.ps1 that older revisions of this file mention
 #     do not exist; .github/workflows/ holds only deploy.yml. On a network that blocks
 #     HuggingFace, browser models simply fall back to the CDN or fail to load.
 
@@ -336,7 +336,7 @@ app purely over HTTP.
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
 E2E tier ≈ 25%. Current (2026-10-26): **100 unit / 44 integration / 20 E2E-API / 25 E2E-UI**,
-all passing, and `SCRIPTS/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
+all passing, and `scripts/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 
 The suite was 171/101/41 on 2026-08-22 and was cut back on 2026-08-23. Roughly a third of that
@@ -366,7 +366,7 @@ dotnet test tests/PoLocalCompare.E2EUI         # Playwright (app must be running
 
 ```powershell
 # Provision (subscription owner, once per subscription; re-runnable)
-pwsh SCRIPTS/provision-azure.ps1
+pwsh scripts/provision-azure.ps1
 
 # Deploy code: push to master — deploy.yml builds, tests and zip-deploys
 ```
@@ -447,8 +447,8 @@ These skills are installed globally (`~/AppData/Roaming/Code/User/prompts/skills
 | `DOCS/` (repo root) | Project overview — read it before changing anything, when present |
 | [CLAUDE.md](CLAUDE.md) | The rules that span several files, one line each |
 | [HISTORY.md](HISTORY.md) | Why each rule exists; record new decisions here |
-| [SCRIPTS/setup.ps1](SCRIPTS/setup.ps1) | First-run machine setup |
-| [SCRIPTS/plan-webllm-artifacts.py](SCRIPTS/plan-webllm-artifacts.py) | Single source of the browser-model list for local fetch and the catalog check |
+| [scripts/setup.ps1](scripts/setup.ps1) | First-run machine setup |
+| [scripts/plan-webllm-artifacts.py](scripts/plan-webllm-artifacts.py) | Single source of the browser-model list for local fetch and the catalog check |
 
 ---
 
@@ -509,7 +509,7 @@ When asked to make changes to this codebase:
 
 - A push to `master` builds, tests, deploys and health-gates (`.github/workflows/deploy.yml`). Nothing is deployed by hand.
 - Azure sign-in is GitHub OIDC (the `gh-<repo>-deploy` app). Its IDs are repo **variables** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`, and the App Service name is `AZURE_WEBAPP_NAME`. Never move them to secrets or write resource names into workflows.
-- Every permission the app and CI need lives in `SCRIPTS/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
+- Every permission the app and CI need lives in `scripts/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
 - The app answers `/health/live` (process up, no dependencies) and `/health` (dependencies reachable). The deploy's health gate checks both.
 - Tests pass on any machine: no drive-letter, temp-folder or working-directory assumptions, and no live config value hard-coded as an expected result (read it from the same config the app reads).
 - A red run on the default branch gets an ntfy push from the CI watcher in PoPunkouterSoftware. Fix it, or say why it is red.

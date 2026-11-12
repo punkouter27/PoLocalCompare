@@ -1,0 +1,300 @@
+@page "/arena/{DuelIdText}"
+@using PoLocalCompare.Client.Services
+@using PoLocalCompare.Shared.DTOs
+@using PoLocalCompare.Shared.Enums
+@inject DuelApiClient ApiClient
+@inject AudioService AudioService
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject WebLlmService WebLlm
+@inject FxService Fx
+@inject PreferencesService Prefs
+
+<PageTitle>Arena · PoLocalCompare</PageTitle>
+
+<div class="arena po-page po-page--wide">
+    @* "Left vs Right" once the duel is known — the two names the whole page is about — and a
+       plain "Arena" while it loads or when it cannot. *@
+    <PageHeader Title="@(_duel is null ? "Arena" : $"{LeftDisplayName} vs {RightDisplayName}")" TitleHook="arena__title" />
+
+    @if (_loading)
+    {
+        <p class="po-status">Loading duel results…</p>
+    }
+    else if (_loadFailed)
+    {
+        @* A transient failure used to land here with the same "duel no longer exists" message
+           as a real 404 — observed live: a stalled API request left a duel that very much
+           existed rendering a "it may have been wiped" dead end. A network failure is not
+           evidence about the duel, so it gets its own message and a retry instead. *@
+        <EmptyState Icon="⏱"
+                    Title="Couldn't load this duel"
+                    Hint="The server didn't answer in time. Nothing has been lost; try again." />
+        <PageActions Align="PageActionsAlign.Center">
+            @* @onclick, not onclick. Without the @ this is a plain HTML attribute and the
+               expression is stringified into it, so the browser was handed
+               onclick="System.Threading.Tasks.Task RetryLoadAsync()" as JavaScript and the
+               "Try again" button — the only recovery on a transient load failure — did
+               nothing at all when clicked. *@
+            <button type="button" class="po-btn po-btn--primary" @onclick="RetryLoadAsync" disabled="@_reloading">
+                @if (_reloading)
+                {
+                    @:Reloading…
+                }
+                else
+                {
+                    <text><span aria-hidden="true">↻</span> Try again</text>
+                }
+            </button>
+            <a class="po-btn" href="/"><span aria-hidden="true">⚔</span> Start a new duel</a>
+            <a class="po-btn" href="/archive"><span aria-hidden="true">📁</span> Browse the archive</a>
+        </PageActions>
+    }
+    else if (_duel is null)
+    {
+        <EmptyState Icon="🕳"
+                    Title="Duel not found"
+                    Hint="That duel no longer exists — it may have been wiped with the local storage, or the link may be mistyped." />
+        <PageActions Align="PageActionsAlign.Center">
+            <a class="po-btn po-btn--primary" href="/"><span aria-hidden="true">⚔</span> Start a new duel</a>
+            <a class="po-btn" href="/archive"><span aria-hidden="true">📁</span> Browse the archive</a>
+        </PageActions>
+    }
+    else
+    {
+        @* One line, clamped, with "more" to unclamp it — the clamp used to be the end of it,
+           and the full prompt was reachable only by hovering for a title. The owner rides at
+           the end of the same line instead of a second one. *@
+        <p class="arena__prompt-label" title="@_duel.PromptText">
+            <span class="arena__prompt-text @(_promptOpen ? "arena__prompt-text--open" : null)">Prompt: <em>@_duel.PromptText</em></span>
+            @if (_duel.PromptText.Length > PromptClampChars)
+            {
+                <button type="button" class="po-btn po-btn--sm po-btn--ghost arena__prompt-toggle"
+                        aria-expanded="@(_promptOpen ? "true" : "false")"
+                        @onclick="() => _promptOpen = !_promptOpen">@(_promptOpen ? "less" : "more")</button>
+            }
+            @if (!string.IsNullOrWhiteSpace(_duel.OwnerId))
+            {
+                <span class="arena__owner">· by <strong>@_duel.OwnerId</strong></span>
+            }
+        </p>
+
+        @* ── Status band ──────────────────────────────────────────────────
+           One region, one role="status", one sentence. This was two @if chains and a loose
+           "duel in progress" notice, branching across nine flags and carrying a live region
+           EACH — ten on this page, several able to update in the same frame. The branching
+           moved to ArenaPhaseResolver in Shared/Presentation (where the Unit tier can reach
+           it, unlike anything under Client/); the wording moved verbatim into
+           ArenaStatusBand. While streaming it carries the race ticker that TokenRace used to
+           announce in its own live region; after a verdict, the override correction rides on
+           it too. *@
+        <ArenaStatusBand Phase="@Phase"
+                         AutoJudgeRemaining="@_autoJudgeRemaining"
+                         WinnerDisplayName="@ResolveDisplayName(_winnerModelId)"
+                         JudgeRationale="@_judgeRationale"
+                         JudgeAnalysis="@_judgeAnalysis"
+                         VerdictBy="@_duel.VerdictBy"
+                         JudgeModel="@_duel.JudgeModel"
+                         RaceTicker="@(_duelStillRunning ? RaceTicker : null)"
+                         RaceAnnouncement="@(_duelStillRunning ? RaceAnnouncement : null)"
+                         Notice="@_overriddenNotice" />
+
+        @* The one diagnostic worth keeping from the old panels: without it, a browser model
+           compiling shaders for 30 s is indistinguishable from a hung page. Not a live region:
+           it re-words itself every 2 s, and the band is the page's one status message. *@
+        @if (_duelStillRunning && (_sides[(int)Side.Left].StallDetail ?? _sides[(int)Side.Right].StallDetail) is { } stall)
+        {
+            <p class="arena__stall-note">@stall</p>
+        }
+
+        @* ── Mobile panel focus ────────────────────────────────────────────
+           Shown only below 640px (CSS-hidden above), where the two panels stack and a
+           phone screen holds roughly one and a half of them — so comparing means
+           scrolling, on the one page whose entire purpose is reading the two outputs
+           against each other.
+
+           Additive on purpose: "Both" is the default and preserves exactly the stacked
+           behaviour the .arena__viewports rules argue for. This only lets you collapse
+           to one side when you want the whole viewport for it. It is a filter over
+           presentation, not over the DOM — both panels stay mounted and streaming, so
+           switching never restarts a preview or drops a token batch.
+
+           Short labels (Both / L / R): a model name per button wrapped the row onto two lines
+           on the very screen it exists to save space on. The name is the accessible name. *@
+        <div class="arena__focus" role="group" aria-label="Which output to show">
+            @foreach (var (value, label) in MobileFocusOptions)
+            {
+                var fullName = value switch
+                {
+                    "left" => $"Show {LeftDisplayName}",
+                    "right" => $"Show {RightDisplayName}",
+                    _ => "Show both outputs",
+                };
+                <button type="button"
+                        class="po-btn po-btn--sm po-btn--chip"
+                        aria-pressed="@(_mobileFocus == value ? "true" : "false")"
+                        aria-label="@fullName"
+                        title="@fullName"
+                        @onclick="() => _mobileFocus = value">
+                    @label
+                </button>
+            }
+        </div>
+
+        @* The judge's reticle: while the grace window runs (and while the AI judge is
+           deciding) a scan beam sweeps both panels — the outputs being weighed are the ones
+           on screen. Compositor-only, and by now inference is finished anyway. While the AI
+           judge itself is deciding (--deliberating) the beams run in opposite directions —
+           it reads the pair in both orders — and the panels frost under the reticle. *@
+        <div class="arena__viewports arena__viewports--focus-@_mobileFocus @(JudgeIsLooking ? "arena__viewports--judging" : "") @(Phase is ArenaPhase.JudgeDeciding ? "arena__viewports--deliberating" : "")">
+            @* The versus slam: once, when the page opens a live duel, landing on playVersus's
+               thump. Decorative — the page title already says "Left vs Right". *@
+            @if (_versusSlam)
+            {
+                <span class="arena__vs" aria-hidden="true">VS</span>
+            }
+            <div class="arena__viewport-slot arena__viewport-slot--left">
+                <ArenaViewportPanel
+                    Result="@_leftResult"
+                    DisplayName="@LeftDisplayName"
+                    StreamingHtml="@_leftStreamingHtml"
+                    PanelModelId="@_duel.LeftModelId"
+                    LoserModelId="@_loserModelId"
+                    WinnerModelId="@_winnerModelId"
+                    IsVerdictRecorded="@_verdictRecorded"
+                    Reveal="@_revealVerdict"
+                    EloShift="@_eloShiftLeft"
+                    EloRolled="@_eloRolled"
+                    UpsetGap="@_upsetGap"
+                    Spark="@_spark[(int)Side.Left]"
+                    Live="@(_duelStillRunning && TelemetryOn ? _sides[(int)Side.Left] : null)"
+                    Progress="@(TelemetryOn ? RaceProgress(Side.Left) : 0)" />
+            </div>
+
+            <div class="arena__viewport-slot arena__viewport-slot--right">
+                <ArenaViewportPanel
+                    Result="@_rightResult"
+                    DisplayName="@RightDisplayName"
+                    StreamingHtml="@_rightStreamingHtml"
+                    PanelModelId="@_duel.RightModelId"
+                    LoserModelId="@_loserModelId"
+                    WinnerModelId="@_winnerModelId"
+                    IsVerdictRecorded="@_verdictRecorded"
+                    Reveal="@_revealVerdict"
+                    EloShift="@_eloShiftRight"
+                    EloRolled="@_eloRolled"
+                    UpsetGap="@_upsetGap"
+                    Spark="@_spark[(int)Side.Right]"
+                    Live="@(_duelStillRunning && TelemetryOn ? _sides[(int)Side.Right] : null)"
+                    Progress="@(TelemetryOn ? RaceProgress(Side.Right) : 0)" />
+            </div>
+        </div>
+
+        @* ── Duel cost ────────────────────────────────────────────────────
+           Once, under both panels. It used to be an extra row in the right-hand HUD only,
+           which made the two panels different heights for a figure that belongs to neither. *@
+        @if (DuelTotalCostParam is { } duelCost)
+        {
+            <p class="arena__cost">Duel cost <strong>$@duelCost.ToString("F4")</strong></p>
+        }
+
+        @* ── The judge's eye ───────────────────────────────────────────
+           The exact 320×180 screenshots the vision judge is shown, rendered server-side by
+           HtmlScreenshotRenderer. Vision is off in Production (no browser on the Free tier),
+           so the endpoint 404s there and the strip hides itself on the first image error —
+           the scan over the live panels above carries the moment alone. Only while the judge
+           is actually deciding: after the verdict the panels' own WINNER/LOSER badges say it,
+           and a second framed copy of both outputs was a third place the winner was marked. *@
+        @if (Phase is ArenaPhase.JudgeDeciding && !_judgeEyeUnavailable && BothOutputsPresent())
+        {
+            <section class="arena__judge-eye" aria-label="What the AI judge sees">
+                <span class="arena__judge-eye-label"><span aria-hidden="true">👁</span> What the judge sees</span>
+                <div class="arena__judge-eye-shots">
+                    <img class="arena__judge-eye-shot" src="@($"/api/duels/{_duelId}/judge-view/left")"
+                         alt="@($"Rendered screenshot of {LeftDisplayName}'s output, as the judge sees it")"
+                         width="320" height="180" @onerror="() => _judgeEyeUnavailable = true" />
+                    <img class="arena__judge-eye-shot" src="@($"/api/duels/{_duelId}/judge-view/right")"
+                         alt="@($"Rendered screenshot of {RightDisplayName}'s output, as the judge sees it")"
+                         width="320" height="180" @onerror="() => _judgeEyeUnavailable = true" />
+                </div>
+            </section>
+        }
+
+        @* Two tiers. Voting is the page's primary action and gets the large buttons — but only
+           while a vote is still possible: once a verdict exists they were rendered disabled
+           forever, leaving the page's headline control permanently dead. Everything else is a
+           follow-up and sits in a secondary row. *@
+        @* Sticky to the foot of the viewport, not just placed here. The evidence — two iframes,
+           the telemetry HUDs and the scorecard — is taller than any screen, so the decision
+           control was always a scroll away from wherever you were reading. Sticky keeps the
+           order (evidence first, then the vote) while making the vote reachable without
+           travelling: land on an unjudged duel from the Archive and the winner buttons are
+           already under your cursor. *@
+        @if (CanStillVote)
+        {
+            <ArenaVoteButtons
+                LeftDisplayName="@LeftDisplayName"
+                RightDisplayName="@RightDisplayName"
+                Disabled="@(_submitting || _retrying)"
+                OnVote="RecordVerdictAsync" />
+        }
+
+        @* ── Follow-ups ────────────────────────────────────────────────────
+           While the duel streams the page is a live view and the only exit worth offering is
+           the way back to the bracket, for a match opened from one — the bracket keeps running
+           while you watch. That link used to be duplicated above the title; it is here alone.
+
+           Once it has finished, the exit is New duel — and Retry, primary, when a side failed,
+           because that is the thing to do next on a failed duel. The old row carried five
+           same-weight buttons (Retry / Share / Head-to-head / Lab report / New duel) plus the
+           two vote buttons above it: eleven controls on a decided duel. Archive went on
+           2026-10-26: it is in the nav bar directly above. Head-to-head is gone with the page
+           it opened, and the export actions — which are not exits — went with the Archive row,
+           which is where a duel is looked up after the fact. GET /api/duels/{id}/report is
+           reachable from there and nowhere else, so ArenaUiTests asserts that anchor on the
+           Archive page. *@
+        @if (!_duelStillRunning || _tournamentId is not null)
+        {
+            <PageActions Align="PageActionsAlign.Center">
+                @if (_tournamentId is { } bracketId)
+                {
+                    <a class="po-btn po-btn--primary" href="@($"/tournament/{bracketId}")">
+                        <span aria-hidden="true">🏆</span> Back to bracket@(_tournamentMatchLabel is null ? "" : $" · {_tournamentMatchLabel}")
+                    </a>
+                }
+                @if (!_duelStillRunning)
+                {
+                    var failed = EitherSideFailed();
+                    @* Re-runs the same pairing and prompt as a brand-new duel. Shown only when a
+                       model failed, because a transient failure (model load, cache, rate limit) is
+                       the situation it exists for — on a clean duel it competed with New duel while
+                       meaning almost the same thing. First and primary when it shows. *@
+                    @if (failed)
+                    {
+                        <button type="button" class="po-btn @(_tournamentId is null ? "po-btn--primary" : "po-btn--warn")"
+                                disabled="@(_retrying || _submitting)"
+                                @onclick="RetryDuelAsync">
+                            @if (_retrying)
+                            {
+                                @:Starting…
+                            }
+                            else
+                            {
+                                <text><span aria-hidden="true">🔄</span> Retry duel</text>
+                            }
+                        </button>
+                    }
+                    <a class="po-btn @(_tournamentId is null && !failed ? "po-btn--primary" : "")" href="/"><span aria-hidden="true">⚔</span> New duel</a>
+                }
+            </PageActions>
+        }
+
+        @if (_retryError is not null)
+        {
+            <p class="arena__error" role="alert">@_retryError</p>
+        }
+    }
+</div>
+
+@* State, lifecycle and handlers: Arena.razor.cs. *@

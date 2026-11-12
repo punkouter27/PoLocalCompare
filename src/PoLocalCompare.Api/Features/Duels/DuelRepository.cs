@@ -106,8 +106,8 @@ public sealed class DuelRepository : IDuelRepository
     {
         var lower = Ulid.NewUlid(from).ToString()[..10];
         var upper = Ulid.NewUlid(to).ToString()[..10];
-        var firstMonth = from.ToString("yyyyMM");
-        var lastMonth = to.ToString("yyyyMM");
+        var firstMonth = from.ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
+        var lastMonth = to.ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
 
         var total = 0.0;
         await foreach (var entity in _tableClient.QueryAsync<TableEntity>(
@@ -125,15 +125,15 @@ public sealed class DuelRepository : IDuelRepository
         try
         {
             var ulid = Ulid.Parse(duelId);
-            return ulid.Time.ToString("yyyyMM");
+            return ulid.Time.ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
         }
         catch
         {
-            return DateTimeOffset.UtcNow.ToString("yyyyMM");
+            return DateTimeOffset.UtcNow.ToString("yyyyMM", System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 
-    private TableEntity MapToEntity(Duel duel)
+    private static TableEntity MapToEntity(Duel duel)
     {
         var partitionKey = GetPartitionKey(duel.DuelId);
         var entity = new TableEntity(partitionKey, duel.DuelId)

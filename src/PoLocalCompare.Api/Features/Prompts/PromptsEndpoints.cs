@@ -1,6 +1,6 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using PoLocalCompare.Shared.DTOs;
-using PoLocalCompare.Shared.Prompts;
 
 namespace PoLocalCompare.Api.Features.Prompts;
 
@@ -16,19 +16,19 @@ public static class PromptsEndpoints
         // is no honest simulated answer to "rewrite my prompt".
         group.MapPost("/refine", async (
             [FromBody] RefinePromptRequest request,
+            [FromServices] IValidator<RefinePromptRequest> validator,
             [FromServices] RefinePromptHandler handler,
             [FromServices] SpendGuard spend,
             [FromServices] IConfiguration configuration,
             CancellationToken ct) =>
         {
-            var prompt = request.Prompt?.Trim() ?? string.Empty;
-            if (prompt.Length < 3 || prompt.Length > PromptRules.MaxPromptLength)
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["Prompt"] = [$"Prompt must be between 3 and {PromptRules.MaxPromptLength} characters."],
-                });
+                return Results.ValidationProblem(validation.ToDictionary());
             }
+
+            var prompt = request.Prompt?.Trim() ?? string.Empty;
 
             if (!configuration.GetValue("Features:UseRealAi", false))
             {

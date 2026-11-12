@@ -10,8 +10,17 @@ insert_final_newline = true
 [*.{cs,razor}]
 indent_size = 4
 
-[*.{json,yml,yaml}]
+[*.{json,yml,yaml,csproj,props,targets,slnx}]
 indent_size = 2
 
 [*.{md,txt}]
 trim_trailing_whitespace = false
+
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.CA1873.severity = none
+dotnet_diagnostic.CA2007.severity = none

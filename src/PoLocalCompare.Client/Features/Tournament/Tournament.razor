@@ -1,0 +1,531 @@
+@page "/tournament"
+@page "/tournament/{TournamentIdText}"
+@using PoLocalCompare.Shared.DTOs
+@using PoLocalCompare.Shared.Enums
+@using PoLocalCompare.Shared.Prompts
+@using PoLocalCompare.Shared.Tournaments
+@implements IDisposable
+@inject DuelApiClient ApiClient
+@inject NavigationManager Nav
+@inject AudioService AudioService
+@inject FxService Fx
+@inject WebLlmService WebLlm
+@inject IJSRuntime JS
+
+<PageTitle>Tournament · PoLocalCompare</PageTitle>
+
+@* ── Tournament ───────────────────────────────────────────────────────────
+   Two views behind one route: the draw (no id) and the bracket (with one). They are one
+   component because creating a bracket navigates straight into watching it, and splitting
+   them would remount the page at exactly the moment the first match starts.
+
+   The bracket runs server-side, and this page is mostly a viewer — it polls and paints. The
+   exception is a browser (WebGPU) match: those cannot run on the server, so the page joins the
+   running match's hub group and drives that inference in this tab, exactly as the Arena does.
+   A bracket of remote/Ollama models still finishes with nothing open; one containing a browser
+   model needs this tab left open for its matches. *@
+<div class="po-page po-page--wide">
+    @if (_tournament is not null)
+    {
+        @* ── Bracket view ───────────────────────────────────────────────── *@
+        <PageHeader Title="@SizeLabel(_tournament)">
+            <StatusContent>
+                <span class="tourney__status tourney__status--@_tournament.Status.ToString().ToLowerInvariant()">
+                    @StatusLabel(_tournament)
+                </span>
+            </StatusContent>
+        </PageHeader>
+        <p class="tourney__prompt">@_tournament.PromptText</p>
+
+        @if (_tournament.Status == TournamentStatus.Complete && _tournament.ChampionName is not null)
+        {
+            <div class="tourney__champion po-glass" role="status">
+                <span class="tourney__champion-crown" aria-hidden="true">🏆</span>
+                <span class="tourney__champion-text">
+                    <strong>@_tournament.ChampionName</strong> wins the @SizeLabel(_tournament).
+                </span>
+                <a class="po-btn po-btn--sm po-btn--secondary"
+                   href="@($"/model/{_tournament.ChampionModelId}")">View model</a>
+            </div>
+        }
+        else if (_tournament.Status == TournamentStatus.Abandoned)
+        {
+            @* Never shown as a result. A bracket that could not finish has no champion, and
+               presenting the last model standing as one would be inventing an outcome. *@
+            <div class="tourney__abandoned" role="status">
+                <span aria-hidden="true">⚠</span>
+                Run stopped — @(_tournament.AbandonedReason ?? "a match could not be decided.")
+                No champion was crowned and the bracket is left as it stood.
+            </div>
+        }
+        else
+        {
+            <div class="tourney__progress" role="status">
+                <span aria-hidden="true">⚔</span>
+                @_tournament.DecidedCount of @_tournament.TotalMatches matches decided.
+                @if (_pollFailing)
+                {
+                    <span class="po-hint">Reconnecting…</span>
+                }
+                @if (RunningMatch is not null)
+                {
+                    <span>
+                        Now: <strong>@RunningMatch.SlotAName</strong> vs <strong>@RunningMatch.SlotBName</strong>
+                        @if (RunningMatch.DuelId is { } liveDuelId)
+                        {
+                            <a class="tourney__watch" href="@DuelUrl(liveDuelId)">Watch →</a>
+                        }
+                    </span>
+                }
+                else
+                {
+                    <span>Starting the next match…</span>
+                }
+            </div>
+
+            @* A browser match runs on this tab's GPU, so say so — the page is otherwise a
+               viewer and "you can close this" is the reasonable assumption to make about it. *@
+            @if (_drivingLocalMatch)
+            {
+                <div class="tourney__local-notice" role="status">
+                    <span aria-hidden="true">🖥</span>
+                    Running a browser model in this tab — keep it open until the match finishes.
+                </div>
+            }
+        }
+
+        @* A stored Swiss run (the format was retired 2026-11-07) is shown read-only: its table
+           leads, because the table is the result; the rounds below are how it got there. A
+           plain .po-table--cards, so it becomes labelled cards below 640px. *@
+        @if (IsSwiss && _tournament.Standings.Count > 0)
+        {
+            <section class="tourney__standings" aria-labelledby="tourney-standings-heading">
+                <h2 id="tourney-standings-heading" class="tourney__round-title">Standings</h2>
+                <p class="po-hint">Swiss was retired on 2026-11-07 — this run is kept read-only.</p>
+                <div class="po-table-wrap">
+                    <table class="po-table po-table--cards">
+                        <caption class="visually-hidden">Swiss standings, ranked by points, then Buchholz, then seed</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Rank</th>
+                                <th scope="col">Model</th>
+                                <th scope="col">Points</th>
+                                <th scope="col"><abbr title="Sum of every opponent's points — a harder schedule ranks higher on equal points">Buchholz</abbr></th>
+                                <th scope="col"><abbr title="Wins, draws, losses">W-D-L</abbr></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _tournament.Standings)
+                            {
+                                var crowned = row.ModelId == _tournament.ChampionModelId;
+                                <tr @key="row.ModelId" class="@(crowned ? "tourney__standings-row--champion" : null)">
+                                    <td data-label="Rank" class="tourney__standings-num">@row.Rank</td>
+                                    <td data-label="Model">
+                                        <span class="tourney__slot-seed" title="@($"Seed {row.Seed}")">@row.Seed</span>
+                                        @row.Name
+                                        @if (crowned)
+                                        {
+                                            <span aria-hidden="true">🏆</span>
+                                            <span class="visually-hidden">(champion)</span>
+                                        }
+                                    </td>
+                                    <td data-label="Points" class="tourney__standings-num">@FormatPoints(row.Points)</td>
+                                    <td data-label="Buchholz" class="tourney__standings-num">@FormatPoints(row.Buchholz)</td>
+                                    <td data-label="W-D-L" class="tourney__standings-num">@($"{row.Wins}-{row.Draws}-{row.Losses}")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
+        @* Columns are rounds. Each column is centred against the one before it, so the pairs
+           that feed a match sit either side of it — that alignment is what makes it read as a
+           bracket rather than as four lists. *@
+        <div class="tourney__bracket-wrap">
+            <div class="tourney__bracket" style="--rounds: @RoundCount">
+                @foreach (var round in _tournament.Matches.GroupBy(m => m.Round).OrderBy(g => g.Key))
+                {
+                    <div class="tourney__round" @key="round.Key">
+                        <h2 class="tourney__round-title">@round.First().RoundName</h2>
+                        <div class="tourney__round-matches">
+                            @foreach (var match in round.OrderBy(m => m.Index))
+                            {
+                                @* The whole card is the link to the duel. The earlier design only
+                                   rendered a link once a DuelId existed, and the text-only anchor
+                                   it used ("Watch live →") sat under the slots where it was easy to
+                                   miss. Making the card itself the target makes every match — ready,
+                                   running and decided alike — open the Arena on click, and a focus
+                                   ring around it gives keyboard users the same affordance. *@
+                                @* No duel yet means nothing to open. This used to fall back to slot
+                                   A's model profile, so clicking "A vs B" before it started landed
+                                   on a page about A alone — not the match you clicked. *@
+                                var matchUrl = match.DuelId is { } did ? DuelUrl(did) : null;
+                                @* On a crowned bracket the champion's matches light up round by round —
+                                   --path-step staggers them (Tournament.razor.css). *@
+                                var onPath = OnChampionPath(match);
+                                <a class="tourney__match po-lift @MatchClass(match) @(onPath ? "tourney__match--champion-path" : "")"
+                                   style="@(onPath ? $"--path-step: {match.Round}" : null)"
+                                   href="@matchUrl"
+                                   aria-label="@MatchAriaLabel(match)"
+                                   @key="@($"{match.Round}-{match.Index}")">
+                                    @if (onPath)
+                                    {
+                                        <span class="tourney__glint" aria-hidden="true"></span>
+                                    }
+                                    @RenderSlot(match, isSlotA: true)
+                                    @RenderSlot(match, isSlotA: false)
+
+                                    @* The card is the link, so no "View duel →" text; only a running
+                                       match gets a tag. aria-hidden: MatchAriaLabel already says it. *@
+                                    @if (match.IsRunning)
+                                    {
+                                        <span class="tourney__match-live" aria-hidden="true">Live</span>
+                                    }
+                                    @if (match.WonOnSeedTieBreak)
+                                    {
+                                        <span class="tourney__tiebreak" title="The judge called it a draw; the better seed advances.">
+                                            drawn — advanced on seed
+                                        </span>
+                                    }
+                                    @if (match.IsDraw)
+                                    {
+                                        <span class="tourney__tiebreak">drawn — half a point each</span>
+                                    }
+                                    @if (match.FailureReason is not null)
+                                    {
+                                        <span class="tourney__match-error">@match.FailureReason</span>
+                                    }
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <PageActions Align="PageActionsAlign.Center">
+            <a class="po-btn po-btn--primary" href="/tournament"><span aria-hidden="true">⚔</span> New tournament</a>
+        </PageActions>
+    }
+    else if (_loadingTournament)
+    {
+        <p class="po-status">Loading bracket…</p>
+    }
+    else if (!string.IsNullOrEmpty(TournamentIdText) && _error is not null)
+    {
+        @* Before the not-found arm: a network failure used to fall through to "Tournament not
+           found", which tells someone watching a live bracket that it no longer exists. *@
+        <p class="po-error" role="alert">@_error</p>
+        <PageActions Align="PageActionsAlign.Center">
+            <button type="button" class="po-btn po-btn--primary" @onclick="LoadBracketAsync">Retry</button>
+        </PageActions>
+    }
+    else if (!string.IsNullOrEmpty(TournamentIdText))
+    {
+        <EmptyState Icon="🏆"
+                    Title="Tournament not found"
+                    Hint="No tournament with that id — it may have been wiped with the local storage."
+                    Actions="@(new[] {
+                        new EmptyStateAction("Draw a new bracket", "/tournament", EmptyStateActionVariant.Primary)
+                    })" />
+    }
+    else
+    {
+        @* ── Draw view ──────────────────────────────────────────────────── *@
+        <PageHeader Title="Run a tournament"
+                    Subtitle="16 models, seeded, auto-judged." />
+
+        @* Field left, prompt and Start right from 1024px — Home's picker-and-console shape.
+           Stacked, the setup left ~280px of empty page under Start on a 1440x900 desktop. *@
+        <div class="tourney__setup">
+        <section class="po-section tourney__setup-field" aria-labelledby="tourney-field-heading">
+            <div class="tourney__section-head">
+                <h2 id="tourney-field-heading" class="po-section-title">The field — @(FieldReady ? _selected.Count : BracketSize) models</h2>
+            </div>
+
+            @* The slot reserves the field's height while it loads. Without it this block was one
+               line of status text that became a list of eight rows, and a runtime trace measured
+               the jump at CLS 0.289 on a phone — past the 0.1 "needs improvement" mark, and the
+               only route in the app that shifted at all. *@
+            <div class="tourney__entrants-slot">
+                @if (_loadingEntrants)
+                {
+                    <p class="po-status">Drawing the field…</p>
+                }
+                else if (_entrants.Count == 0)
+                {
+                    @* Distinguished from "not enough models" on purpose: a failed request used to
+                       render as "0 models are registered", which is a different problem with a
+                       different fix and sent you looking in the wrong place. *@
+                    <p class="po-error">
+                        Could not reach the model catalog. Check that the app is running and that
+                        you are signed in, then reload.
+                    </p>
+                }
+                else if (_entrants.Count < MinField)
+                {
+                    <p class="po-error">
+                        Only @_entrants.Count model@(_entrants.Count == 1 ? " is" : "s are") registered —
+                        a bracket needs at least @MinField.
+                    </p>
+                }
+                else
+                {
+                    @* Mirrored, four matches a side, converging on the final — the shape a bracket
+                       is normally read in. The flat numbered list it replaced showed the same
+                       models but hid the only thing the seeding is *for*: who actually meets whom,
+                       and how far apart the top two seeds are. Pairings come from the same
+                       BracketPlanner the server draws with, so this is the real first round
+                       rather than a picture of one. *@
+                    <div class="tourney__draw" role="group" aria-label="First-round pairings"
+                         title="Drawn at random, then seeded by rating so the top two seeds can only meet in the final.">
+                        <div class="tourney__draw-half">
+                            @foreach (var pair in FirstRoundPairs.Take(4))
+                            {
+                                @RenderPair(pair)
+                            }
+                        </div>
+
+                        <div class="tourney__draw-centre" aria-hidden="true">
+                            <span class="tourney__draw-final">Final</span>
+                        </div>
+
+                        <div class="tourney__draw-half tourney__draw-half--right">
+                            @foreach (var pair in FirstRoundPairs.Skip(4))
+                            {
+                                @RenderPair(pair)
+                            }
+                        </div>
+                    </div>
+
+                    @if (!FieldReady)
+                    {
+                        <p class="po-error" role="status">
+                            @_selected.Count selected — a bracket needs at least @MinField, so tick more in the picker.
+                        </p>
+                    }
+
+                    <div class="tourney__field-actions">
+                        <button type="button" class="po-btn po-btn--sm po-btn--ghost" @onclick="DrawField">
+                            <span aria-hidden="true">↺</span> Re-draw the field
+                        </button>
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                aria-expanded="@(_choosingEntrants ? "true" : "false")"
+                                aria-controls="tourney-entrant-picker"
+                                @onclick="@(() => _choosingEntrants = !_choosingEntrants)">
+                            @(_choosingEntrants ? "Hide entrant picker" : "Choose entrants")
+                        </button>
+                    </div>
+
+                    @if (_choosingEntrants)
+                    {
+                        <div id="tourney-entrant-picker" class="tourney__entrant-picker">
+                            <div class="tourney__entrant-picker-head">
+                                <p class="po-hint" role="status">
+                                    @_selected.Count of @BracketSize selected (at least @MinField). The bracket will
+                                    seed them by ELO; any seed left empty is a first-round bye for a top seed.
+                                </p>
+                                <button type="button" class="po-btn po-btn--sm po-btn--ghost"
+                                        @onclick="DrawField">
+                                    Restore automatic draw
+                                </button>
+                            </div>
+                            <div class="tourney__entrant-options">
+                                @foreach (var entrant in _entrants
+                                    .OrderByDescending(e => e.CurrentElo)
+                                    .ThenBy(e => e.DisplayName, StringComparer.Ordinal))
+                                {
+                                    var selected = _selected.Contains(entrant.ModelId);
+                                    <label @key="entrant.ModelId" class="tourney__entrant-option @(selected ? "tourney__entrant-option--selected" : "")">
+                                        <input type="checkbox"
+                                               checked="@selected"
+                                               disabled="@(!selected && _selected.Count >= BracketSize)"
+                                               @onchange="@(e => SetEntrantSelected(entrant.ModelId, e.Value is true))" />
+                                        <span class="tourney__entrant-name">@entrant.DisplayName</span>
+                                        <ModelTypeBadge Type="@entrant.ModelType" />
+                                        <span class="tourney__entrant-elo">@entrant.CurrentElo.ToString("F0") ELO</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (DrawnField.Any(e => e.ModelType != ModelType.Remote))
+                    {
+                        <p class="po-hint po-fg--err">
+                            ⚠ Fewer than @BracketSize remote models are available, so the field was
+                            topped up with local ones. A browser (WebGPU) model runs in this tab —
+                            leave it open while the bracket runs, or that match stalls until the
+                            duel's watchdog fails it.
+                        </p>
+                    }
+                }
+            </div>
+        </section>
+
+        <div class="tourney__setup-side">
+        <section class="po-section" aria-labelledby="tourney-prompt-heading">
+            <h2 id="tourney-prompt-heading" class="po-section-title">The prompt</h2>
+            <textarea class="tourney__textarea"
+                      aria-labelledby="tourney-prompt-heading"
+                      aria-describedby="tourney-start-hint"
+                      aria-invalid="@(PromptFlagged ? "true" : null)"
+                      @ref="_promptBox"
+                      rows="4"
+                      maxlength="@PromptRules.MaxPromptLength"
+                      placeholder="e.g. Build a self-contained single HTML file with a working scientific calculator."
+                      @bind="_prompt"
+                      @bind:event="oninput"></textarea>
+
+            @* The shared picker, the same one Home uses. This was a private row of six
+               SelfRunning templates rendered as buttons — a second, smaller prompt library
+               with no categories, no excerpts and no indication of which one was applied,
+               sitting beside a textarea that had also drifted from Home's on border, size
+               and focus treatment. One prompt composer, used twice. *@
+            <PromptPicker CurrentPrompt="@_prompt" OnPromptSelected="@(t => _prompt = t)" />
+        </section>
+
+        <PageActions Align="PageActionsAlign.Center">
+            <button type="button" class="po-btn po-btn--success po-btn--lg"
+                    disabled="@(!CanAttemptStart)"
+                    @onclick="StartAsync">
+                @(_starting ? "Drawing…" : "Start tournament →")
+            </button>
+            @* Server already rejects a second create with 409; this button is the recovery
+               path so the user does not have to read a raw 409 and figure out where to go. *@
+            @if (_inFlight is { } live)
+            {
+                <a class="po-btn po-btn--lg"
+                   href="@($"/tournament/{live.TournamentId}")">
+                    Watch the running tournament →
+                </a>
+            }
+            @* role="status": this hint is the ONLY explanation of what Start is waiting for, and
+               it changes as the user types — empty prompt, too short, ready to go, or a
+               tournament already running. Without a live region the reason is on screen but
+               never spoken. It is also the textarea's description, so a Start click with no
+               prompt — which moves focus there — reads it out. *@
+            <span id="tourney-start-hint"
+                  class="tourney__start-hint @(PromptFlagged ? "tourney__start-hint--blocked" : "")"
+                  role="status">@StartHint</span>
+        </PageActions>
+
+        @if (_error is not null)
+        {
+            <p class="po-error" role="status">@_error</p>
+        }
+        </div>
+        </div>
+
+        @if (_recent.Count > 0)
+        {
+            <section class="po-section" aria-labelledby="tourney-recent-heading">
+                <h2 id="tourney-recent-heading" class="po-section-title">Recent tournaments</h2>
+                <ul class="tourney__recent">
+                    @foreach (var run in _recent)
+                    {
+                        <li @key="run.TournamentId">
+                            <a class="tourney__recent-item" href="@($"/tournament/{run.TournamentId}")">
+                                <span class="tourney__recent-prompt">@Truncate(run.PromptText, 60)</span>
+                                <span class="tourney__recent-meta">
+                                    @SizeLabel(run) ·
+                                    @if (run.ChampionName is not null)
+                                    {
+                                        <span class="tourney__recent-champ">🏆 @run.ChampionName</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@StatusLabel(run)</span>
+                                    }
+                                </span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+</div>
+
+@* The page's state, lifecycle and handlers are in Tournament.razor.cs. What is left here is
+   markup written as C# (Razor templates), which only compiles in a .razor file. *@
+@code {
+    /// <summary>
+    /// Renders one side of a match. A slot with no model yet is a placeholder rather than a
+    /// blank, so an unplayed round reads as "waiting for a winner" instead of as a broken card.
+    /// </summary>
+    /// <remarks>
+    /// A Razor template, not a hand-written <c>RenderTreeBuilder</c>. The builder version emitted
+    /// elements without this component's CSS scope attribute, so every <c>.tourney__slot*</c>
+    /// rule in Tournament.razor.css matched nothing — the seed ran into the name ("1GPT-4.1
+    /// Mini") and a winner looked exactly like a loser. Markup written in the .razor file is
+    /// stamped with the scope id; markup built in C# is not.
+    /// </remarks>
+    private RenderFragment RenderSlot(TournamentMatchDto match, bool isSlotA)
+    {
+        var modelId = isSlotA ? match.SlotAModelId : match.SlotBModelId;
+        var name = isSlotA ? match.SlotAName : match.SlotBName;
+        var seed = isSlotA ? match.SlotASeed : match.SlotBSeed;
+        // A bye's seed went through without playing, so it gets no trophy and no "won" styling.
+        var won = !match.IsBye && match.WinnerModelId is { } winner && winner == modelId;
+        // A draw has no loser, so neither side is struck through.
+        var lost = match.WinnerModelId is not null && !match.IsBye && !won && !modelId.IsEmpty;
+
+        // A round-0 slot that will never be filled is a bye, not a winner still to come.
+        var bye = modelId.IsEmpty && match.IsBye;
+
+        var css = "tourney__slot"
+            + (won ? " tourney__slot--won" : "")
+            + (lost ? " tourney__slot--lost" : "")
+            + (modelId.IsEmpty ? " tourney__slot--empty" : "");
+
+        @* data-slot is the hook wow.js advance() uses to fly a winner from the slot it won
+           in to the slot it advances into; an empty slot carries none. *@
+        return @<div class="@css" data-slot="@(modelId.IsEmpty ? null : modelId.Value)">
+            @if (modelId.IsEmpty)
+            {
+                <span class="tourney__slot-name">@(bye ? "bye" : "—")</span>
+            }
+            else
+            {
+                <span class="tourney__slot-seed" title="@($"Seed {seed}")">@seed</span>
+                <span class="tourney__slot-name">@name</span>
+                @if (won)
+                {
+                    <span class="tourney__slot-badge" aria-label="Winner">🏆</span>
+                }
+            }
+        </div>;
+    }
+
+    /// <summary>
+    /// One match box: two seeded competitors and the tie that joins them — or a top seed and its
+    /// bye. A local template rather than a component because it is markup with no state and is
+    /// used twice on one page.
+    /// </summary>
+    private RenderFragment RenderPair(Pairing pair) =>
+        @<div class="tourney__draw-match">
+            <div class="tourney__draw-slot">
+                <span class="tourney__draw-seed">@pair.SeedA</span>
+                <span class="tourney__draw-name">@pair.A.DisplayName</span>
+                <span class="tourney__draw-elo">@((int)Math.Round(pair.A.CurrentElo))</span>
+            </div>
+            @if (pair.B is { } b)
+            {
+                <div class="tourney__draw-slot">
+                    <span class="tourney__draw-seed">@pair.SeedB</span>
+                    <span class="tourney__draw-name">@b.DisplayName</span>
+                    <span class="tourney__draw-elo">@((int)Math.Round(b.CurrentElo))</span>
+                </div>
+            }
+            else
+            {
+                <div class="tourney__draw-slot tourney__draw-slot--bye">
+                    <span class="tourney__draw-seed" aria-hidden="true"></span>
+                    <span class="tourney__draw-name">bye — seed @pair.SeedA goes through</span>
+                </div>
+            }
+        </div>;
+}

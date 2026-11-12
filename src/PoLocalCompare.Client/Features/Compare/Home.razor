@@ -1,0 +1,793 @@
+@page "/"
+@using PoLocalCompare.Client.Services
+@using PoLocalCompare.Shared.DTOs
+@using PoLocalCompare.Shared.Enums
+@using PoLocalCompare.Shared.Prompts
+@using Microsoft.JSInterop
+@inject DuelApiClient ApiClient
+@inject AudioService AudioService
+@inject FxService Fx
+@inject PreferencesService Prefs
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject WebGpuCapability WebGpu
+@inject FluentValidation.IValidator<RefinePromptRequest> PromptValidator
+@inject DialogNotificationHelper Notify
+
+<PageTitle>Compare · PoLocalCompare</PageTitle>
+
+<div class="home po-page po-page--wide">
+    @* ── Workbench ───────────────────────────────────────────────────────
+       Was one 880px column running header → models → prompt → Compare → recent, so the button
+       the page exists for sat below every card in the catalog. The picker now scrolls on the
+       left while the prompt and Compare stay pinned in a sticky console on the right, which is
+       the whole point of the layout. Below 1080px it collapses to a single column in the
+       original reading order — picker first, then prompt and Compare. *@
+    <div class="home__layout">
+        @* ── Header ──────────────────────────────────────────────────────
+           A grid item in the left column's first row, not a band above the grid. The console
+           spans both rows, so it starts level with the title instead of below it — which is
+           what keeps Compare inside the first viewport before any scrolling. The mockup put
+           the h1 in the console; that would have placed the page's only h1 after the entire
+           model catalog in DOM order, which is the reading order a screen reader gets. *@
+        @* PageHeader — title, optional health pill, subtitle, and the "remote offline" warning.
+   The warning uses the parameter rather than a CSS modifier because the warning condition
+   is conditional in code, not in markup. The wrapping div still carries .home__header so
+   the grid placement rules in Home.razor.css (column 1, row 1) continue to work. *@
+        <div class="home__header">
+            <PageHeader Title="Compare two models"
+                        TitleHook="home__title"
+                        Warning="@(_health is not null && !_healthHasRemotes ? "⚠ Remote (Azure OpenAI) deployments are unavailable. Use a Browser or Ollama model to run duels." : null)">
+                <StatusContent>
+                    @if (_health is not null)
+                    {
+                        @* role="status" so the badge is ANNOUNCED when the health probe resolves.
+                           It renders only after _health lands, so for a screen reader this span
+                           is inserted into a live region rather than updated in place — without
+                           the role, "Models ready" / "Remote models offline" appeared silently
+                           and the only way to learn the app's state was to go looking for it.
+                           Polite, not assertive: a health probe finishing must not interrupt
+                           someone mid-sentence in the prompt box. *@
+                        <span class="home__health @HealthBadgeText.ModifierClass(_healthHasRemotes)" role="status" title="@HealthBadgeText.Tooltip(_availability?.Count(a => a.IsAvailable), _models.Count, _health?.Models.CloudMode)">@HealthBadgeText.Label(_healthHasRemotes)</span>
+                    }
+                    else
+                    {
+                        @* Holds the pill's place until the probe lands (~5 s): on a phone the title
+                           and pill wrap to two lines, and the pill arriving pushed the whole picker
+                           down. Invisible and aria-hidden — the live region above is still inserted
+                           filled, which is what gets it announced. *@
+                        <span class="home__health home__health--pending" aria-hidden="true">@HealthBadgeText.Label(true)</span>
+                    }
+                </StatusContent>
+            </PageHeader>
+        </div>
+
+
+        @* ── Left: pick two models ───────────────────────────────────── *@
+        <section class="home__picker" aria-labelledby="home-models-heading">
+            <div class="home__section-head">
+                <h2 id="home-models-heading" class="po-section-title">Choose two models</h2>
+                @* Top of the picker, not below the catalog: below it, it sat at y=3735 inside a
+                   337px phone window. Shown only while nothing is picked. *@
+                <div class="home__picker-actions">
+                    @* Present (disabled) while the catalog loads rather than appearing when it
+                       lands: arriving late, it wrapped this row on a phone and shoved the picker. *@
+                    @if (_leftModel is null && _rightModel is null)
+                    {
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                title="Loads a working prompt and two lightweight models"
+                                disabled="@(_models.Count == 0)"
+                                @onclick="LoadStarterDuel">
+                            <span aria-hidden="true">⚡</span> Load starter duel
+                        </button>
+                    }
+                    @* Picks the duel the leaderboard learns most from (MatchupPicker); with one
+                       slot filled, the best opponent for it. Hidden once both are, like the
+                       starter duel — there is nothing left for it to fill. Always shown: it is
+                       free (MatchupPicker runs here) and settling ratings is the app's job. *@
+                    @if (_leftModel is null || _rightModel is null)
+                    {
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                title="Picks two closely matched models whose ratings are least settled — the duel that moves the leaderboard most"
+                                disabled="@(_models.Count == 0 || _suggesting)"
+                                @onclick="SuggestMatchupAsync">
+                            <span aria-hidden="true">🎯</span> @(_leftModel is null && _rightModel is null ? "Suggest matchup" : "Suggest opponent")
+                        </button>
+                    }
+                    @* The way into /catalog from the page that needs it. The route was reachable
+                       only from the user menu, so a model that was not in the list here had no
+                       visible next step. *@
+                    <a class="po-btn po-btn--sm po-btn--ghost" href="/catalog"
+                       title="Add browser or Ollama models to this list">
+                        <span aria-hidden="true">＋</span> Add model
+                    </a>
+                </div>
+            </div>
+
+            @* The picker's one status line. Both slots full and a third model clicked: say how to
+               swap, do not guess which side was meant (this was a role="dialog" popover; each
+               slot's own clear button answers "replace which?"). A suggested matchup: say why
+               those two. Always mounted — a live region inserted already filled is not announced. *@
+            <p class="po-hint home__full-hint" role="status">@_pickerNote</p>
+
+            @if (_loading)
+            {
+                @* Twenty rows: near the catalog's real height, so the list landing does not shove
+                   the console down (CLS 0.13 at 768px with six tiles). On a phone that also puts
+                   the console below the fold from the first frame. *@
+                <SkeletonGrid Count="20" StaggerMs="30" ItemClass="home__skeleton" OuterClass="home__grid" />
+            }
+            else if (_loadError is not null)
+            {
+                <p class="home__error" role="alert">@_loadError</p>
+                <button type="button" class="po-btn po-btn--secondary" @onclick="LoadAsync">Retry</button>
+            }
+            else if (_models.Count == 0)
+            {
+                <p class="home__hint">No models are available right now.</p>
+            }
+            else
+            {
+                @* .po-btn--chip, and aria-pressed on every one of them. These were .po-btn + --success
+                   when active, which said "this filter is on" in colour and in nothing else — a
+                   screen reader heard four identical buttons and a viewer who cannot separate
+                   green from grey saw four identical buttons (SC 1.4.1, SC 4.1.2). The chip
+                   modifier in app.css is shared with Archive and PromptPicker, which each had
+                   their own copy of this control. *@
+                <div class="home__filters" role="group" aria-label="Filter models by type">
+                    @foreach (var f in _filters)
+                    {
+                        <button type="button"
+                                class="po-btn po-btn--sm po-btn--chip"
+                                aria-pressed="@(_modelFilter == f.Key ? "true" : "false")"
+                                @onclick="@(() => _modelFilter = f.Key)">
+                            @f.Label (@ModelCountFor(f.Key))
+                        </button>
+                    }
+                </div>
+                @* Grouped by type (Remote / Browser / Ollama) to mirror the Model Health panel.
+                   Models that cannot run on this device are held back behind the toggle below
+                   rather than rendered greyed-out inline: they were roughly half the list on a
+                   machine without WebGPU, and an unpickable card is scrolling, not choice. *@
+                @foreach (var _group in SelectableModels.GroupBy(m => m.ModelType).OrderBy(g => ModelTypeGroup.Order(g.Key)))
+                {
+                    <div class="home__group-header" @key="_group.Key">
+                        <span class="home__group-name">@ModelTypeGroup.Label(_group.Key)</span>
+                    </div>
+                    <div class="home__grid">
+                        @foreach (var model in _group)
+                        {
+                            var isLeft = model.ModelId == _leftModel?.ModelId;
+                            var isRight = model.ModelId == _rightModel?.ModelId;
+                            @* @key so filtering/selection reuses the existing card instead of
+                               rebuilding the whole grid's element tree on every click. *@
+                            <ModelCard @key="model.ModelId"
+                                       Model="model"
+                                       IsSelected="@(isLeft || isRight)"
+                                       Slot="@(isLeft ? "Left" : isRight ? "Right" : null)"
+                                       OnSelected="AssignModel" />
+                        }
+                    </div>
+                }
+                @if (!SelectableModels.Any())
+                {
+                    <p class="home__hint">No models of this type can run here right now.</p>
+                }
+
+                @if (UnavailableModels.Any())
+                {
+                    <button type="button" class="po-btn po-btn--sm po-btn--ghost home__unavailable-toggle"
+                            aria-expanded="@(_showUnavailable ? "true" : "false")"
+                            @onclick="@(() => _showUnavailable = !_showUnavailable)">
+                        @(_showUnavailable ? "▾" : "▸") @UnavailableModels.Count() model@(UnavailableModels.Count() == 1 ? "" : "s") can't run here
+                    </button>
+                    @if (_showUnavailable)
+                    {
+                        <p class="home__hint home__unavailable-why">@UnavailableReason</p>
+                        <div class="home__grid">
+                            @foreach (var model in UnavailableModels)
+                            {
+                                <div class="home__card-disabled" @key="model.ModelId">
+                                    @* IsDisabled drives tabindex/aria-disabled — the wrapper's
+                                       pointer-events:none blocks the mouse but not the keyboard. *@
+                                    <ModelCard Model="model" IsDisabled="true" />
+                                    <span class="home__card-badge">@(IsBrowserWithoutGpu(model) ? "Needs WebGPU" : "Unavailable")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            }
+
+        </section>
+
+        @* ── Right: the console (slots, prompt, Compare) ─────────────────
+           A plain div rather than an <aside>: it carries the primary action, so it is not
+           complementary content. Sticky, with only the top half scrolling, so Compare never
+           leaves the viewport however long the catalog gets. *@
+        <div id="@ConsoleId" class="home__console po-glass">
+            <div class="home__console-scroll">
+                <div class="home__slots">
+                    <div class="home__slot home__slot--left @(_leftModel is not null ? "home__slot--set" : "")">
+                        <span class="home__slot-tag home__slot-tag--left" aria-hidden="true">L</span>
+                        <span class="visually-hidden">Left:</span>
+                        <span class="home__slot-name">@(_leftModel?.DisplayName ?? "Empty")</span>
+                        @if (_leftModel is not null)
+                        {
+                            <button type="button" class="home__slot-clear"
+                                    aria-label="@($"Clear left slot ({_leftModel.DisplayName})")"
+                                    title="Clear this slot"
+                                    @onclick="@(() => ClearSlot(left: true))"><span aria-hidden="true">✕</span></button>
+                        }
+                    </div>
+                    <span class="home__slot-vs" aria-hidden="true">vs</span>
+                    <div class="home__slot home__slot--right @(_rightModel is not null ? "home__slot--set" : "")">
+                        <span class="home__slot-tag home__slot-tag--right" aria-hidden="true">R</span>
+                        <span class="visually-hidden">Right:</span>
+                        <span class="home__slot-name">@(_rightModel?.DisplayName ?? "Empty")</span>
+                        @if (_rightModel is not null)
+                        {
+                            <button type="button" class="home__slot-clear"
+                                    aria-label="@($"Clear right slot ({_rightModel.DisplayName})")"
+                                    title="Clear this slot"
+                                    @onclick="@(() => ClearSlot(left: false))"><span aria-hidden="true">✕</span></button>
+                        }
+                    </div>
+                </div>
+
+                <section class="home__prompt" aria-labelledby="home-prompt-heading">
+                    <div class="home__section-head">
+                        <h2 id="home-prompt-heading" class="po-section-title">Write your prompt</h2>
+                    </div>
+
+                    <textarea id="@PromptId"
+                              class="home__textarea @(_promptLongWarning || PromptFlagged ? "home__textarea--warn" : "")"
+                              aria-labelledby="home-prompt-heading"
+                              aria-describedby="home-prompt-counter home-compare-hint"
+                              aria-invalid="@(PromptFlagged ? "true" : null)"
+                              placeholder="e.g. Build a single-page HTML app that shows today's weather for any city the user types."
+                              rows="5"
+                              maxlength="@PromptRules.MaxPromptLength"
+                              @bind="_prompt"
+                              @bind:event="oninput"></textarea>
+                    <div class="home__textarea-meta">
+                        <span id="home-prompt-counter"
+                              class="@(_promptLongWarning ? "home__textarea-counter home__textarea-counter--warn" : "home__textarea-counter")">
+                            @_prompt.Length / @PromptRules.MaxPromptLength
+                        </span>
+                        @if (_promptLongWarning)
+                        {
+                            <span class="home__textarea-hint">Long prompts may be truncated or cost more.</span>
+                        }
+                    </div>
+
+                    @* One cheap model call that rewrites a rough prompt ("spinning bipeds") into a
+                       brief with explicit, checkable requirements. The result lands in the box
+                       above — both contestants and the judge then read the same target — and
+                       Undo puts the original back. Never automatic: it changes what is asked.
+                       Off unless Settings → Paid AI helpers is on. *@
+                    @if (Prefs.IsOn(Preference.Assistants))
+                    {
+                    <div class="home__sharpen">
+                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                title="Rewrites your prompt into a short brief with explicit requirements, so both models and the judge aim at the same thing"
+                                disabled="@(_sharpening || _prompt.Trim().Length < 3)"
+                                @onclick="SharpenPromptAsync">
+                            <span aria-hidden="true">✨</span> @(_sharpening ? "Sharpening…" : "Sharpen prompt")
+                        </button>
+                        @if (_promptBeforeSharpen is not null)
+                        {
+                            <button type="button" class="po-btn po-btn--sm po-btn--ghost" @onclick="UndoSharpen">Undo</button>
+                        }
+                        @* Always mounted — a live region inserted already filled is not announced. *@
+                        <span class="po-hint home__sharpen-note" role="status">@_sharpenNote</span>
+                    </div>
+                    }
+
+                    <PromptPicker CurrentPrompt="@_prompt"
+                                  OnPromptSelected="ApplyPromptAsync" />
+                </section>
+            </div>
+
+            <div class="home__console-foot">
+                <section class="home__compare" aria-label="Compare">
+                    <div class="home__compare-row">
+                        <p id="home-compare-hint" class="po-hint home__compare-copy" role="status">@CompareHint</p>
+                        <button type="button" class="po-btn po-btn--success po-btn--lg"
+                                disabled="@(!CanAttemptCompare)"
+                                @onclick="StartDuelAsync">
+                            Compare →
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <span class="home__error" role="alert">@_error</span>
+                    }
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? Prompt { get; set; }
+    // Bound straight from the query string. These used to be ignored in favour of ~50 lines
+    // that fetched window.location over JS interop and hand-parsed it, on the theory that the
+    // framework's matcher drops the second of two named parameters. The likelier culprit was
+    // Archive's re-run link, which put the prompt into the URL unescaped, so a prompt
+    // containing '&' or '=' corrupted every parameter after it.
+    [SupplyParameterFromQuery(Name = "leftModelId")] public string? LeftModelId { get; set; }
+    [SupplyParameterFromQuery(Name = "rightModelId")] public string? RightModelId { get; set; }
+
+    private List<ModelDto> _models = [];
+    private ModelDto? _leftModel;
+    private ModelDto? _rightModel;
+    private string _prompt = string.Empty;
+    private bool _loading = true;
+    private string? _loadError;
+    private string? _error;
+
+    private DuelApiClient.SmokeSnapshotDto? _health;
+    private IReadOnlyList<ModelAvailabilityDto>? _availability;
+    private bool _healthHasRemotes;
+
+    /// <summary>
+    /// The picker's status line: a third model clicked with both slots full, or why a suggested
+    /// matchup was suggested. Cleared by the next pick.
+    /// </summary>
+    private string? _pickerNote;
+
+    private bool _suggesting;
+
+    /// <summary>
+    /// The ±N a model with no judged duels reports — the Bradley–Terry prior (400 Elo × 1.96).
+    /// Used for a model the cached leaderboard does not list yet (one added from /catalog
+    /// moments ago), which is exactly the model a suggestion should favour.
+    /// </summary>
+    private const double UnratedInterval95 = 784;
+
+    // ── Models → prompt ───────────────────────────────────────────────────────
+    // Completing the pair moves you on to the prompt: the textarea takes focus and the console
+    // (slots + prompt) scrolls into view. Below 1080px the page is one column and the prompt
+    // sits under the picker, behind the fixed Compare bar on a short window — picking the
+    // second model left you looking at a list with no visible next step.
+    private const string ConsoleId = "home-console";
+    private const string PromptId = "home-prompt";
+    private bool _focusPrompt;
+
+    // Held for the whole CommenceDuel round-trip. Without it the button stayed enabled until
+    // the Arena navigation landed, so a double-click started two duels.
+    private bool _starting;
+    private bool? _webGpuSupported;   // null = not yet probed
+
+
+    private bool HasModels => _leftModel is not null && _rightModel is not null && _leftModel.ModelId != _rightModel.ModelId;
+    private bool SameModelSelected => _leftModel is not null && _rightModel is not null && _leftModel.ModelId == _rightModel.ModelId;
+    private bool HasPrompt => !string.IsNullOrWhiteSpace(_prompt);
+    // Length check shared with the API so a too-short prompt never reaches the network and the
+    // 400 comes back as a raw `net_http_message_not_success_statuscode_reason`. The threshold
+    // is sourced from PromptRules (re-exported by CommenceDuelCommand) — keeping both in lock-
+    // step means a change to the server's minimum is reflected in the UI automatically.
+    private bool PromptMeetsMinimum => _prompt.Trim().Length >= PromptRules.MinPromptLength;
+    private bool PromptWithinMaximum => _prompt.Length <= PromptRules.MaxPromptLength;
+    private bool CanCompare => HasModels && HasPrompt && PromptMeetsMinimum && PromptWithinMaximum;
+
+    /// <summary>
+    /// Whether Compare is pressable — the Tournament's rule, so the app's two start buttons
+    /// behave alike. Missing models disable it: they are not fixed from the button. A missing
+    /// or short prompt does not: it is fixed one field up, so the click goes there instead of
+    /// meeting a disabled button that cannot be clicked to find out why.
+    /// </summary>
+    private bool CanAttemptCompare => HasModels && !_starting;
+
+    /// <summary>Set by a Compare click with no usable prompt; the box turns amber until fixed.</summary>
+    private bool _promptNudged;
+
+    private bool PromptFlagged => _promptNudged && !(HasPrompt && PromptMeetsMinimum);
+    private bool _promptLongWarning => _prompt.Length > PromptRules.MaxPromptLength * 0.8;
+
+    private string CompareHint => (HasModels, SameModelSelected, HasPrompt, PromptMeetsMinimum) switch
+    {
+        // Same-model case must come before the "no models" arm: both slots are filled and
+        // `HasModels` short-circuits to false when they are the same model, so checking it
+        // first would mis-label the page as "Pick two models above" when the user has in
+        // fact picked two — just the same one twice.
+        (_, true, _, _) => "Pick two different models — a duel against the same model twice is not a duel.",
+        (false, _, _, _) => "Pick two models above to enable Compare.",
+        (true, false, false, _) => "Write a prompt to start the duel.",
+        (true, false, true, false) => $"Prompt must be at least {PromptRules.MinPromptLength} characters.",
+        (true, false, true, _) => "Ready."
+    };
+
+    // ── Model-type filter for the picker (keeps the mobile list scannable) ──
+    private string _modelFilter = "all";
+    private static readonly (string Key, string Label)[] _filters =
+    [
+        ("all", "All"),
+        ("remote", "Remote"),
+        ("browser", "Browser"),
+        ("ollama", "Ollama"),
+    ];
+
+    private bool _showUnavailable;
+
+    private IEnumerable<ModelDto> FilteredModels => _models.Where(MatchesFilter);
+
+    // ── Availability split ───────────────────────────────────────────────────
+    // A model the device cannot run is not a choice, so it does not belong in the choosing
+    // list. Both halves come from the same filter so the type chips still add up.
+    private bool IsBrowserWithoutGpu(ModelDto m) => m.ModelType == ModelType.Local && _webGpuSupported == false;
+
+    private bool IsRemoteOffline(ModelDto m) =>
+        _health is not null && !_healthHasRemotes && m.ModelType == ModelType.Remote;
+
+    private bool IsUnavailable(ModelDto m) => IsBrowserWithoutGpu(m) || IsRemoteOffline(m);
+
+    private IEnumerable<ModelDto> SelectableModels => FilteredModels.Where(m => !IsUnavailable(m));
+
+    private IEnumerable<ModelDto> UnavailableModels => FilteredModels.Where(IsUnavailable);
+
+    private string UnavailableReason => UnavailableModels.Any(IsBrowserWithoutGpu)
+        ? "Browser models need WebGPU (desktop Chrome or Edge). Remote and Ollama models run elsewhere and are unaffected."
+        : "Remote (Azure AI Foundry) deployments are unreachable right now.";
+
+    private bool MatchesFilter(ModelDto m) => _modelFilter switch
+    {
+        "remote"  => m.ModelType == ModelType.Remote,
+        "browser" => m.ModelType == ModelType.Local,
+        "ollama"  => m.ModelType == ModelType.LocalService,
+        _         => true,
+    };
+
+    private int ModelCountFor(string key) => key switch
+    {
+        "remote"  => _models.Count(m => m.ModelType == ModelType.Remote),
+        "browser" => _models.Count(m => m.ModelType == ModelType.Local),
+        "ollama"  => _models.Count(m => m.ModelType == ModelType.LocalService),
+        _         => _models.Count,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _prompt = Prompt ?? string.Empty;
+        await LoadAsync();
+    }
+
+    // ── Prompt sourcing ──────────────────────────────────────────────────────
+
+    private void ApplyPromptAsync(string text)
+    {
+        _prompt = text;
+        _promptBeforeSharpen = null;
+        _sharpenNote = null;
+    }
+
+    // ── Sharpen ──────────────────────────────────────────────────────────────
+    private bool _sharpening;
+    private string? _promptBeforeSharpen;
+    private string? _sharpenNote;
+
+    private async Task SharpenPromptAsync()
+    {
+        if (_sharpening) return;
+        _sharpening = true;
+        _sharpenNote = null;
+        _ = AudioService.PlayTickAsync();
+
+        var original = _prompt;
+        try
+        {
+            var brief = await ApiClient.RefinePromptAsync(original.Trim());
+            // Typed over while the call was out: the newer text wins, the brief is dropped.
+            if (!string.Equals(_prompt, original, StringComparison.Ordinal)) return;
+
+            _promptBeforeSharpen = original;
+            _prompt = brief;
+            _sharpenNote = "Rewritten as a brief — edit it, or undo.";
+        }
+        catch (Exception ex) when (ex is DuelApiClient.DuelStartException or HttpRequestException or TaskCanceledException)
+        {
+            _sharpenNote = ex is DuelApiClient.DuelStartException ? ex.Message : "Could not reach the server. Your prompt is unchanged.";
+        }
+        finally
+        {
+            _sharpening = false;
+        }
+    }
+
+    private void UndoSharpen()
+    {
+        if (_promptBeforeSharpen is null) return;
+        _ = AudioService.PlayTickAsync();
+        _prompt = _promptBeforeSharpen;
+        _promptBeforeSharpen = null;
+        _sharpenNote = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPrompt)
+        {
+            _focusPrompt = false;
+            await JS.InvokeVoidAsync("focusElement", PromptId, ConsoleId);
+        }
+        if (!firstRender) return;
+        // Probe real WebGPU capability so Browser models can be gated when they can't run.
+        // Goes through WebGpuCapability so the adapter/device is requested once per page load.
+        var probe = await WebGpu.GetAsync();
+        _webGpuSupported = probe?.Supported;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Loads the catalog, then folds the health signals in behind it.
+    /// </summary>
+    /// <remarks>
+    /// The three calls still start together, but <c>_loading</c> is now cleared as soon as
+    /// GET /api/models lands rather than after all three have. That ordering was costing real
+    /// time: GET /api/models/availability sends a REAL 16-token completion to every Foundry
+    /// deployment before it answers, so it is the slowest of the three by design — measured at
+    /// 4,850ms against 2,630ms for the model list on a warm local run, and unbounded when a
+    /// deployment is unreachable. Awaiting it here held the entire picker behind a skeleton for
+    /// those extra 2.2 seconds, to decide a badge in the header and which cards to hold back
+    /// behind the "can't run here" toggle — neither of which the first paint needs.
+    ///
+    /// The 12s guard is kept on the model list, which IS the page. The health continuation is
+    /// deliberately unguarded and deliberately not awaited: if it never returns, the page stays
+    /// exactly as it is, with every model selectable, which is the correct degradation.
+    /// </remarks>
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        var healthTask = ApiClient.GetSmokeSnapshotAsync();
+        var availabilityTask = ApiClient.GetModelAvailabilityAsync();
+
+        try
+        {
+            var modelsTask = ApiClient.GetModelsAsync();
+
+            var completed = await Task.WhenAny(modelsTask, Task.Delay(TimeSpan.FromSeconds(12)));
+            if (completed != modelsTask)
+            {
+                _loadError = "Model loading is taking longer than expected.";
+                return;
+            }
+
+            _models = (await modelsTask)?.ToList() ?? [];
+
+            if (!string.IsNullOrWhiteSpace(LeftModelId))
+                _leftModel = _models.FirstOrDefault(m => string.Equals(m.ModelId.Value, LeftModelId, StringComparison.Ordinal));
+            if (!string.IsNullOrWhiteSpace(RightModelId))
+                _rightModel = _models.FirstOrDefault(m => string.Equals(m.ModelId.Value, RightModelId, StringComparison.Ordinal));
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load models: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        _ = ApplyHealthWhenReadyAsync(healthTask, availabilityTask);
+    }
+
+    /// <summary>
+    /// Folds the health snapshot and the availability probe into the page once they land,
+    /// after the catalog is already on screen. A failure leaves <c>_health</c> null, which is
+    /// the same state as "not probed yet": the badge and the unavailable-models split both
+    /// render only when it is non-null, so nothing on the page claims knowledge it lacks.
+    /// </summary>
+    private async Task ApplyHealthWhenReadyAsync(
+        Task<DuelApiClient.SmokeSnapshotDto?> healthTask,
+        Task<IReadOnlyList<ModelAvailabilityDto>?> availabilityTask)
+    {
+        try
+        {
+            // Assigned together, after BOTH land. _health used to be set the moment the fast
+            // call returned, and for the ~5 s the availability probe takes _healthHasRemotes was
+            // still false — so any render in that window claimed Azure was down and moved every
+            // remote model under "can't run here" (and the starter duel picked around them).
+            var health = await healthTask;
+            var availability = await availabilityTask;
+            _healthHasRemotes = _models.Any(m => m.ModelType == ModelType.Remote)
+                && health?.Models.CloudMode != true; // CloudMode hides remotes if Azure is up
+            _availability = availability;
+            _health = health;
+        }
+        catch
+        {
+            // Leave the page as it is — every model stays selectable, which is what the user
+            // gets anyway when the probe says nothing useful.
+            return;
+        }
+
+        // InvokeAsync, because this runs on the continuation of a request rather than on a
+        // lifecycle method — the renderer's synchronisation context is not guaranteed here.
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AssignModel(ModelDto model)
+    {
+        _pickerNote = null;
+
+        // Both slots full + clicking a 3rd → never overwrite silently, and never guess which
+        // side was meant. Each slot has its own clear button; say so.
+        if (_leftModel is not null && _rightModel is not null
+            && model.ModelId != _leftModel.ModelId
+            && model.ModelId != _rightModel.ModelId)
+        {
+            _ = AudioService.PlayTickAsync();
+            _pickerNote = $"Both slots are full — clear one (✕ beside its name) to swap in {model.DisplayName}.";
+            return;
+        }
+
+        // Click selected → unselect.
+        if (_leftModel?.ModelId == model.ModelId) { _ = AudioService.PlayTickAsync(); _leftModel = null; return; }
+        if (_rightModel?.ModelId == model.ModelId) { _ = AudioService.PlayTickAsync(); _rightModel = null; return; }
+
+        // Filling a slot plays the model's own motif from that slot's side — the same four
+        // notes it plays when it wins in the Arena.
+        var left = _leftModel is null;
+        _ = AudioService.PlayMotifAsync(model.ModelId, model.ModelType, left ? -0.5 : 0.5);
+
+        // Fill empty slot first.
+        if (left) { _leftModel = model; _focusPrompt = _rightModel is not null; return; }
+        _rightModel = model;
+        // The pair is complete — on to the prompt. Not on any later edit:
+        // this runs only when the second slot is filled.
+        _focusPrompt = true;
+    }
+
+    /// <summary>The slot's own ✕. Focus stays on the page; the next card picked fills the gap.</summary>
+    private void ClearSlot(bool left)
+    {
+        _ = AudioService.PlayTickAsync();
+        _pickerNote = null;
+        if (left) _leftModel = null;
+        else _rightModel = null;
+    }
+
+    private void LoadStarterDuel()
+    {
+        _ = AudioService.PlayTickAsync();
+        // Pre-fill prompt and pick two models. Prefer Remote (Azure) if available so starter
+        // duel works on any device. Fall back to Ollama, then whatever is available.
+        // Only models this device can run and the health probe has not failed — the picker
+        // hides the rest, so the starter duel must not quietly hand them back.
+        var ordered = _models
+            .Where(m => !IsUnavailable(m) && _availability?.FirstOrDefault(a => a.ModelId == m.ModelId)?.IsAvailable != false)
+            .OrderBy(m => m.ModelType switch { ModelType.Remote => 0, ModelType.LocalService => 1, _ => 2 })
+            // Cheapest priced models first, unpriced last: in catalog order a first-time user's
+            // one click could land on GPT-5.5 at $40/M output tokens for a click counter.
+            .ThenBy(m => m.OutputTokenPricePerMillion ?? decimal.MaxValue)
+            .ToList();
+        _leftModel ??= ordered.ElementAtOrDefault(0);
+        _rightModel ??= ordered.FirstOrDefault(m => m.ModelId != _leftModel?.ModelId);
+        _prompt = "Build a self-contained single HTML file with a click-counter app: a centered card showing a large number and a button. Clicking increments the count. Use a clean modern design with rounded corners and a gradient background.";
+    }
+
+    /// <summary>
+    /// Fills the empty slot(s) with the duel whose result the leaderboard learns most from — see
+    /// <see cref="MatchupPicker"/>. Browser models are left out unless one is already picked: a
+    /// suggestion should start now, not after a multi-gigabyte download.
+    /// </summary>
+    private async Task SuggestMatchupAsync()
+    {
+        if (_suggesting) return;
+        _suggesting = true;
+        _pickerNote = null;
+        _ = AudioService.PlayTickAsync();
+
+        try
+        {
+            var board = (await ApiClient.GetLeaderboardAsync())?.ToDictionary(e => e.ModelId) ?? [];
+            var anchor = _leftModel ?? _rightModel;
+            var candidates = _models
+                .Where(m => m.ModelId == anchor?.ModelId
+                    || (m.ModelType != ModelType.Local && !IsUnavailable(m)
+                        && _availability?.FirstOrDefault(a => a.ModelId == m.ModelId)?.IsAvailable != false))
+                .Select(m => board.TryGetValue(m.ModelId, out var e)
+                    ? new MatchupPicker.Candidate(m.ModelId, e.Strength, e.RatingInterval)
+                    : new MatchupPicker.Candidate(m.ModelId, m.CurrentElo, UnratedInterval95))
+                .ToList();
+
+            if (MatchupPicker.Suggest(candidates, anchor?.ModelId) is not { } pick)
+            {
+                _pickerNote = "There are not enough runnable models to suggest a duel.";
+                return;
+            }
+
+            var first = _models.First(m => m.ModelId == pick.Left);
+            var second = _models.First(m => m.ModelId == pick.Right);
+            if (anchor is null) (_leftModel, _rightModel) = (first, second);
+            else if (_leftModel is null) _leftModel = second;
+            else _rightModel = second;
+
+            _pickerNote = $"{_leftModel!.DisplayName} vs {_rightModel!.DisplayName}: closely matched, with the least-settled ratings — the result moves the leaderboard most.";
+            _focusPrompt = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _pickerNote = "Could not reach the leaderboard to suggest a duel.";
+        }
+        finally
+        {
+            _suggesting = false;
+        }
+    }
+
+    private async Task StartDuelAsync()
+    {
+        if (!CanAttemptCompare) return;
+        var promptValidation = await PromptValidator.ValidateAsync(new RefinePromptRequest(_prompt));
+        if (!promptValidation.IsValid)
+        {
+            _promptNudged = true;
+            _focusPrompt = true;
+            _error = promptValidation.Errors[0].ErrorMessage;
+            Notify.Error("Check your prompt", _error);
+            return;
+        }
+        if (!CanCompare)
+        {
+            _promptNudged = true;
+            _focusPrompt = true;
+            return;
+        }
+        if (SameModelSelected)
+        {
+            _error = "Pick two different models — a duel against the same model twice is not a duel.";
+            Notify.Error("Invalid matchup", _error);
+            return;
+        }
+        _error = null;
+        _starting = true;
+
+        try
+        {
+            await JS.InvokeVoidAsync("poNotify.ask");
+            _ = AudioService.PlayLaunchAsync();
+            _ = Fx.BurstFromAsync(".home__compare .po-btn", 40);
+
+            var dto = await ApiClient.CommenceDuelAsync(
+                _leftModel!.ModelId, _rightModel!.ModelId, _prompt);
+            if (dto is not null)
+                await NavigateToArenaAsync(dto.DuelId);
+            else
+                _error = "Could not start the duel. Please try again.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to start duel: {ex.Message}";
+            Notify.Error("Duel failed to start", _error);
+        }
+        finally
+        {
+            // Left set on success: the page is navigating away, and re-enabling the button for
+            // the frames before it does is exactly the double-start window being closed.
+            if (_error is not null) _starting = false;
+        }
+    }
+
+    /// <summary>
+    /// Opens the Arena through a view transition: the two slots morph into the two viewport
+    /// panels (matching view-transition-names in the two stylesheets). The transition waits for
+    /// the viewports to exist, because the Arena renders a loading line first.
+    /// </summary>
+    private async Task NavigateToArenaAsync(DuelId duelId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("poWow.navigate", $"/arena/{duelId}", ".arena__viewports");
+        }
+        catch (JSException)
+        {
+            // wow.js missing or View Transitions unsupported and the fallback threw: navigate plainly.
+            Nav.NavigateTo($"/arena/{duelId}");
+        }
+    }
+
+}

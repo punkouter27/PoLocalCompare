@@ -1,0 +1,38 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
+@inject IWebAssemblyHostEnvironment HostEnv
+
+<RadzenComponents />
+
+<div class="bare-layout">
+    <main class="bare-layout__main">
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent Context="ex">
+                <div class="bare-layout__error">
+                    @if (HostEnv.IsDevelopment() || HostEnv.IsEnvironment("Test"))
+                    {
+                        <h4>Unhandled Exception (@HostEnv.Environment)</h4>
+                        <p><strong>@ex.GetType().FullName</strong>: @ex.Message</p>
+                    }
+                    else
+                    {
+                        <p>An unexpected error occurred. Please reload and try again.</p>
+                    }
+                    <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="Recover">Retry</button>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+    <BuildVersion />
+</div>
+
+@code {
+    private ErrorBoundary? _errorBoundary;
+
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
+
+    private void Recover() => _errorBoundary?.Recover();
+}

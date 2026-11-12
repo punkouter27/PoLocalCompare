@@ -1,23 +1,14 @@
 <Project>
   <PropertyGroup>
-    <PoSolutionName>PoLocalCompare</PoSolutionName>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Standards mandate C# 15; the installed .NET 10 SDK tops out at 14, so `latest`
-         tracks the newest version the toolchain supports and rolls forward automatically. -->
-    <LangVersion>latest</LangVersion>
-    <!-- Fail the build on a NuGet advisory rather than emitting a warning nobody reads. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
-    <MinVerTagPrefix>v</MinVerTagPrefix>
-    <MinVerDefaultPreReleaseIdentifiers>preview.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
-
-
-  <ItemGroup>
-    <PackageReference Include="MinVer" PrivateAssets="all" />
-    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
-  </ItemGroup>
 </Project>

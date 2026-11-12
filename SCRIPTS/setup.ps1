@@ -8,7 +8,7 @@
     local mock keys so the app runs first-time without manual steps.
 
     Run from the repo root:
-        pwsh SCRIPTS/setup.ps1
+        pwsh scripts/setup.ps1
 
 .NOTES
     Standards §9 & §10 — One-Command Setup & Portability.

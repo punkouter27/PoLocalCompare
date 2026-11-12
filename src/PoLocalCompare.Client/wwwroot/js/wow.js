@@ -92,7 +92,7 @@ window.poWow = (() => {
 
     // ── 2. Leaderboard reshuffle ─────────────────────────────────────────────
 
-    const RANKS_KEY = 'polocalcompare.lastRanks';
+    const RANKS_KEY = 'polocalcompare:last-ranks';
 
     /**
      * Compares the board against what this viewer saw last time, stores the new standing, and

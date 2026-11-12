@@ -1,0 +1,482 @@
+@page "/model/{ModelIdText}"
+@using PoLocalCompare.Shared.Analysis
+@using PoLocalCompare.Shared.DTOs
+@using PoLocalCompare.Shared.Enums
+@inject DuelApiClient ApiClient
+@inject PreferencesService Prefs
+
+@if (!Embedded)
+{
+    <PageTitle>@(_profile?.DisplayName ?? "Model") · PoLocalCompare</PageTitle>
+}
+
+@* ── Model profile ────────────────────────────────────────────────────────
+   The destination the leaderboard never had. Every column in that table was terminal: you
+   could sort models but not open one. This is where a model's own record lives — standing,
+   rating curve, who it has beaten, what it costs, and the gallery, which is the only place
+   in the app that shows what a model actually produces without a duel wrapped around it.
+
+   The kill list moved here wholesale from the leaderboard's expanding panel. It answers a
+   question about one model, so it belongs on that model's page rather than in a drawer under
+   a table of all of them.
+
+   Embedded: the same component is the Leaderboard's side panel from 1024px, so picking a row
+   shows the profile beside the board instead of replacing it. Its layout answers to its own
+   width (a container query on .profile), not the window's — the panel is phone-width on a
+   desktop. *@
+<div class="profile @(Embedded ? "profile--embedded" : "po-page po-page--wide")">
+    @if (_loading)
+    {
+        <p class="po-status">Loading model…</p>
+    }
+    else if (_error is not null)
+    {
+        <p class="po-error" role="status">@_error</p>
+    }
+    else if (_profile is null)
+    {
+        <EmptyState Icon="❓"
+                    IsPageHeading="@(!Embedded)"
+                    Title="Model not found"
+                    Hint="No model with that id — it may have been retired from the catalog since the link was made."
+                    Actions="@(new[] {
+                        new EmptyStateAction("View leaderboard", "/leaderboard", EmptyStateActionVariant.Primary),
+                        new EmptyStateAction("Open catalog", "/catalog", EmptyStateActionVariant.Ghost)
+                    })" />
+    }
+    else
+    {
+        @* The landing spot of the leaderboard → profile morph: .profile__card is the selector
+           the Leaderboard's data-vt link waits for (wow.js navigate). *@
+        <header class="profile__header profile__card po-header po-glass">
+            <div class="profile__identity">
+                @if (Embedded)
+                {
+                    <h2 class="po-title">@_profile.DisplayName</h2>
+                }
+                else
+                {
+                    <h1 class="po-title">@_profile.DisplayName</h1>
+                }
+                <ModelTypeBadge Type="_profile.ModelType" Variant="ModelTypeBadgeVariant.Long" />
+            </div>
+
+            <div class="profile__standing">
+                @if (_profile.Rank > 0)
+                {
+                    <span class="profile__rank">#@_profile.Rank</span>
+                }
+                else
+                {
+                    <span class="profile__rank profile__rank--unranked" title="No judged duels yet">Unranked</span>
+                }
+                <span class="profile__elo">@((int)Math.Round(_profile.CurrentElo)) ELO</span>
+                <span class="profile__ci"
+                      title="@($"95% interval on strength: {_profile.Strength - _profile.RatingInterval:F0}–{_profile.Strength + _profile.RatingInterval:F0}, from a Bradley–Terry fit over every judged duel.")">
+                    ±@((int)Math.Round(_profile.RatingInterval))
+                </span>
+                @if (_profile.IsProvisional)
+                {
+                    <span class="profile__provisional" title="Fewer than 10 judged duels — this rating will still move a lot.">provisional</span>
+                }
+            </div>
+        </header>
+
+        @* ── Stat strip ────────────────────────────────────────────────────
+           Costs and speed sit beside the record deliberately: "is it good" and "what does it
+           cost to be that good" are the same decision, and splitting them across two surfaces
+           is what made the leaderboard's Value column need a paragraph of tooltip.
+
+           profile__overview puts the stats beside the rating curve from 1024px up, so the
+           --wide page does not stretch four stat tiles and a chart across 1400px each. *@
+        var hasHistory = _profile.EloHistory.Count > 1 || _profile.Highlights.PeakElo is not null;
+        <div class="profile__overview @(hasHistory ? "profile__overview--split" : null)">
+            <dl class="profile__stats">
+                <div class="profile__stat">
+                    <dt title="Wins–losses–ties, and win rate">Record</dt>
+                    <dd>@_profile.WinCount–@_profile.LossCount–@_profile.DrawCount@(_profile.DuelCount > 0 ? $" ({_profile.WinRate * 100:F0}%)" : "")</dd>
+                </div>
+                <div class="profile__stat">
+                    <dt>Avg speed</dt>
+                    <dd>@(_profile.AvgTokenVelocity.HasValue ? $"{_profile.AvgTokenVelocity:F0} tok/s" : "—")</dd>
+                </div>
+                <div class="profile__stat">
+                    <dt>Avg cost<span class="visually-hidden"> per duel</span></dt>
+                    <dd>
+                        @if (_profile.AvgApiCostPerDuel.HasValue)
+                        {
+                            <span>$@_profile.AvgApiCostPerDuel.Value.ToString("F4")</span>
+                        }
+                        else
+                        {
+                            <span class="profile__no-data" title="Runs locally, or has no priced duels yet">free</span>
+                        }
+                    </dd>
+                </div>
+                <div class="profile__stat">
+                    <dt>Output quality</dt>
+                    <dd>@(_profile.OutputQualityAvg.HasValue ? $"{_profile.OutputQualityAvg:F0}/100" : "—")</dd>
+                </div>
+            </dl>
+
+            @* ── Rating curve ──────────────────────────────────────────────────
+               The curve, one caption line of its highlights, then the upsets. Upsets are judged on
+               the ratings at the time of the duel, not today's: beating a model that was 1400 then
+               is an upset even if it has since fallen to 1100. *@
+            @if (hasHistory)
+            {
+                var highlights = _profile.Highlights;
+                <section class="po-section profile__history" aria-labelledby="profile-elo-heading">
+                    <h2 id="profile-elo-heading" class="po-section-title">Rating history</h2>
+                    @if (_profile.EloHistory.Count > 1)
+                    {
+                        @* Inline SVG: one polyline for the rating and a dashed line at the starting
+                           rating, because "did this model end above where it started" is the question
+                           the curve exists to answer. The peak and upsets are stated as text below.
+                           preserveAspectRatio="none" stretches it to the box; non-scaling-stroke keeps
+                           the lines crisp. Colours come from tokens via CSS stroke, not attributes. *@
+                        <div class="profile__chart-wrap" role="img" aria-label="@ChartDescription">
+                            <div class="profile__chart-axis" aria-hidden="true">
+                                <span>@_chartMax.ToString("F0", Inv)</span>
+                                <span>@_chartMin.ToString("F0", Inv)</span>
+                            </div>
+                            <svg class="profile__chart" viewBox="0 0 @ChartWidth @ChartHeight" preserveAspectRatio="none" aria-hidden="true">
+                                <line class="profile__chart-base" x1="0" x2="@ChartWidth"
+                                      y1="@Y(StartingElo)" y2="@Y(StartingElo)" vector-effect="non-scaling-stroke" />
+                                <polyline class="profile__chart-line" points="@_chartPoints" vector-effect="non-scaling-stroke" />
+                            </svg>
+                            <div class="profile__chart-dates" aria-hidden="true">
+                                <span>@_profile.EloHistory[0].At.ToLocalTime().ToString("MMM d", Inv)</span>
+                                <span>@_profile.EloHistory[^1].At.ToLocalTime().ToString("MMM d", Inv)</span>
+                            </div>
+                        </div>
+                    }
+
+                    @if (highlights.PeakElo is { } peak)
+                    {
+                        <p class="po-hint profile__highlights">
+                            Peak @((int)Math.Round(peak))@(highlights.PeakAt is { } peakAt ? $" on {peakAt.ToLocalTime():yyyy-MM-dd}" : "")@(highlights.LongestWinStreak > 0 ? $" · longest win streak {highlights.LongestWinStreak}" : "")
+                        </p>
+                    }
+
+                    @* The curve's causes: every history row already records who it was against and
+                       what it was worth, and a drop on the line means nothing until you can see that.
+                       Newest first, each one a link to the duel that moved it. *@
+                    @if (RecentChanges.Count > 0)
+                    {
+                        <h3 class="profile__changes-title">Recent rating changes</h3>
+                        <ol class="profile__changes">
+                            @foreach (var point in RecentChanges)
+                            {
+                                <li @key="point.DuelId" class="profile__change">
+                                    <span class="profile__shift @ShiftClass(point.Shift)">@(point.Shift >= 0 ? "+" : "−")@Math.Abs(point.Shift).ToString("F1", Inv)</span>
+                                    <a class="profile__opponent" href="@($"/arena/{point.DuelId}")">@point.Outcome vs @point.OpponentName</a>
+                                    <span class="profile__change-meta">@point.Elo.ToString("F0", Inv) · @point.At.ToLocalTime().ToString("MMM d", Inv)</span>
+                                </li>
+                            }
+                        </ol>
+                    }
+                </section>
+
+                @* Its own grid item, not the tail of the history section: from 1024px it sits
+                   under the stat tiles, in the column that used to be ~300px of empty space
+                   beside the chart, which pulls the kill list up by the same amount. Below
+                   that it follows the chart, as it always did. *@
+                @if (highlights.Upsets.Count > 0)
+                {
+                    <section class="profile__upsets-block" aria-labelledby="profile-upsets-heading">
+                        <h2 id="profile-upsets-heading" class="po-section-title">Biggest upsets</h2>
+                        <ol class="profile__upsets">
+                            @foreach (var upset in highlights.Upsets)
+                            {
+                                <li @key="upset.DuelId">
+                                    <a class="profile__opponent" href="@($"/arena/{upset.DuelId}")">
+                                        Beat @upset.OpponentName
+                                    </a>
+                                    <span class="profile__upset-meta">
+                                        rated @upset.RatingGap.ToString("F0") higher at the time · +@upset.Shift.ToString("F1") ELO ·
+                                        @upset.At.ToLocalTime().ToString("yyyy-MM-dd")
+                                    </span>
+                                </li>
+                            }
+                        </ol>
+                    </section>
+                }
+            }
+        </div>
+
+        @* ── Kill list ─────────────────────────────────────────────────────
+           Moved from the leaderboard's drawer. Rematch is kept: it was the one thing the
+           deleted /h2h page offered that the table did not. *@
+        <section class="po-section" aria-labelledby="profile-killlist-heading">
+            <h2 id="profile-killlist-heading" class="po-section-title">Kill list</h2>
+
+            @if (_profile.KillList.Count == 0)
+            {
+                <p class="po-status">No head-to-head history yet.</p>
+            }
+            else
+            {
+                <div class="po-table-wrap">
+                    <table class="po-table po-table--cards profile__killlist">
+                        <caption class="visually-hidden">Head-to-head record against each opponent</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Opponent</th>
+                                <th scope="col" title="Wins/losses/ties, and win rate">Record</th>
+                                <th scope="col">Last duel</th>
+                                <th scope="col"><span class="visually-hidden">Rematch</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _profile.KillList)
+                            {
+                                var total = row.Wins + row.Losses + row.Draws;
+                                var pct = total > 0 ? (row.Wins * 100.0 / total) : 0;
+                                <tr @key="row.OpponentModelId">
+                                    <td data-label="Opponent" class="profile__killlist-name">
+                                        <a class="profile__opponent" href="@ProfileHref(row.OpponentModelId)">@row.OpponentName</a>
+                                    </td>
+                                    <td data-label="Record" class="profile__killlist-record">@row.Wins/@row.Losses/@row.Draws@(total > 0 ? $" ({pct:F0}%)" : "")</td>
+                                    <td class="po-cell--secondary" data-label="Last duel">@(row.LastDuelAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                                    <td class="po-cell--bare">
+                                        <a class="po-btn po-btn--sm po-btn--secondary"
+                                           href="@RematchHref(row)"
+                                           title="@($"Set up {_profile.DisplayName} vs {row.OpponentName} on the compare page")">
+                                            ⚔ Rematch
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        @* ── Scouting report ───────────────────────────────────────────────
+           The judge's analyses, read twenty at a time for habits instead of one duel at a time.
+           Fetched after the profile — writing one is a model call — and absent rather than an
+           error when the model has too few AI-judged duels. It never feeds ELO. Below the kill
+           list so its late arrival does not shove the record down. *@
+        @if (_scout is not null)
+        {
+            <section class="po-section" aria-labelledby="profile-scout-heading">
+                <h2 id="profile-scout-heading" class="po-section-title">Scouting report</h2>
+                @if (_scout.Summary.Length > 0)
+                {
+                    <p class="profile__scout-summary">@_scout.Summary</p>
+                }
+                <div class="profile__scout-lists">
+                    @if (_scout.Strengths.Count > 0)
+                    {
+                        <div class="profile__scout-col profile__scout-col--good">
+                            <h3 class="profile__scout-label">Strong at</h3>
+                            <ul class="profile__scout-list">
+                                @foreach (var line in _scout.Strengths) { <li>@line</li> }
+                            </ul>
+                        </div>
+                    }
+                    @if (_scout.Weaknesses.Count > 0)
+                    {
+                        <div class="profile__scout-col profile__scout-col--bad">
+                            <h3 class="profile__scout-label">Weak at</h3>
+                            <ul class="profile__scout-list">
+                                @foreach (var line in _scout.Weaknesses) { <li>@line</li> }
+                            </ul>
+                        </div>
+                    }
+                </div>
+                <p class="po-hint">From the judge's notes on its last @_scout.DuelsRead AI-judged duel@(_scout.DuelsRead == 1 ? "" : "s"). Habits, not verdicts — it never moves the rating.</p>
+            </section>
+        }
+        else if (_scoutLoading)
+        {
+            <p class="po-status" role="status">Reading the judge's notes…</p>
+        }
+
+        @* ── Gallery ───────────────────────────────────────────────────────
+           Live sandboxed iframes, not screenshots. Same sandbox as the Arena's viewport —
+           allow-scripts with no allow-same-origin — so a generated document still cannot reach
+           the parent frame, cookies or localStorage. Each frame lays out at 320x180 — the size the
+           models are told to design for — and is scaled to its tile's width in CSS. No
+           loading="lazy": there are at most GalleryLimit frames, and the Arena's frame does not
+           lazy-load either. *@
+        @if (_profile.WinningOutputs.Count > 0)
+        {
+            <section class="po-section" aria-labelledby="profile-gallery-heading">
+                <h2 id="profile-gallery-heading" class="po-section-title">Winning outputs</h2>
+                <p class="po-hint">
+                    The most recent @_profile.WinningOutputs.Count duel@(_profile.WinningOutputs.Count == 1 ? "" : "s") this model won.
+                </p>
+
+                <div class="profile__gallery">
+                    @foreach (var item in _profile.WinningOutputs)
+                    {
+                        <a class="profile__gallery-item po-lift" href="@($"/arena/{item.DuelId}")" @key="item.DuelId">
+                            <div class="profile__gallery-frame">
+                                <iframe srcdoc="@HtmlPreview.Normalize(item.HtmlOutputRaw)"
+                                        sandbox="allow-scripts"
+                                        title="@($"Output for: {item.PromptSummary}")"
+                                        class="profile__gallery-iframe"
+                                        tabindex="-1"
+                                        aria-hidden="true"></iframe>
+                                @* Transparent cover: without it every click lands inside the
+                                   generated document instead of on the link wrapping it. *@
+                                <span class="profile__gallery-cover" aria-hidden="true"></span>
+                            </div>
+                            <span class="profile__gallery-prompt">@Truncate(item.PromptSummary, 80)</span>
+                            <span class="profile__gallery-meta">
+                                beat @item.OpponentName · @item.WonAt.ToLocalTime().ToString("yyyy-MM-dd")
+                            </span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string ModelIdText { get; set; } = string.Empty;
+
+    /// <summary>Rendered inside the Leaderboard's side panel rather than as its own page.</summary>
+    [Parameter] public bool Embedded { get; set; }
+
+    private ModelProfileDto? _profile;
+
+    /// <summary>An opponent opens in the same place this profile is showing.</summary>
+    private string ProfileHref(ModelId id) =>
+        Embedded ? $"/leaderboard?model={Uri.EscapeDataString(id.Value)}" : $"/model/{id}";
+    private bool _loading = true;
+    private string? _error;
+
+    private ScoutingReportDto? _scout;
+    private bool _scoutLoading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // OnParametersSetAsync, not OnInitializedAsync: the kill list links model to model, so
+        // navigating from one profile to another reuses this component instance and an
+        // initialiser would never run for the second one.
+        _loading = true;
+        _error = null;
+        _profile = null;
+        _scout = null;
+
+        if (!RouteIdShape.IsPlausible(ModelIdText))
+        {
+            _loading = false;
+            return;
+        }
+
+        try
+        {
+            _profile = await ApiClient.GetModelProfileAsync(ModelId.From(ModelIdText));
+            BuildChart();
+            // Not awaited: the profile is the page, and writing a report can take seconds.
+            // Not asked for at all unless Settings → AI helpers is on: a new report is a paid call.
+            if (_profile is not null && Prefs.IsOn(Preference.Assistants)) _ = LoadScoutAsync(_profile.ModelId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load this model: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the scouting report for <paramref name="id"/>; dropped if the page has moved on to
+    /// another model by the time it lands. Any failure just leaves the section out.
+    /// </summary>
+    private async Task LoadScoutAsync(ModelId id)
+    {
+        _scoutLoading = true;
+        try
+        {
+            var report = await ApiClient.GetScoutingReportAsync(id);
+            if (_profile?.ModelId == id) _scout = report;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            // The report is an extra; the profile is already on screen.
+        }
+        finally
+        {
+            if (_profile?.ModelId == id) _scoutLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Compare page prefilled with this pairing — the same querystring the Archive's
+    /// Re-run uses, so there is one way to reopen a matchup rather than two.
+    /// </summary>
+    private string RematchHref(HeadToHeadDto row) =>
+        $"/?leftModelId={Uri.EscapeDataString(_profile?.ModelId.Value ?? string.Empty)}" +
+        $"&rightModelId={Uri.EscapeDataString(row.OpponentModelId.Value)}";
+
+    private static string Truncate(string text, int max) =>
+        string.IsNullOrEmpty(text) || text.Length <= max ? text : text[..max].TrimEnd() + "…";
+
+    // ── Chart ────────────────────────────────────────────────────────────────
+
+    /// <summary>Where a rating starts before any duel moves it. Matches <c>Elo:StartingRating</c>.</summary>
+    private const double StartingElo = 1200;
+
+    /// <summary>Axis numbers and dates format the same regardless of the viewer's locale.</summary>
+    private static readonly System.Globalization.CultureInfo Inv =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    private const int ChartWidth = 600;
+    private const int ChartHeight = 200;
+
+    /// <summary>SVG "x,y x,y …" for the rating curve, and the value range it is drawn over.</summary>
+    private string _chartPoints = string.Empty;
+    private double _chartMin;
+    private double _chartMax;
+
+    private string Y(double elo) =>
+        (ChartHeight - (elo - _chartMin) / Math.Max(1, _chartMax - _chartMin) * ChartHeight).ToString("F1", Inv);
+
+    private void BuildChart()
+    {
+        _chartPoints = string.Empty;
+        if (_profile is not { EloHistory.Count: > 1 } profile) return;
+
+        // The starting rating is always in range so the baseline is always on the chart.
+        var values = profile.EloHistory.Select(p => p.Elo).Append(StartingElo).ToList();
+        var pad = Math.Max(10, (values.Max() - values.Min()) * 0.08);
+        _chartMin = values.Min() - pad;
+        _chartMax = values.Max() + pad;
+
+        var step = ChartWidth / (double)(profile.EloHistory.Count - 1);
+        _chartPoints = string.Join(' ', profile.EloHistory.Select((p, i) => $"{(i * step).ToString("F1", Inv)},{Y(p.Elo)}"));
+    }
+
+    /// <summary>How many of the newest rating moves the profile lists under the curve.</summary>
+    private const int RecentChangeCount = 8;
+
+    private IReadOnlyList<EloPointDto> RecentChanges =>
+        _profile is null ? [] : _profile.EloHistory.TakeLast(RecentChangeCount).Reverse().ToList();
+
+    /// <summary>The sign carries the meaning; the colour only repeats it.</summary>
+    private static string? ShiftClass(double shift) =>
+        shift > 0 ? "profile__shift--up" : shift < 0 ? "profile__shift--down" : null;
+
+    /// <summary>Text alternative for the curve — the shape means nothing to a screen reader.</summary>
+    private string ChartDescription
+    {
+        get
+        {
+            var h = _profile!.EloHistory;
+            var first = h[0].Elo;
+            var last = h[^1].Elo;
+            var direction = last > first ? "up" : last < first ? "down" : "level";
+            return $"Rating history across {h.Count} duels: {first:F0} to {last:F0}, trending {direction}.";
+        }
+    }
+}

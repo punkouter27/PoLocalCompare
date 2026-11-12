@@ -116,6 +116,18 @@
                             <span class="navmenu__menu-glyph" aria-hidden="true">🧪</span>
                             <span>Catalog</span>
                         </NavLink>
+                        @if (!IsProduction)
+                        {
+                            @foreach (var persona in AccountMenu.DevPersonas)
+                            {
+                                <button type="button"
+                                        class="navmenu__menu-item"
+                                        @onclick="() => SwitchDevPersonaAsync(persona)">
+                                    <span class="navmenu__menu-glyph" aria-hidden="true">⇄</span>
+                                    <span>Switch: @persona</span>
+                                </button>
+                            }
+                        }
                         <button type="button"
                                 class="navmenu__menu-item navmenu__menu-item--logout"
                                 @onclick="LogoutAsync">
@@ -133,9 +145,11 @@
 @code {
     [Inject] private IConfiguration Config { get; set; } = default!;
     [Inject] private NavigationManager Nav { get; set; } = default!;
-    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private DuelApiClient ApiClient { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = default!;
     [Inject] private Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnvironment { get; set; } = default!;
+
+    private bool IsProduction => string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
 
     private const string MockDataText =
         "USING MOCK DATA — Features:UseRealAi is off. Remote and Ollama responses are simulated.";
@@ -153,27 +167,20 @@
     /// <summary>False until the first /auth/me answer; the session controls render after it.</summary>
     private bool _identityResolved;
 
-    private string IdentityInitial =>
-        IdentityLocalPart.Length > 0 ? IdentityLocalPart[..1].ToUpperInvariant() : "?";
+    private string IdentityInitial => AccountMenu.Initial(_identity);
 
     /// <summary>
     /// The identity up to and excluding the first '@' — the whole value when there is none
     /// (a guest name, or a UPN that is not email-shaped). This is the half worth keeping when
     /// the badge has to shed width.
     /// </summary>
-    private string IdentityLocalPart =>
-        _identity is null ? string.Empty
-        : _identity.IndexOf('@') is var at && at > 0 ? _identity[..at]
-        : _identity;
+    private string IdentityLocalPart => AccountMenu.LocalPart(_identity);
 
     /// <summary>
     /// The '@domain' remainder, or null when the identity has no '@'. Rendered in its own span
     /// so CSS can hide it on a narrow screen without the string being cut mid-word.
     /// </summary>
-    private string? IdentityDomain =>
-        _identity is not null && _identity.IndexOf('@') is var at && at > 0 && at < _identity.Length - 1
-            ? _identity[at..]
-            : null;
+    private string? IdentityDomain => AccountMenu.DomainPart(_identity);
     private bool _usingMockData;
     private bool _allowGuest;
 
@@ -250,9 +257,18 @@
     private void LoginAsGuestAsync()
         => Nav.NavigateTo($"auth/login/fake?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
 
+    private async Task SwitchDevPersonaAsync(string persona)
+    {
+        DevFakeUserHandler.ActiveFakeUser = persona;
+        CloseMenu();
+        Nav.NavigateTo($"auth/login/fake?user={Uri.EscapeDataString(persona)}&returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
+        await Task.CompletedTask;
+    }
+
     private async Task LogoutAsync()
     {
-        try { await Http.PostAsync("auth/logout", null); }
+        DevFakeUserHandler.ActiveFakeUser = null;
+        try { await ApiClient.LogoutAsync(); }
         catch { /* clear UI regardless */ }
         // Full reload re-evaluates the (now cleared) session and renders the Login view.
         Nav.NavigateTo("/", forceLoad: true);

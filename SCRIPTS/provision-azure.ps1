@@ -19,7 +19,7 @@
          GitHub repo, and repoints KeyVault:Uri in the two appsettings files at the new vault.
 
     Run from the repo root:
-        pwsh SCRIPTS/provision-azure.ps1
+        pwsh scripts/provision-azure.ps1
 
     Then commit the appsettings change and push; deploy.yml ships the code.
 #>

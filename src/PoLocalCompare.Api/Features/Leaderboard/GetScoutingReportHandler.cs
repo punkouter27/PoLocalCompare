@@ -128,9 +128,9 @@ public sealed class GetScoutingReportHandler(
             var (row, duel) = analysed[i];
             var side = duel.LeftModelId == model.ModelId ? "LEFT" : "RIGHT";
             var result = row.Outcome.ToUpperInvariant() switch { "WIN" => "won", "LOSS" => "lost", _ => "drew" };
-            notes.Append($"\nDUEL {i + 1} — request: {Clip(duel.PromptText, 240)}\n")
-                .Append($"This model's page: {side}. Result: {result}.\n")
-                .Append($"Judge's analysis: {Clip(duel.JudgeAnalysis!, 1200)}\n");
+            notes.Append(System.Globalization.CultureInfo.InvariantCulture, $"\nDUEL {i + 1} — request: {Clip(duel.PromptText, 240)}\n")
+                .Append(System.Globalization.CultureInfo.InvariantCulture, $"This model's page: {side}. Result: {result}.\n")
+                .Append(System.Globalization.CultureInfo.InvariantCulture, $"Judge's analysis: {Clip(duel.JudgeAnalysis!, 1200)}\n");
         }
 
         object[] messages =

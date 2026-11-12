@@ -44,22 +44,10 @@ article.app-content {
     overflow-x: clip;
 }
 
-/* AGENT.MD §12 Rule 21: YYMMDD build version in the bottom-right corner. */
-/* Absolute to .page, not fixed to the viewport: fixed, it sat on top of whatever scrolled
-   under the corner — the last Archive card on a phone. Here it is the corner of the page
-   itself, inside .po-page's bottom padding, which is the viewport's corner on every page
-   that fits one screen. */
-.build-stamp {
-    position: absolute;
-    right: max(var(--space-sm), env(safe-area-inset-right));
-    bottom: max(var(--space-2xs), env(safe-area-inset-bottom));
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    opacity: 0.65;
-    pointer-events: none;
-    user-select: none;
-    z-index: 10;
+@media (max-width: 640px) {
+    article.app-content {
+        padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
 }
 
 

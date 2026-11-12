@@ -1,3 +1,4 @@
+using System.Globalization;
 using PoLocalCompare.Shared.Enums;
 
 namespace PoLocalCompare.Shared.Presentation;
@@ -48,5 +49,5 @@ public static class ModelTypeGroup
     };
 
     /// <summary>Lowercase type name for BEM modifier classes, e.g. <c>badge--remote</c>.</summary>
-    public static string CssModifier(ModelType type) => type.ToString().ToLower();
+    public static string CssModifier(ModelType type) => type.ToString().ToLower(CultureInfo.InvariantCulture);
 }

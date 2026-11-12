@@ -54,13 +54,13 @@ a rule is being violated.
 ## Commands
 
 ```powershell
-pwsh SCRIPTS/setup.ps1                                          # first-run machine setup (winget, Docker/Azurite, ports)
+pwsh scripts/setup.ps1                                          # first-run machine setup (winget, Docker/Azurite, ports)
 docker compose up -d azurite                                    # storage only
 dotnet run --project src/PoLocalCompare.Api --launch-profile https   # app at https://localhost:5001
 dotnet build PoLocalCompare.slnx                                # whole solution
 docker compose down -v; docker compose up -d azurite            # wipe local tables (the only way to force a re-seed)
-python SCRIPTS/download-models.py                               # vendor browser-model assets (~5 GB; MODELS=small ≈ 1 GB)
-pwsh SCRIPTS/provision-azure.ps1                                # provision Azure + wire GitHub OIDC (once per subscription)
+python scripts/download-models.py                               # vendor browser-model assets (~5 GB; MODELS=small ≈ 1 GB)
+pwsh scripts/provision-azure.ps1                                # provision Azure + wire GitHub OIDC (once per subscription)
 ```
 
 Ports **5000/5001 are fixed** — never change them without explicit instruction. The API hosts the
@@ -71,7 +71,7 @@ used to sit here and was deleted in the 2026-08-13 prune: it still expected the 
 layout and failed on a healthy tree. Don't reintroduce it.)
 
 ```powershell
-pwsh SCRIPTS/check-clean.ps1    # repo-hygiene gate: budgets, dead/unused CSS, unreferenced types, cache-busters, one motion gate
+pwsh scripts/check-clean.ps1    # repo-hygiene gate: budgets, dead/unused CSS, unreferenced types, cache-busters, one motion gate
 ```
 
 `check-clean.ps1` is not a linter — it is the things that had already gone wrong silently and that
@@ -108,7 +108,7 @@ AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration �
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
 onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has three
-cases spare** (100/45/22/25 as of 2026-10-29) and `SCRIPTS/check-clean.ps1` fails when a tier
+cases spare** (100/45/22/25 as of 2026-10-29) and `scripts/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
@@ -215,7 +215,7 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **Non-streaming Foundry calls go through `FoundryChatClient.PostAsync`** (the two-route
   fallback, Gemini included). `FoundryInferenceProxy` keeps its own streaming version.
 - **The model catalog is spread across three files that must agree:** `ModelSeeder.cs`,
-  `prebuiltAppConfig` in `web-llm.js`, and `SCRIPTS/plan-webllm-artifacts.py` (run it after any
+  `prebuiltAppConfig` in `web-llm.js`, and `scripts/plan-webllm-artifacts.py` (run it after any
   catalog edit). Retired seed ids are never reused, and are listed in `ModelSeeder.RetiredIds`:
   their rows (ELO, duels) stay, but the picker, catalog and tournament draw leave them out. Ollama
   seeds in Development only; Gemini only with `Gemini:ApiKey`. `DefaultPriceBook` matches the

@@ -1,0 +1,568 @@
+@page "/catalog"
+@using PoLocalCompare.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+@inject DuelApiClient ApiClient
+@inject WebGpuCapability WebGpu
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Catalog · PoLocalCompare</PageTitle>
+
+@* ── Catalog ──────────────────────────────────────────────────────────────
+   Adds models at runtime. ModelSeeder seeds only an empty table, so before this page a new
+   model meant editing the seeder AND wiping Azurite — which also wiped every duel and rating.
+
+   Every row here is already known to run: browser builds come from the vendored WebLLM
+   bundle's prebuiltAppConfig (the worker resolves models against it and nothing else), and
+   Ollama rows from the local daemon's pulled tags. The server re-checks both on add, so a
+   stale page cannot register a model that will not load. The Hub counts are decoration. *@
+<div class="po-page po-page--wide">
+    <PageHeader Title="Catalog"
+                Subtitle="Add browser or Ollama models; new ones start at 1200." />
+
+
+    @* Always mounted: a live region inserted already filled is not announced by most readers. *@
+    <p class="po-status" role="status">@_status</p>
+
+    @if (_loading)
+    {
+        @* Rows, at the list window's own height, rather than one line of text that the bar,
+           hint and list then pushed down from under: discovery takes a few seconds (it reads
+           the WebLLM bundle and asks the Hub), and the page arrived as a jump at the end. *@
+        <div class="catalog__loading">
+            <p class="po-status">Looking for models…</p>
+            <SkeletonGrid Count="10" StaggerMs="40" ItemClass="catalog__skeleton" OuterClass="catalog__skeleton-list" />
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <p class="po-error">@_error</p>
+    }
+    else if (_discovery is not null)
+    {
+        @* ── One bar: which list, then that list's own filters ──────────────────
+           The three lists used to be stacked sections, so on a desktop the Ollama models
+           started below the fold under a 34rem browser window, and the browser list's search
+           and Low-VRAM chip sat in a row of their own. One list at a time now, chosen by the
+           same .po-btn--chip + aria-pressed control the rest of the app filters with; a tab
+           that would be empty-by-definition (Ollama outside Development, nothing downloaded
+           yet) is not offered, and with only one list there is no switch at all. *@
+        <div class="catalog__bar">
+            @if (Tabs.Count > 1)
+            {
+                <div class="catalog__tabs" role="group" aria-label="Which models to list">
+                    @foreach (var tab in Tabs)
+                    {
+                        <button type="button"
+                                class="po-btn po-btn--sm po-btn--chip"
+                                aria-pressed="@(ActiveTab == tab.Key ? "true" : "false")"
+                                @onclick="@(() => SelectTab(tab.Key))">
+                            @tab.Label
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (ActiveTab == CatalogTab.Browser && _discovery.BundleAvailable)
+            {
+                <input type="search" class="catalog__input catalog__search" placeholder="Search builds…"
+                       aria-label="Search browser builds by id"
+                       @bind="_search" @bind:event="oninput" @bind:after="RefreshBrowserRows" />
+                <button type="button"
+                        class="po-btn po-btn--sm po-btn--chip"
+                        aria-pressed="@(_lowResourceOnly ? "true" : "false")"
+                        @onclick="ToggleLowResource">
+                    Low-VRAM builds only
+                </button>
+                <span class="po-hint catalog__count">@BrowserCountSummary</span>
+            }
+        </div>
+
+        @if (ActiveTab == CatalogTab.Browser)
+        {
+        <section class="po-section catalog__section" aria-labelledby="catalog-browser-heading">
+            <h2 id="catalog-browser-heading" class="visually-hidden">Browser models</h2>
+
+            @if (!_discovery.BundleAvailable)
+            {
+                <p class="po-error">
+                    The WebLLM bundle is missing or is a Git LFS pointer, so no browser model can run.
+                    Run <code>git lfs install</code> and <code>git lfs pull</code>, then reload.
+                </p>
+            }
+            else
+            {
+                <p class="po-hint">
+                    Weights stream from the CDN unless vendored.
+                    @if (!_discovery.HubReachable)
+                    {
+                        <span> Hub unreachable, so the list isn't sorted by popularity.</span>
+                    }
+                    @* The catalog is shared, so a build this device cannot run can still be added
+                       for one that can — the note explains the row flags, it does not block. *@
+                    @if (_gpu is { Supported: false })
+                    {
+                        <span> This browser can't run browser models: @_gpu.Reason</span>
+                    }
+                    else if (_gpu is { LowResourceOnly: true })
+                    {
+                        <span>
+                            This GPU allows @($"{_gpu.MaxStorageBufferBindingMb:F0}") MB per buffer, so only
+                            low-VRAM builds will load here. The rest are marked.
+                        </span>
+                    }
+                </p>
+
+                @* The longest list in the app (~150 builds), so it is a bounded window that
+                   virtualises: Blazor's own <Virtualize> renders only the rows in view. The
+                   window needs a definite height (.catalog__grid-wrap) or the virtualiser has
+                   nothing to measure against and renders every row. Rows arrive ranked by Hub
+                   downloads, so there is no sort control. *@
+                <div class="catalog__grid-wrap po-table-wrap">
+                    <table class="po-table po-table--cards">
+                        <caption class="visually-hidden">WebLLM builds that can be added, most downloaded first</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Model</th>
+                                <th scope="col">VRAM</th>
+                                <th scope="col">Downloads</th>
+                                <th scope="col">Display name</th>
+                                <th scope="col"><span class="visually-hidden">Add</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <Virtualize Items="_browserRows" Context="m" ItemSize="44">
+                                <tr @key="m.WebLlmModelId">
+                                    <td data-label="Model">
+                                        <span class="catalog__id">@m.WebLlmModelId</span>
+                                        @if (m.HubRepo is not null)
+                                        {
+                                            <a class="catalog__hub" href="@($"https://huggingface.co/{m.HubRepo}")"
+                                               target="_blank" rel="noopener noreferrer">Hub ↗</a>
+                                        }
+                                    </td>
+                                    <td data-label="VRAM">
+                                        <span class="catalog__num">@FormatVram(m.VramRequiredMb)</span>
+                                        @if (_gpu is { LowResourceOnly: true } && !m.LowResource)
+                                        {
+                                            <span class="catalog__unfit">won't load on this GPU</span>
+                                        }
+                                    </td>
+                                    <td data-label="Downloads"><span class="catalog__num">@(m.Downloads?.ToString("N0") ?? "—")</span></td>
+                                    <td data-label="Display name">@NameCell(DiscoveredModelKind.Browser, m.WebLlmModelId, m.SuggestedName)</td>
+                                    <td class="po-cell--bare">@ActionCell(DiscoveredModelKind.Browser, m.WebLlmModelId, m.SuggestedName)</td>
+                                </tr>
+                            </Virtualize>
+                        </tbody>
+                    </table>
+                </div>
+                @if (_browserRows.Count == 0)
+                {
+                    <p class="po-hint">No browser models match.</p>
+                }
+            }
+        </section>
+        }
+
+        @* Weights WebLLM has already cached in this browser. Per browser, not per catalog:
+           the list comes from the Cache API (weights.js), so the tab is absent until something
+           has actually been downloaded here. *@
+        @if (ActiveTab == CatalogTab.Downloaded && _weights is { Models.Count: > 0 })
+        {
+            <section class="po-section catalog__section" aria-labelledby="catalog-weights-heading">
+                <h2 id="catalog-weights-heading" class="visually-hidden">Downloaded in this browser</h2>
+                <p class="po-hint">@WeightsSummary(_weights) A deleted model downloads again the next time it runs.</p>
+                <div class="po-table-wrap">
+                    <table class="po-table po-table--cards">
+                        <caption class="visually-hidden">Browser model weights cached in this browser</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Model</th>
+                                <th scope="col">Size</th>
+                                <th scope="col"><span class="visually-hidden">Delete</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cached in _weights.Models)
+                            {
+                                <tr @key="cached.Id">
+                                    <td data-label="Model"><span class="catalog__id">@cached.Id</span></td>
+                                    <td data-label="Size"><span class="catalog__num">@FormatMb(cached.Mb)</span></td>
+                                    <td class="po-cell--bare">
+                                        <button type="button" class="po-btn po-btn--sm po-btn--warn"
+                                                aria-label="@($"Delete cached weights for {cached.Id}")"
+                                                disabled="@(_deleting is not null)"
+                                                @onclick="@(() => DeleteWeightsAsync(cached))">
+                                            @(_deleting == cached.Id ? "Deleting…" : "Delete")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
+        @if (ActiveTab == CatalogTab.Ollama)
+        {
+            <section class="po-section catalog__section" aria-labelledby="catalog-ollama-heading">
+                <h2 id="catalog-ollama-heading" class="visually-hidden">Ollama models</h2>
+                @if (_discovery.Ollama.Count == 0)
+                {
+                    <p class="po-hint">Nothing new. <code>ollama pull &lt;name&gt;</code>, then reload.</p>
+                }
+                else
+                {
+                    <div class="po-table-wrap">
+                        <table class="po-table po-table--cards">
+                            <caption class="visually-hidden">Pulled Ollama models that can be added</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Tag</th>
+                                    <th scope="col">Display name</th>
+                                    <th scope="col"><span class="visually-hidden">Add</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var model in _discovery.Ollama)
+                                {
+                                    <tr @key="model.Name">
+                                        <td data-label="Tag"><span class="catalog__id">@model.Name</span></td>
+                                        <td data-label="Display name">@NameCell(DiscoveredModelKind.Ollama, model.Name, model.SuggestedName)</td>
+                                        <td class="po-cell--bare">@ActionCell(DiscoveredModelKind.Ollama, model.Name, model.SuggestedName)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    // ── Which list ───────────────────────────────────────────────────────────
+    private enum CatalogTab { Browser, Ollama, Downloaded }
+
+    private CatalogTab _tab = CatalogTab.Browser;
+
+    /// <summary>The lists this session can actually show, in display order, with their counts.</summary>
+    private List<(CatalogTab Key, string Label)> Tabs
+    {
+        get
+        {
+            var tabs = new List<(CatalogTab, string)>();
+            if (_discovery is null) return tabs;
+            tabs.Add((CatalogTab.Browser, $"Browser ({_discovery.Browser.Count})"));
+            if (_discovery.OllamaSupported) tabs.Add((CatalogTab.Ollama, $"Ollama ({_discovery.Ollama.Count})"));
+            if (_weights is { Models.Count: > 0 } weights) tabs.Add((CatalogTab.Downloaded, $"Downloaded ({weights.Models.Count})"));
+            return tabs;
+        }
+    }
+
+    /// <summary>
+    /// The selected list, falling back to Browser when the selected one has gone — deleting the
+    /// last cached model removes the Downloaded tab while it is the one on screen.
+    /// </summary>
+    private CatalogTab ActiveTab => Tabs.Any(t => t.Key == _tab) ? _tab : CatalogTab.Browser;
+
+    [SupplyParameterFromQuery(Name = "tab")] public string? QueryTab { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? QuerySearch { get; set; }
+
+    private void SelectTab(CatalogTab tab)
+    {
+        _tab = tab;
+        _renaming = null;
+        SyncQuery();
+    }
+
+    // ── Naming a model ───────────────────────────────────────────────────────
+    // Add uses the suggested name, which is what almost everyone wants. Every row used to
+    // carry a live <input> for it — 157 of them on the browser list, the widest column in the
+    // table, for a field that is rarely touched. The name is text now, and Rename swaps that
+    // one row's cell for the input.
+
+    /// <summary>Id of the row whose name is being edited, if any.</summary>
+    private string? _renaming;
+    private ElementReference _renameInput;
+    private bool _focusRename;
+
+    private void BeginRename(string id)
+    {
+        _renaming = id;
+        _focusRename = true;
+    }
+
+    private async Task OnRenameKeyDownAsync(KeyboardEventArgs e, DiscoveredModelKind kind, string id, string suggested)
+    {
+        if (e.Key == "Enter") await AddAsync(kind, id, suggested);
+        else if (e.Key == "Escape") _renaming = null;
+    }
+
+    /// <summary>The name cell: text, or the input while this row is being renamed.</summary>
+    private RenderFragment NameCell(DiscoveredModelKind kind, string id, string suggested) =>
+        @<text>
+            @if (_renaming == id)
+            {
+                <input class="catalog__input" @ref="_renameInput"
+                       aria-label="@($"Display name for {id}")"
+                       value="@NameFor(id, suggested)"
+                       @oninput="@(e => _names[id] = e.Value?.ToString() ?? string.Empty)"
+                       @onkeydown="@(e => OnRenameKeyDownAsync(e, kind, id, suggested))" />
+            }
+            else
+            {
+                <span class="catalog__name">@NameFor(id, suggested)</span>
+            }
+        </text>;
+
+    /// <summary>The row's actions: Add (suggested or edited name) and Rename / Cancel.</summary>
+    private RenderFragment ActionCell(DiscoveredModelKind kind, string id, string suggested) =>
+        @<div class="catalog__row-actions">
+            @{
+                var unavailableReason = AddUnavailableReason(kind, id);
+            }
+            <button type="button" class="po-btn po-btn--sm po-btn--primary"
+                    aria-label="@($"Add {id} as {NameFor(id, suggested)}")"
+                    title="@unavailableReason"
+                    disabled="@(_adding is not null || unavailableReason is not null)"
+                    @onclick="@(() => AddAsync(kind, id, suggested))">
+                @(_adding == id ? "Adding…" : "Add")
+            </button>
+            @if (_renaming == id)
+            {
+                <button type="button" class="po-btn po-btn--sm po-btn--ghost"
+                        @onclick="@(() => _renaming = null)">Cancel</button>
+            }
+            else
+            {
+                <button type="button" class="po-btn po-btn--sm po-btn--ghost"
+                        aria-label="@($"Rename {id} before adding")"
+                        @onclick="@(() => BeginRename(id))">Rename</button>
+            }
+        </div>;
+
+    private ModelDiscoveryDto? _discovery;
+    private bool _loading = true;
+    private string? _error;
+    private string? _status;
+
+    /// <summary>The one preset kept as a chip, beside a free-text search on the build id.</summary>
+    private bool _lowResourceOnly;
+    private string _search = string.Empty;
+
+    /// <summary>Id of the model being added, so every Add button disables while one is in flight.</summary>
+    private string? _adding;
+
+    /// <summary>Display names the user has edited, by candidate id. Absent means "use the suggestion".</summary>
+    private readonly Dictionary<string, string> _names = new(StringComparer.Ordinal);
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(QuerySearch))
+            _search = QuerySearch;
+        if (Enum.TryParse<CatalogTab>(QueryTab, ignoreCase: true, out var parsedTab))
+            _tab = parsedTab;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _discovery = await ApiClient.GetModelDiscoveryAsync();
+            RefreshBrowserRows();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load the model list: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>This device's GPU, for the "won't load here" flags. Null until probed.</summary>
+    private WebGpuCapability.WebGpuInfo? _gpu;
+
+    private IJSObjectReference? _weightsModule;
+    private CachedWeights? _weights;
+    private string? _deleting;
+
+    /// <summary>Mirrors what weights.js <c>list()</c> returns.</summary>
+    private sealed class CachedWeights
+    {
+        public List<CachedModel> Models { get; set; } = [];
+        public double? UsageMb { get; set; }
+        public double? QuotaMb { get; set; }
+    }
+
+    private sealed class CachedModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public double Mb { get; set; }
+    }
+
+    // Both are this browser's own state and neither is needed to add a model, so they load
+    // after first render, and a failure leaves the page exactly as it is without them.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusRename)
+        {
+            _focusRename = false;
+            try { await _renameInput.FocusAsync(); }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException) { /* row scrolled out of the virtual window */ }
+        }
+        if (!firstRender) return;
+        try
+        {
+            _gpu = await WebGpu.GetAsync();
+            _weightsModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/weights.js?v=1");
+            _weights = await _weightsModule.InvokeAsync<CachedWeights>("list");
+        }
+        catch (JSException)
+        {
+        }
+        StateHasChanged();
+    }
+
+    private async Task DeleteWeightsAsync(CachedModel cached)
+    {
+        if (_weightsModule is null) return;
+        _deleting = cached.Id;
+        try
+        {
+            await _weightsModule.InvokeVoidAsync("remove", cached.Id);
+            _weights = await _weightsModule.InvokeAsync<CachedWeights>("list");
+            _status = $"Deleted {cached.Id} ({FormatMb(cached.Mb)} freed).";
+        }
+        catch (JSException ex)
+        {
+            _status = $"Could not delete {cached.Id}: {ex.Message}";
+        }
+        finally
+        {
+            _deleting = null;
+        }
+    }
+
+    private static string WeightsSummary(CachedWeights weights)
+    {
+        var cached = $"{FormatMb(weights.Models.Sum(m => m.Mb))} of weights cached";
+        return weights is { UsageMb: { } usage, QuotaMb: { } quota }
+            ? $"{cached}; this site is using {FormatMb(usage)} of the {FormatMb(quota)} the browser allows it."
+            : $"{cached}.";
+    }
+
+    private static string FormatMb(double mb) =>
+        mb >= 1024 ? $"{mb / 1024:F1} GB" : $"{mb:F0} MB";
+
+    // A materialised list, rebuilt only when its inputs change, so an _adding/_status change
+    // does not re-run the filter over ~150 rows on every render.
+    private List<DiscoveredBrowserModelDto> _browserRows = [];
+
+    private void RefreshBrowserRows()
+    {
+        _browserRows = (_discovery?.Browser ?? [])
+            .Where(m => !_lowResourceOnly || m.LowResource)
+            .Where(m => string.IsNullOrWhiteSpace(_search) || m.WebLlmModelId.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        SyncQuery();
+    }
+
+    private void SyncQuery()
+    {
+        var url = Nav.GetUriWithQueryParameters("/catalog", new Dictionary<string, object?>
+        {
+            ["tab"] = _tab == CatalogTab.Browser ? null : _tab.ToString().ToLowerInvariant(),
+            ["q"] = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(),
+        });
+        Nav.NavigateTo(url, replace: true);
+    }
+
+    private void ToggleLowResource()
+    {
+        _lowResourceOnly = !_lowResourceOnly;
+        RefreshBrowserRows();
+    }
+
+    /// <summary>
+    /// How many builds the filters are letting through, and out of how many — only saying
+    /// "of N" when something is actually hidden.
+    /// </summary>
+    private string BrowserCountSummary
+    {
+        get
+        {
+            var total = _discovery?.Browser.Count ?? 0;
+            var shown = _browserRows.Count;
+            var noun = shown == 1 ? "build" : "builds";
+            return shown == total ? $"{shown} {noun}" : $"{shown} of {total} {noun}";
+        }
+    }
+
+    private string NameFor(string id, string suggested) =>
+        _names.TryGetValue(id, out var name) ? name : suggested;
+
+    private string? AddUnavailableReason(DiscoveredModelKind kind, string id)
+    {
+        if (kind != DiscoveredModelKind.Browser || _gpu is null) return null;
+        if (!_gpu.Supported)
+            return $"This browser cannot run browser models: {_gpu.Reason}";
+
+        var candidate = _discovery?.Browser.FirstOrDefault(
+            m => string.Equals(m.WebLlmModelId, id, StringComparison.Ordinal));
+        return _gpu.LowResourceOnly && candidate is { LowResource: false }
+            ? $"This model exceeds the current GPU's {_gpu.MaxStorageBufferBindingMb:F0} MB buffer limit."
+            : null;
+    }
+
+    private async Task AddAsync(DiscoveredModelKind kind, string id, string suggested)
+    {
+        if (AddUnavailableReason(kind, id) is { } unavailable)
+        {
+            _status = unavailable;
+            return;
+        }
+
+        _adding = id;
+        _renaming = null;
+        _status = null;
+        try
+        {
+            var name = NameFor(id, suggested);
+            var added = await ApiClient.AddDiscoveredModelAsync(new AddDiscoveredModelRequest(kind, id, name));
+            _status = $"Added {added?.DisplayName ?? name}. It's on the Compare page now.";
+
+            // Drop the row locally rather than re-running discovery: that re-reads the Hub and
+            // the daemon for a list whose only change is the one row we just removed.
+            if (_discovery is not null)
+            {
+                _discovery = new ModelDiscoveryDto
+                {
+                    Browser = _discovery.Browser.Where(m => m.WebLlmModelId != id || kind != DiscoveredModelKind.Browser).ToList(),
+                    Ollama = _discovery.Ollama.Where(m => m.Name != id || kind != DiscoveredModelKind.Ollama).ToList(),
+                    BundleAvailable = _discovery.BundleAvailable,
+                    HubReachable = _discovery.HubReachable,
+                    OllamaSupported = _discovery.OllamaSupported,
+                };
+                RefreshBrowserRows();
+            }
+        }
+        catch (Exception ex)
+        {
+            _status = $"Could not add {id}: {ex.Message}";
+        }
+        finally
+        {
+            _adding = null;
+        }
+    }
+
+    private static string FormatVram(double? mb) =>
+        mb is { } value ? $"{value / 1024:F1} GB" : "—";
+}

@@ -16,13 +16,13 @@ internal sealed record OllamaTagsModel(
 
 /// <summary><c>/api/chat</c> chunk — <c>message.content</c> carries each token.</summary>
 internal sealed record OllamaChatChunk(
-    [property: JsonPropertyName("message")]              OllamaChatMessage? Message,
-    [property: JsonPropertyName("done")]                 bool Done,
-    [property: JsonPropertyName("eval_count")]           int EvalCount,
-    [property: JsonPropertyName("load_duration")]        long LoadDuration,
-    [property: JsonPropertyName("eval_duration")]        long EvalDuration,
+    [property: JsonPropertyName("message")] OllamaChatMessage? Message,
+    [property: JsonPropertyName("done")] bool Done,
+    [property: JsonPropertyName("eval_count")] int EvalCount,
+    [property: JsonPropertyName("load_duration")] long LoadDuration,
+    [property: JsonPropertyName("eval_duration")] long EvalDuration,
     [property: JsonPropertyName("prompt_eval_duration")] long PromptEvalDuration);
 
 internal sealed record OllamaChatMessage(
-    [property: JsonPropertyName("role")]    string? Role,
+    [property: JsonPropertyName("role")] string? Role,
     [property: JsonPropertyName("content")] string? Content);

@@ -128,5 +128,5 @@ public class BracketPlannerTests
         Assert.Null(BracketPlanner.NextSlot(2, 0, 8));
     }
 
-    private static int Seed(BracketSlot slot) => int.Parse(slot.DisplayName[1..]);
+    private static int Seed(BracketSlot slot) => int.Parse(slot.DisplayName[1..], System.Globalization.CultureInfo.InvariantCulture);
 }

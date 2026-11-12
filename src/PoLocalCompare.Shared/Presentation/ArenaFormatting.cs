@@ -1,3 +1,4 @@
+using System.Globalization;
 using PoLocalCompare.Shared.DTOs;
 
 namespace PoLocalCompare.Shared.Presentation;
@@ -16,7 +17,7 @@ public static class ArenaFormatting
     /// read differently — the latter is unknown, not zero.
     /// </summary>
     public static string FormatCost(double? value) =>
-        value.HasValue ? value.Value.ToString("F4") : "0 (no rate)";
+        value.HasValue ? value.Value.ToString("F4", CultureInfo.InvariantCulture) : "0 (no rate)";
 
     /// <summary>
     /// ELO deltas are stored with a tenth to leave room for fractional ratings, but a typical
@@ -27,6 +28,6 @@ public static class ArenaFormatting
     /// </summary>
     public static string FormatElo(double value) =>
         Math.Abs(value - Math.Round(value)) < 0.05
-            ? ((int)Math.Round(value)).ToString()
-            : value.ToString("F1");
+            ? ((int)Math.Round(value)).ToString(CultureInfo.InvariantCulture)
+            : value.ToString("F1", CultureInfo.InvariantCulture);
 }

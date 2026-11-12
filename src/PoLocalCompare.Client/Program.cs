@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
+using FluentValidation;
 using PoLocalCompare.Client;
 using PoLocalCompare.Client.Services;
+using PoLocalCompare.Shared.DTOs;
+using PoLocalCompare.Shared.Validation;
+using Radzen;
 using System;
 
 // WebAssembly only: lets the [JSImport] bindings (PreferencesService, Sparkline) be called
@@ -15,7 +19,10 @@ try
     builder.RootComponents.Add<App>("#app");
     builder.RootComponents.Add<HeadOutlet>("head::after");
 
-    builder.Services.AddScoped(sp => new HttpClient(new CorrelationHandler { InnerHandler = new HttpClientHandler() })
+    builder.Services.AddScoped(sp => new HttpClient(new CorrelationHandler
+    {
+        InnerHandler = new DevFakeUserHandler { InnerHandler = new HttpClientHandler() }
+    })
     {
         BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
     });
@@ -26,12 +33,17 @@ try
     builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
         sp.GetRequiredService<BffAuthenticationStateProvider>());
 
+    // ─── Radzen UI & Validation ──────────────────────────────────────────────────
+    builder.Services.AddRadzenComponents();
+    builder.Services.AddScoped<DialogNotificationHelper>();
+    builder.Services.AddScoped<IValidator<RefinePromptRequest>, RefinePromptRequestValidator>();
+
     // ─── DuelApiClient (T098) ────────────────────────────────────────────────────
     builder.Services.AddScoped<DuelApiClient>();
 
     // ─── Phase 3 client services ─────────────────────────────────────────────────
     builder.Services.AddScoped<AudioService>();
-    builder.Services.AddScoped<ThemeService>();
+    builder.Services.AddScoped<PoLocalCompare.Client.Services.ThemeService>();
     builder.Services.AddScoped<FxService>();
     builder.Services.AddScoped<PreferencesService>();
     builder.Services.AddScoped<WebLlmService>();

@@ -248,7 +248,7 @@ public sealed class AutoJudge
             {
                 AutoJudgeLog.Failed(_logger, ex, duelId);
             }
-        });
+        }, CancellationToken.None);
 
         return Task.CompletedTask;
     }

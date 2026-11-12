@@ -270,8 +270,12 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
             {
                 Round = 0,
                 Index = i,
-                SlotAModelId = ModelId.From(field[i]), SlotAName = $"A{i}", SlotASeed = i + 1,
-                SlotBModelId = ModelId.From(field[i + 4]), SlotBName = $"B{i}", SlotBSeed = i + 5,
+                SlotAModelId = ModelId.From(field[i]),
+                SlotAName = $"A{i}",
+                SlotASeed = i + 1,
+                SlotBModelId = ModelId.From(field[i + 4]),
+                SlotBName = $"B{i}",
+                SlotBSeed = i + 5,
                 // Board 0 drawn, board 1 won by A, the rest unplayed.
                 IsDraw = i == 0,
                 WinnerModelId = i == 1 ? ModelId.From(field[1]) : null,

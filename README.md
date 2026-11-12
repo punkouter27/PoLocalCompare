@@ -13,7 +13,7 @@
 One command from the repo root — installs prerequisites via Winget, starts Docker/Azurite, configures local mock keys, and frees ports 5000/5001:
 
 ```powershell
-pwsh SCRIPTS/setup.ps1
+pwsh scripts/setup.ps1
 ```
 
 Then run the app (serves the Blazor WASM client at https://localhost:5001):
@@ -25,7 +25,7 @@ dotnet run --project src/PoLocalCompare.Api --launch-profile https
 Optional extras:
 
 ```powershell
-python SCRIPTS/download-models.py                 # pre-download WebLLM browser model assets
+python scripts/download-models.py                 # pre-download WebLLM browser model assets
 $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.Development.json; never user-secrets)
 ```
 
@@ -82,9 +82,9 @@ Mermaid version the pages pin** (10.9.1) — a diagram that fails to parse rende
 in the browser and nothing else warns:
 
 ```powershell
-npm --prefix SCRIPTS/mermaid-validate install          # once — pulls mermaid-cli + Chromium
-npm --prefix SCRIPTS/mermaid-validate run validate     # newest docs/<YYYYMMDD>/
-npm --prefix SCRIPTS/mermaid-validate run validate -- docs/20260821
+npm --prefix scripts/mermaid-validate install          # once — pulls mermaid-cli + Chromium
+npm --prefix scripts/mermaid-validate run validate     # newest docs/<YYYYMMDD>/
+npm --prefix scripts/mermaid-validate run validate -- docs/20260821
 ```
 
 The exit code is the number of blocks that failed, plus any CDN pin that has drifted away from the

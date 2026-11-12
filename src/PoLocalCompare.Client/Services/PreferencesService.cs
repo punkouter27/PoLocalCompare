@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices.JavaScript;
 using PoLocalCompare.Shared.Presentation;
 
@@ -14,6 +15,7 @@ namespace PoLocalCompare.Client.Services;
 /// tabs through the <c>storage</c> event, and a C# copy would keep answering with the old value
 /// — for the paid helpers, that is a paid call the user turned off.
 /// </remarks>
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Injected Razor service API")]
 public sealed partial class PreferencesService
 {
     public bool IsOn(Preference key)

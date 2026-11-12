@@ -78,9 +78,9 @@ public sealed class BenchmarkOllamaModelHandler(
 
                     if (chunk.Done)
                     {
-                        evalCount            = chunk.EvalCount;
-                        loadDurationNs       = chunk.LoadDuration;
-                        evalDurationNs       = chunk.EvalDuration;
+                        evalCount = chunk.EvalCount;
+                        loadDurationNs = chunk.LoadDuration;
+                        evalDurationNs = chunk.EvalDuration;
                         promptEvalDurationNs = chunk.PromptEvalDuration;
                     }
                 }
@@ -100,11 +100,11 @@ public sealed class BenchmarkOllamaModelHandler(
 
         return new OllamaBenchmarkResultDto
         {
-            LoadMs       = (int)(loadDurationNs / 1_000_000),
+            LoadMs = (int)(loadDurationNs / 1_000_000),
             FirstTokenMs = (int)(promptEvalDurationNs / 1_000_000),
             TokensPerSec = evalSecs > 0 ? (int)Math.Round(evalCount / evalSecs) : 0,
-            TotalTokens  = evalCount,
-            Output       = output.ToString()
+            TotalTokens = evalCount,
+            Output = output.ToString()
         };
     }
 

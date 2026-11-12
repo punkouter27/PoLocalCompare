@@ -33,12 +33,12 @@ public sealed class ValueChartLayout
     public double? FreeLaneX { get; private init; }
 
     /// <summary>Left edge of the gridlines, which run under the free lane as well.</summary>
-    public double GridLeft => Left;
+    public const double GridLeft = Left;
 
     public double PlotLeft { get; private init; }
-    public double PlotRight => Width - Right;
-    public double PlotTop => Top;
-    public double PlotBottom => Height - Bottom;
+    public const double PlotRight = Width - Right;
+    public const double PlotTop = Top;
+    public const double PlotBottom = Height - Bottom;
 
     /// <summary>Null when there is nothing to compare: fewer than two models, or none priced.</summary>
     public static ValueChartLayout? Build(IReadOnlyList<LeaderboardEntryDto> entries)

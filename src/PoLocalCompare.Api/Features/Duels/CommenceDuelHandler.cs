@@ -34,13 +34,13 @@ public sealed class CommenceDuelHandler(
             throw new ArgumentException("LeftModelId and RightModelId must differ.");
 
         if (string.IsNullOrWhiteSpace(command.PromptText))
-            throw new ArgumentException("PromptText cannot be empty.", nameof(command.PromptText));
+            throw new ArgumentException("PromptText cannot be empty.", nameof(command));
 
         if (command.PromptText.Length < CommenceDuelCommand.MinPromptLength)
-            throw new ArgumentException($"PromptText must be at least {CommenceDuelCommand.MinPromptLength} characters.", nameof(command.PromptText));
+            throw new ArgumentException($"PromptText must be at least {CommenceDuelCommand.MinPromptLength} characters.", nameof(command));
 
         if (command.PromptText.Length > CommenceDuelCommand.MaxPromptLength)
-            throw new ArgumentException($"PromptText cannot exceed {CommenceDuelCommand.MaxPromptLength} characters.", nameof(command.PromptText));
+            throw new ArgumentException($"PromptText cannot exceed {CommenceDuelCommand.MaxPromptLength} characters.", nameof(command));
 
         var leftModel = await modelRepository.GetByIdAsync(command.LeftModelId)
             ?? throw new KeyNotFoundException($"Model '{command.LeftModelId}' not found.");

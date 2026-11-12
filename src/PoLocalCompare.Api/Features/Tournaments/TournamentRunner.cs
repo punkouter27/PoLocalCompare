@@ -253,39 +253,39 @@ public sealed class TournamentRunner(
         switch (duel.Verdict)
         {
             case DuelVerdict.Left or DuelVerdict.Right when duel.WinnerModelId is { } winnerId:
-            {
-                var winnerName = winnerId == match.SlotAModelId ? match.SlotAName : match.SlotBName;
-                tournament.RecordWinner(match.Round, match.Index, winnerId, winnerName);
-                break;
-            }
+                {
+                    var winnerName = winnerId == match.SlotAModelId ? match.SlotAName : match.SlotBName;
+                    tournament.RecordWinner(match.Round, match.Index, winnerId, winnerName);
+                    break;
+                }
 
             case DuelVerdict.Tie:
-            {
-                // Bracket: the better seed advances (see Tournament.SeedTieBreak for why that
-                // beats a coin toss or an abandoned bracket).
-                tournament.RecordTie(match.Round, match.Index);
-                break;
-            }
+                {
+                    // Bracket: the better seed advances (see Tournament.SeedTieBreak for why that
+                    // beats a coin toss or an abandoned bracket).
+                    tournament.RecordTie(match.Round, match.Index);
+                    break;
+                }
 
             case DuelVerdict.Voided:
-            {
-                // Terminal with no winner and no draw to seed-break on: both models failed or
-                // the run was abandoned. The bracket cannot be seeded through it, so this is
-                // the honest Abandoned — naming a champion here would invent an outcome.
-                match.FailureReason = duel.JudgeRationale ?? "The duel was voided — no result existed to judge.";
-                tournament.Abandon($"{match.SlotAName} vs {match.SlotBName} was voided before a result existed.");
-                return false;
-            }
+                {
+                    // Terminal with no winner and no draw to seed-break on: both models failed or
+                    // the run was abandoned. The bracket cannot be seeded through it, so this is
+                    // the honest Abandoned — naming a champion here would invent an outcome.
+                    match.FailureReason = duel.JudgeRationale ?? "The duel was voided — no result existed to judge.";
+                    tournament.Abandon($"{match.SlotAName} vs {match.SlotBName} was voided before a result existed.");
+                    return false;
+                }
 
             default:
-            {
-                // Still Pending after the wait: the judge stood down and there is no evidence
-                // to advance on. The bracket stops rather than picking a winner.
-                match.FailureReason = duel.JudgeStoodDownReason
-                    ?? "The judge could not decide this match.";
-                tournament.Abandon($"{match.SlotAName} vs {match.SlotBName} could not be judged.");
-                return false;
-            }
+                {
+                    // Still Pending after the wait: the judge stood down and there is no evidence
+                    // to advance on. The bracket stops rather than picking a winner.
+                    match.FailureReason = duel.JudgeStoodDownReason
+                        ?? "The judge could not decide this match.";
+                    tournament.Abandon($"{match.SlotAName} vs {match.SlotBName} could not be judged.");
+                    return false;
+                }
         }
 
         return true;

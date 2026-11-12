@@ -12,7 +12,7 @@ Utility scripts for maintaining and managing the PoLocalCompare application.
 
 **Usage:**
 ```powershell
-pwsh SCRIPTS/setup.ps1
+pwsh scripts/setup.ps1
 
 # Flags:
 #   -SkipWinget   skip Winget installs (tools already present)
@@ -39,7 +39,7 @@ converges rather than duplicating. CI only deploys code and cannot provision.
 
 **Usage:**
 ```powershell
-pwsh SCRIPTS/provision-azure.ps1
+pwsh scripts/provision-azure.ps1
 
 # Flags:
 #   -TargetSubscriptionId / -SourceSubscriptionId   when an account has several subscriptions
@@ -70,9 +70,9 @@ pwsh SCRIPTS/provision-azure.ps1
 
 **Usage:**
 ```bash
-python SCRIPTS/download-models.py                        # every seeded model (~5 GB)
-MODELS=small python SCRIPTS/download-models.py           # 3 smallest, ~1 GB
-MODELS=Qwen3-1.7B-q4f16_1-MLC python SCRIPTS/download-models.py
+python scripts/download-models.py                        # every seeded model (~5 GB)
+MODELS=small python scripts/download-models.py           # 3 smallest, ~1 GB
+MODELS=Qwen3-1.7B-q4f16_1-MLC python scripts/download-models.py
 ```
 
 **What it does:**
@@ -111,7 +111,7 @@ non-zero when the two disagree.
 **When to run:** After any edit to the model catalog — it is the catalog-drift check.
 
 ```bash
-python SCRIPTS/plan-webllm-artifacts.py
+python scripts/plan-webllm-artifacts.py
 ```
 
 `download-models.py` calls it rather than carrying its own list, so seeding a new browser model
@@ -143,5 +143,5 @@ was removed on 2026-08-23.
 Run all scripts from the repository root:
 ```bash
 cd /path/to/PoLocalCompare
-python SCRIPTS/script-name.py
+python scripts/script-name.py
 ```

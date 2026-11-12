@@ -1,8 +1,9 @@
 @inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.WebAssembly.Hosting
-@using PoLocalCompare.Client.Services
 @inject IWebAssemblyHostEnvironment HostEnv
 @inject IJSRuntime JS
+
+<RadzenComponents />
 
 <div class="page">
     @* SC 2.4.1 Bypass Blocks — first tab stop skips the nav.
@@ -20,22 +21,24 @@
                     @Body
                 </ChildContent>
                 <ErrorContent Context="ex">
-                    @if (HostEnv.IsDevelopment())
+                    @if (HostEnv.IsDevelopment() || HostEnv.IsEnvironment("Test"))
                     {
                         <div class="dev-error-panel">
-                            <h4>⚠ Unhandled Exception (Development)</h4>
+                            <h4>⚠ Unhandled Exception (@HostEnv.Environment)</h4>
                             <p><strong>@ex.GetType().FullName</strong>: @ex.Message</p>
                             <pre>@ex.StackTrace</pre>
                             @if (ex.InnerException is not null)
                             {
                                 <p><strong>Inner:</strong> @ex.InnerException.Message</p>
                             }
+                            <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="Recover">Retry</button>
                         </div>
                     }
                     else
                     {
                         <div class="prod-error-panel">
                             <p>An unexpected error occurred. Please refresh the page or try again later.</p>
+                            <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="Recover">Retry</button>
                         </div>
                     }
                 </ErrorContent>
@@ -43,17 +46,11 @@
         </article>
     </main>
 
-    <footer class="build-stamp" aria-label="Build version">@BuildVersion</footer>
+    <BottomNav />
+    <BuildVersion />
 </div>
 
 @code {
-    private static readonly string BuildVersion =
-        typeof(MainLayout).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
-            .OfType<System.Reflection.AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "BuildStamp")?.Value
-        ?? DateTimeOffset.UtcNow.ToString("yyMMdd", System.Globalization.CultureInfo.InvariantCulture);
-
     private async Task FocusMainAsync() => await JS.InvokeVoidAsync("focusElement", "main-content");
 
     private ErrorBoundary? _errorBoundary;
@@ -64,4 +61,6 @@
         // doesn't persist across pages.
         _errorBoundary?.Recover();
     }
+
+    private void Recover() => _errorBoundary?.Recover();
 }

@@ -54,33 +54,33 @@ public sealed class GetLeaderboardHandler(
                 : null;
 
             return new LeaderboardEntryDto
-                {
-                    ModelId = model.ModelId,
-                    DisplayName = model.DisplayName,
-                    ModelType = model.ModelType,
-                    CurrentElo = Math.Round(model.CurrentElo, 1),
-                    DuelCount = model.DuelCount,
-                    WinCount = model.WinCount,
-                    WinRate = WinRateCalculator.Calculate(model.WinCount, model.DuelCount),
-                    DrawCount = model.DrawCount,
-                    InputTokenPricePerMillion = model.InputTokenPricePerMillion,
-                    OutputTokenPricePerMillion = model.OutputTokenPricePerMillion,
-                    AvgApiCostPerDuel = avgCost,
-                    Value = value,
-                    OutputQualityAvg = modelResults.Count > 0
+            {
+                ModelId = model.ModelId,
+                DisplayName = model.DisplayName,
+                ModelType = model.ModelType,
+                CurrentElo = Math.Round(model.CurrentElo, 1),
+                DuelCount = model.DuelCount,
+                WinCount = model.WinCount,
+                WinRate = WinRateCalculator.Calculate(model.WinCount, model.DuelCount),
+                DrawCount = model.DrawCount,
+                InputTokenPricePerMillion = model.InputTokenPricePerMillion,
+                OutputTokenPricePerMillion = model.OutputTokenPricePerMillion,
+                AvgApiCostPerDuel = avgCost,
+                Value = value,
+                OutputQualityAvg = modelResults.Count > 0
                         ? modelResults.Average(r => r.OutputQualityScore)
                         : null,
-                    // Only runs that actually produced a token. A failure records a short duration,
-                    // so counting one would make crashing look like the fastest possible start.
-                    // The MEDIAN, despite the property's name. Warm-up is measured from the first
-                    // send, so one duel that sat through a 429's Retry-After counts that wait as
-                    // "time to first token": Grok 4.6 showed 147.3 s from four duels, three of
-                    // them under a second. A mean reports the rate limit; a median reports the model.
-                    AvgFirstTokenMs = Median(modelResults
+                // Only runs that actually produced a token. A failure records a short duration,
+                // so counting one would make crashing look like the fastest possible start.
+                // The MEDIAN, despite the property's name. Warm-up is measured from the first
+                // send, so one duel that sat through a 429's Retry-After counts that wait as
+                // "time to first token": Grok 4.6 showed 147.3 s from four duels, three of
+                // them under a second. A mean reports the rate limit; a median reports the model.
+                AvgFirstTokenMs = Median(modelResults
                         .Where(r => !r.IsFailure && r.WarmUpDurationMs > 0)
                         .Select(r => (double)r.WarmUpDurationMs)),
-                    EloSparkline = sparkline,
-                };
+                EloSparkline = sparkline,
+            };
         })).ToList();
 
         var estimates = BradleyTerry.Fit(

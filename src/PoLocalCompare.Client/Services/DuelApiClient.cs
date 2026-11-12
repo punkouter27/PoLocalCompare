@@ -69,16 +69,13 @@ public sealed class DuelApiClient
     /// Best-effort parse of an RFC 7807 ProblemDetails body. Returns null if the body is empty
     /// or not in the expected shape, so callers fall back to the status code's reason phrase.
     /// </summary>
-    private static async Task<ProblemDetailsLite?> TryReadProblemAsync(HttpResponseMessage response)
+    private static Task<ProblemDetailsLite?> TryReadProblemAsync(HttpResponseMessage response) =>
+        ProblemDetailsParser.TryReadAsync(response);
+
+    /// <summary>Clears the server BFF cookie session.</summary>
+    public async Task LogoutAsync()
     {
-        try
-        {
-            return await response.Content.ReadFromJsonAsync(ClientJson.Default.ProblemDetailsLite);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        await _http.PostAsync("auth/logout", null);
     }
 
     /// <summary>

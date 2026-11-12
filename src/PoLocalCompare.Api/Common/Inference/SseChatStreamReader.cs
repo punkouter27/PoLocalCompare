@@ -127,7 +127,7 @@ internal static class SseChatStreamReader
     private sealed class FrameState
     {
         public readonly StringBuilder Sb = new();
-        public readonly HtmlStreamCounters Counters = new();
+        public readonly HtmlStreamCounters Counters;
         public int TokenCount;
         public long? FirstTokenMs;
         public long LastCallbackAt;

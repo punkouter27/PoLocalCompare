@@ -1,16 +1,12 @@
+using System.Collections.Concurrent;
 using Microsoft.Playwright;
 
 namespace PoLocalCompare.E2EUI;
 
 /// <summary>
 /// Shared Playwright harness. Drives a real browser against a running instance across the
-/// mandated mobile and desktop viewports (standards §4).
-///
-/// Prerequisites — this suite is NOT run in CI (no GPU on the runner), so invoke it manually:
-///   1. App running at BASE_URL (default https://localhost:5001).
-///   2. Browsers installed: <c>pwsh bin/Debug/net10.0/playwright.ps1 install chromium</c>.
-/// Authentication uses the dev-only <c>/auth/login/fake</c> route, which sets the BFF cookie.
-/// Set <c>HEADLESS=1</c> to run without a visible window.
+/// mandated mobile and desktop viewports (standards §4) and fails on any browser console
+/// error, page exception, failed request, HTTP >= 400 response, or visible #blazor-error-ui.
 /// </summary>
 public abstract class UiTestBase : IAsyncLifetime
 {
@@ -29,6 +25,8 @@ public abstract class UiTestBase : IAsyncLifetime
 
     private IPlaywright _pw = null!;
     private IBrowser _browser = null!;
+    private readonly List<IPage> _trackedPages = [];
+    private readonly ConcurrentQueue<string> _browserErrors = new();
 
     public async Task InitializeAsync()
     {
@@ -38,8 +36,29 @@ public abstract class UiTestBase : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _browser.DisposeAsync();
-        _pw.Dispose();
+        try
+        {
+            foreach (var page in _trackedPages)
+            {
+                try
+                {
+                    if (!page.IsClosed && await page.Locator("#blazor-error-ui").IsVisibleAsync())
+                        _browserErrors.Enqueue($"{page.Url}: #blazor-error-ui became visible.");
+                }
+                catch (PlaywrightException)
+                {
+                    // Page already navigated away or closed.
+                }
+            }
+        }
+        finally
+        {
+            await _browser.DisposeAsync();
+            _pw.Dispose();
+        }
+
+        if (!_browserErrors.IsEmpty)
+            throw new InvalidOperationException("E2EUI detected browser console/network errors:\n - " + string.Join("\n - ", _browserErrors));
     }
 
     /// <param name="colorScheme">Emulates the OS light/dark preference for theming tests.</param>
@@ -54,7 +73,28 @@ public abstract class UiTestBase : IAsyncLifetime
             HasTouch = width < 768,
             ColorScheme = colorScheme,
         });
-        return await context.NewPageAsync();
+        var page = await context.NewPageAsync();
+        _trackedPages.Add(page);
+
+        page.Console += (_, msg) =>
+        {
+            if (msg.Type == "error")
+                _browserErrors.Enqueue($"Console error on {page.Url}: {msg.Text}");
+        };
+        page.PageError += (_, err) => _browserErrors.Enqueue($"PageError on {page.Url}: {err}");
+        page.Crash += (_, _) => _browserErrors.Enqueue($"Page crashed on {page.Url}");
+        page.RequestFailed += (_, req) =>
+        {
+            if (req.Failure?.Contains("ERR_ABORTED", StringComparison.Ordinal) != true)
+                _browserErrors.Enqueue($"RequestFailed {req.Method} {req.Url}: {req.Failure}");
+        };
+        page.Response += (_, res) =>
+        {
+            if (res.Status >= 400 && !res.Url.EndsWith("/favicon.ico", StringComparison.OrdinalIgnoreCase))
+                _browserErrors.Enqueue($"HTTP {res.Status} for {res.Request.Method} {res.Url}");
+        };
+
+        return page;
     }
 
     /// <summary>

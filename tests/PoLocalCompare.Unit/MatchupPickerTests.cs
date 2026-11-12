@@ -15,6 +15,7 @@ public class MatchupPickerTests
     private static readonly Candidate Newcomer = new(ModelId.From("newcomer"), 1200, 784);
     private static readonly Candidate Newcomer2 = new(ModelId.From("newcomer-2"), 1190, 600);
     private static readonly Candidate Champion = new(ModelId.From("champion"), 1900, 784);
+    private static readonly string[] ExpectedPair = ["newcomer", "newcomer-2"];
 
     [Fact]
     public void Suggest_PrefersTheCloseUnsettledPair_OverAMismatchOrTwoSettledModels()
@@ -23,7 +24,7 @@ public class MatchupPickerTests
 
         Assert.NotNull(pick);
         Assert.Equal(
-            new[] { "newcomer", "newcomer-2" },
+            ExpectedPair,
             new[] { pick.Value.Left.Value, pick.Value.Right.Value }.Order());
     }
 

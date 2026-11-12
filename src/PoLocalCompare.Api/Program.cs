@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
+using FluentValidation;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
@@ -7,6 +8,7 @@ using Azure.Identity;
 using Polly;
 using PoLocalCompare.Api;
 using PoLocalCompare.Api.Auth;
+using PoLocalCompare.Shared.Validation;
 using Scalar.AspNetCore;
 using PoLocalCompare.Api.Platform;
 using Serilog;
@@ -16,12 +18,17 @@ using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 // ─── Bootstrap logger (before DI) ───────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
-    .WriteTo.Console()
+    .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture)
     .CreateBootstrapLogger();
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    if (builder.Environment.IsEnvironment("Test"))
+    {
+        builder.WebHost.UseStaticWebAssets();
+    }
 
     // ─── Key Vault (T037) — must be FIRST before Serilog config ────────────
     // Capture what the local sources already provided. AddAzureKeyVault appends its source at
@@ -42,7 +49,7 @@ try
                 credential,
                 new PrefixKeyVaultSecretManager("PoLocalCompare"));
         }
-        catch (Exception ex) when (builder.Environment.IsDevelopment()
+        catch (Exception ex) when ((builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test"))
             && ex is CredentialUnavailableException or AuthenticationFailedException or Azure.RequestFailedException)
         {
             Log.Warning("Key Vault ({KeyVaultUri}) is unavailable in Development ({Reason}); continuing with local configuration.",
@@ -59,23 +66,25 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithProperty(PoPlatform.ApplicationProperty, PoPlatform.AppName)
             .Enrich.WithProperty("Environment", ctx.HostingEnvironment.EnvironmentName)
-            .WriteTo.Console();
+            .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture);
 
         // File sinks are Development-only: on the Free (F1) App Service they consume the
         // limited app filesystem and don't survive restarts/redeploys. In Production the
         // console sink is what App Service's own log stream picks up.
-        if (ctx.HostingEnvironment.IsDevelopment())
+        if (ctx.HostingEnvironment.IsDevelopment() || ctx.HostingEnvironment.IsEnvironment("Test"))
         {
             cfg
                 .WriteTo.File(
                     path: "logs/polocalcompare-.log",
                     rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 7)
+                    retainedFileCountLimit: 7,
+                    formatProvider: System.Globalization.CultureInfo.InvariantCulture)
                 .WriteTo.File(
                     path: "logs/polocalcompare-errors-.log",
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 14,
-                    restrictedToMinimumLevel: LogEventLevel.Error);
+                    restrictedToMinimumLevel: LogEventLevel.Error,
+                    formatProvider: System.Globalization.CultureInfo.InvariantCulture);
         }
 
         // The single App Insights exporter for this app. OpenTelemetry was removed on 2026-08-23
@@ -95,7 +104,7 @@ try
     // said (env var, appsettings.Development.json) — defaulting to Azurite when they said
     // nothing — so a local run can never write to the real storage account. Production is
     // untouched: there the vault-provided strings are the point.
-    if (builder.Environment.IsDevelopment())
+    if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test"))
     {
         if (builder.Configuration["ConnectionStrings:AzureTableStorage"] != preKvTableConnection)
             builder.Configuration["ConnectionStrings:AzureTableStorage"] = preKvTableConnection ?? "UseDevelopmentStorage=true";
@@ -110,7 +119,7 @@ try
     // path (AzureStorage:AccountName) needs neither.
     if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(builder.Configuration["AzureStorage:AccountName"]))
     {
-        var missing = new[] { "ConnectionStrings:AzureTableStorage", "ConnectionStrings:AzureBlobStorage" }
+        var missing = RequiredStorageConnectionKeys
             .Where(key => string.IsNullOrWhiteSpace(builder.Configuration[key]))
             .ToArray();
         if (missing.Length > 0)
@@ -248,6 +257,7 @@ try
 
     // ─── Application use cases (Phase 3 + 4 + 6) ────────────────────────────
     builder.Services.AddApplicationServices();
+    builder.Services.AddValidatorsFromAssemblyContaining<RefinePromptRequestValidator>();
 
     // ─── Background task queue for reliable duel execution ──────────────────
     // Nothing resolves the concrete BackgroundTaskQueue, so the interface registration and the
@@ -260,7 +270,7 @@ try
 
     // Every table, every environment, before the first request — fail-fast (standards §5.6).
     await StorageTables.EnsureAllAsync(app.Services.GetRequiredService<TableServiceClient>());
-    if (app.Environment.IsDevelopment() && !app.Configuration.GetValue<bool>("Testing:SkipSeeding"))
+    if ((app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test")) && !app.Configuration.GetValue<bool>("Testing:SkipSeeding"))
         await ModelSeeder.SeedAsync(app.Services);
 
     // ─── Startup recovery: settle duels the previous process left behind ──────
@@ -347,7 +357,7 @@ try
         await next(ctx);
     });
 
-    if (app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
     {
         app.MapOpenApi().AllowAnonymous();
         app.MapScalarApiReference("/scalar").AllowAnonymous();
@@ -402,7 +412,7 @@ try
     app.MapPromptsEndpoints();
     app.MapTournamentsEndpoints(allowAnonymousWrites: allowAnonymousWrites);
 
-    if (app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
         app.MapDevEndpoints();
 
     // ─── Blazor WASM static assets + fallback (T014) ─────────────────────────
@@ -422,4 +432,11 @@ finally
     Log.CloseAndFlush();
 }
 
-public partial class Program { }
+public partial class Program
+{
+    private static readonly string[] RequiredStorageConnectionKeys =
+    [
+        "ConnectionStrings:AzureTableStorage",
+        "ConnectionStrings:AzureBlobStorage",
+    ];
+}

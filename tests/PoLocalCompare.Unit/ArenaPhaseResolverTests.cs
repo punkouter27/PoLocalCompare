@@ -20,20 +20,20 @@ public class ArenaPhaseResolverTests
     {
         // A recorded verdict outranks a duel that still looks like it is streaming.
         "human verdict while streaming" => FinishedUnjudged with
-            { DuelStillRunning = true, VerdictRecorded = true, Verdict = DuelVerdict.Left, VerdictSource = VerdictSource.Human },
+        { DuelStillRunning = true, VerdictRecorded = true, Verdict = DuelVerdict.Left, VerdictSource = VerdictSource.Human },
         // Unconfirmed: no attribution until the server says who decided.
         "optimistic ai verdict" => FinishedUnjudged with
-            { VerdictRecorded = true, Optimistic = true, Verdict = DuelVerdict.Left, VerdictSource = VerdictSource.Ai },
+        { VerdictRecorded = true, Optimistic = true, Verdict = DuelVerdict.Left, VerdictSource = VerdictSource.Ai },
         // No model's output was read — never presented as a judgement.
         "constraint verdict" => FinishedUnjudged with
-            { VerdictRecorded = true, Verdict = DuelVerdict.Right, VerdictSource = VerdictSource.Constraint },
+        { VerdictRecorded = true, Verdict = DuelVerdict.Right, VerdictSource = VerdictSource.Constraint },
         "both failed during countdown" => FinishedUnjudged with
-            { LeftFailed = true, RightFailed = true, AutoJudgeRemaining = 5 },
+        { LeftFailed = true, RightFailed = true, AutoJudgeRemaining = 5 },
         // One result in and not terminal: no countdown, however long the window claims to be.
         "one side done, not completed" => FinishedUnjudged with
-            { DuelCompleted = false, AutoJudgeRemaining = 5 },
+        { DuelCompleted = false, AutoJudgeRemaining = 5 },
         "judge deciding beats countdown" => FinishedUnjudged with
-            { AutoJudgeDeciding = true, AutoJudgeRemaining = 1 },
+        { AutoJudgeDeciding = true, AutoJudgeRemaining = 1 },
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 

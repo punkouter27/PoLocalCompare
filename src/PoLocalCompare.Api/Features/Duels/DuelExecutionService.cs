@@ -191,7 +191,7 @@ public sealed class DuelExecutionService
                     Verdict = DuelVerdict.Pending,
                     OwnerId = duel.OwnerId,
                     VerdictBy = duel.VerdictBy,
-                });
+                }, cancellationToken);
 
             // Hand off to the auto-judge, which waits out the grace window before deciding.
             //
@@ -351,7 +351,7 @@ public sealed class DuelExecutionService
                     using var cacheScope = _scopeFactory.CreateScope();
                     await cacheScope.ServiceProvider
                         .GetRequiredService<Microsoft.Extensions.Caching.Hybrid.HybridCache>()
-                        .RemoveByTagAsync(CacheTags.ModelAvailability);
+                        .RemoveByTagAsync(CacheTags.ModelAvailability, CancellationToken.None);
                 }
             }
             else
@@ -391,7 +391,7 @@ public sealed class DuelExecutionService
                 {
                     _logger.LogWarning(saved, "Could not save the {Side} result row for duel {DuelId} after the watchdog fired.", side, duelId);
                 }
-            });
+            }, CancellationToken.None);
         }
         catch (Exception tail)
         {

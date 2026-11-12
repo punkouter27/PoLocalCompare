@@ -31,8 +31,8 @@ public static class FoundryChatRequest
     public static string ReasoningEffortFor(string deploymentName)
     {
         var n = deploymentName.ToLowerInvariant();
-        if (n.StartsWith("gpt-5.5")) return "none";
-        if (n.StartsWith("o1") || n.StartsWith("o3") || n.StartsWith("o4")) return "low";
+        if (n.StartsWith("gpt-5.5", StringComparison.Ordinal)) return "none";
+        if (n.StartsWith("o1", StringComparison.Ordinal) || n.StartsWith("o3", StringComparison.Ordinal) || n.StartsWith("o4", StringComparison.Ordinal)) return "low";
         return "minimal";
     }
 
@@ -202,10 +202,10 @@ public static class FoundryChatRequest
     {
         if (string.IsNullOrWhiteSpace(deploymentName)) return false;
         var n = deploymentName.ToLowerInvariant();
-        return n.StartsWith("gpt-5")
-            || n.StartsWith("o1")
-            || n.StartsWith("o3")
-            || n.StartsWith("o4")
+        return n.StartsWith("gpt-5", StringComparison.Ordinal)
+            || n.StartsWith("o1", StringComparison.Ordinal)
+            || n.StartsWith("o3", StringComparison.Ordinal)
+            || n.StartsWith("o4", StringComparison.Ordinal)
             || LearnedReasoning.ContainsKey(deploymentName);
     }
 
@@ -301,16 +301,16 @@ public static class FoundryChatRequest
         if (string.IsNullOrWhiteSpace(deploymentName)) return false;
         var n = deploymentName.ToLowerInvariant();
         // Native Azure OpenAI deployments — accept stream_options without complaint.
-        return n.StartsWith("gpt-")
-            || n.StartsWith("o1")
-            || n.StartsWith("o3")
-            || n.StartsWith("o4")
-            || n.StartsWith("phi-")
-            || n.StartsWith("llama-")
-            || n.StartsWith("llama_")
-            || n.StartsWith("grok-")
+        return n.StartsWith("gpt-", StringComparison.Ordinal)
+            || n.StartsWith("o1", StringComparison.Ordinal)
+            || n.StartsWith("o3", StringComparison.Ordinal)
+            || n.StartsWith("o4", StringComparison.Ordinal)
+            || n.StartsWith("phi-", StringComparison.Ordinal)
+            || n.StartsWith("llama-", StringComparison.Ordinal)
+            || n.StartsWith("llama_", StringComparison.Ordinal)
+            || n.StartsWith("grok-", StringComparison.Ordinal)
             // Google documents stream_options.include_usage on its OpenAI-compatible endpoint.
-            || n.StartsWith("gemini-");
+            || n.StartsWith("gemini-", StringComparison.Ordinal);
     }
 
     /// <summary>

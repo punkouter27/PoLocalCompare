@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using PoLocalCompare.Client.Pages;
+using PoLocalCompare.Client.Layout;
 
 namespace PoLocalCompare.Client;
 

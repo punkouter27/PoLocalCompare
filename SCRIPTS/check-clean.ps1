@@ -34,7 +34,7 @@
     Skip check 1 (it does not build or run tests, only counts attributes, so this is rarely useful).
 
 .EXAMPLE
-    pwsh SCRIPTS/check-clean.ps1
+    pwsh scripts/check-clean.ps1
 #>
 [CmdletBinding()]
 param(
@@ -160,8 +160,9 @@ $frameworkClasses = @('active', 'valid', 'invalid', 'modified', 'validation-mess
 
 $unused = [System.Collections.Specialized.OrderedDictionary]::new()
 foreach ($file in $cssFiles) {
-    # Comments mention file names (`app.css`, `wow.js`) that would read as class selectors.
+    # Comments mention file names (`app.css`, `wow.js`) and url(...) contains file extensions (.woff2).
     $css = [regex]::Replace((Get-Content $file.FullName -Raw), '(?s)/\*.*?\*/', '')
+    $css = [regex]::Replace($css, 'url\([^)]+\)', '')
     foreach ($match in [regex]::Matches($css, '\.(?<name>[a-zA-Z_][\w-]*)')) {
         $name = $match.Groups['name'].Value
         if ($name -match '^rz-' -or $frameworkClasses -contains $name -or $unused.Contains($name)) { continue }

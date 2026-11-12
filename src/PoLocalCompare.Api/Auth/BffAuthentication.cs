@@ -238,7 +238,7 @@ public static class BffAuthentication
         => !string.IsNullOrWhiteSpace(url)
            && Uri.IsWellFormedUriString(url, UriKind.Relative)
            && url.StartsWith('/')
-           && !url.StartsWith("//")
+           && !url.StartsWith("//", StringComparison.Ordinal)
             ? url
             : "/";
 

@@ -1,0 +1,22 @@
+.bare-layout {
+    position: relative;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-md);
+}
+
+.bare-layout__main {
+    width: 100%;
+}
+
+.bare-layout__error {
+    max-width: 34rem;
+    margin: var(--space-lg) auto;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    background: var(--danger-surface);
+    border: 1px solid var(--danger-border);
+    color: var(--accent-red);
+}

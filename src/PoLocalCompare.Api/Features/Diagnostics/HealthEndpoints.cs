@@ -58,7 +58,7 @@ public static class HealthEndpoints
                 {
                     total = allModels.Count,
                     localService = localServiceCount,
-                    cloudMode = !env.IsDevelopment() && localServiceCount == 0
+                    cloudMode = !env.IsDevelopment() && !env.IsEnvironment("Test") && localServiceCount == 0
                 },
                 checks
             };

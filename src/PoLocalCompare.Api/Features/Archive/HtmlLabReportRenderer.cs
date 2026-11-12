@@ -28,7 +28,7 @@ public static class HtmlLabReportRenderer
         sb.AppendLine("<head>");
         sb.AppendLine("  <meta charset=\"UTF-8\">");
         sb.AppendLine("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-        sb.AppendLine($"  <title>Lab Report — {EscapeHtml(duel.DuelId)}</title>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  <title>Lab Report — {EscapeHtml(duel.DuelId)}</title>");
         sb.AppendLine("  <style>");
         sb.AppendLine("    body { background: #000; color: #e5e5e5; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 24px; }");
         sb.AppendLine("    h1 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 12px; }");
@@ -55,16 +55,16 @@ public static class HtmlLabReportRenderer
         // Header
         sb.AppendLine("  <h1>🧪 Lab Report</h1>");
         sb.AppendLine("  <div class=\"header-meta\">");
-        sb.AppendLine($"    <div>Duel ID: <code>{EscapeHtml(duel.DuelId)}</code></div>");
-        sb.AppendLine($"    <div>Date: {duel.StartedAt:yyyy-MM-dd HH:mm:ss} UTC</div>");
-        sb.AppendLine($"    <div>Completed: {(duel.CompletedAt.HasValue ? duel.CompletedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") + " UTC" : "N/A")}</div>");
-        sb.AppendLine($"    <div>Verdict: <span class=\"verdict-badge verdict-{duel.Verdict.ToString().ToLowerInvariant()}\">{duel.Verdict}</span></div>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <div>Duel ID: <code>{EscapeHtml(duel.DuelId)}</code></div>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <div>Date: {duel.StartedAt:yyyy-MM-dd HH:mm:ss} UTC</div>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <div>Completed: {(duel.CompletedAt.HasValue ? duel.CompletedAt.Value.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + " UTC" : "N/A")}</div>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <div>Verdict: <span class=\"verdict-badge verdict-{duel.Verdict.ToString().ToLowerInvariant()}\">{duel.Verdict}</span></div>");
         sb.AppendLine("  </div>");
 
         // Prompt
         sb.AppendLine("  <div class=\"section\">");
         sb.AppendLine("    <h2>Prompt</h2>");
-        sb.AppendLine($"    <div class=\"prompt-box\">{EscapeHtml(duel.PromptText)}</div>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <div class=\"prompt-box\">{EscapeHtml(duel.PromptText)}</div>");
         sb.AppendLine("  </div>");
 
         // Telemetry table
@@ -73,20 +73,20 @@ public static class HtmlLabReportRenderer
         sb.AppendLine("    <table>");
         sb.AppendLine("      <thead><tr>");
         sb.AppendLine("        <th>Metric</th>");
-        sb.AppendLine($"        <th>{EscapeHtml(duel.LeftModelId)}{(duel.WinnerModelId == duel.LeftModelId ? " 🏆" : "")}</th>");
-        sb.AppendLine($"        <th>{EscapeHtml(duel.RightModelId)}{(duel.WinnerModelId == duel.RightModelId ? " 🏆" : "")}</th>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"        <th>{EscapeHtml(duel.LeftModelId)}{(duel.WinnerModelId == duel.LeftModelId ? " 🏆" : "")}</th>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"        <th>{EscapeHtml(duel.RightModelId)}{(duel.WinnerModelId == duel.RightModelId ? " 🏆" : "")}</th>");
         sb.AppendLine("      </tr></thead>");
         sb.AppendLine("      <tbody>");
-        AppendTelemetryRow(sb, "Token Count", leftResult?.TokenCount.ToString() ?? "—", rightResult?.TokenCount.ToString() ?? "—");
-        AppendTelemetryRow(sb, "Token Velocity (tok/s)", leftResult?.TokenVelocity.ToString("F1") ?? "—", rightResult?.TokenVelocity.ToString("F1") ?? "—");
-        AppendTelemetryRow(sb, "Warm-up (ms)", leftResult?.WarmUpDurationMs.ToString() ?? "—", rightResult?.WarmUpDurationMs.ToString() ?? "—");
-        AppendTelemetryRow(sb, "Generation (ms)", leftResult?.GenerationDurationMs.ToString() ?? "—", rightResult?.GenerationDurationMs.ToString() ?? "—");
-        AppendTelemetryRow(sb, "Total (ms)", leftResult?.TotalDurationMs.ToString() ?? "—", rightResult?.TotalDurationMs.ToString() ?? "—");
-        AppendTelemetryRow(sb, "Output Size (bytes)", leftResult?.HtmlOutputSizeBytes.ToString() ?? "—", rightResult?.HtmlOutputSizeBytes.ToString() ?? "—");
-        AppendTelemetryRow(sb, "Character Density", leftResult?.CharacterDensityRatio.ToString("F3") ?? "—", rightResult?.CharacterDensityRatio.ToString("F3") ?? "—");
-        AppendTelemetryRow(sb, "Energy (Wh)", leftResult?.EnergyWh?.ToString("F4") ?? "—", rightResult?.EnergyWh?.ToString("F4") ?? "—");
-        AppendTelemetryRow(sb, "Energy Cost (USD)", leftResult?.EnergyCostUsd?.ToString("F6") ?? "—", rightResult?.EnergyCostUsd?.ToString("F6") ?? "—");
-        AppendTelemetryRow(sb, "API Cost (USD)", leftResult?.ApiCostUsd?.ToString("F4") ?? "—", rightResult?.ApiCostUsd?.ToString("F4") ?? "—");
+        AppendTelemetryRow(sb, "Token Count", leftResult?.TokenCount.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.TokenCount.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Token Velocity (tok/s)", leftResult?.TokenVelocity.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.TokenVelocity.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Warm-up (ms)", leftResult?.WarmUpDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.WarmUpDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Generation (ms)", leftResult?.GenerationDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.GenerationDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Total (ms)", leftResult?.TotalDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.TotalDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Output Size (bytes)", leftResult?.HtmlOutputSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.HtmlOutputSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Character Density", leftResult?.CharacterDensityRatio.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.CharacterDensityRatio.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Energy (Wh)", leftResult?.EnergyWh?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.EnergyWh?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "Energy Cost (USD)", leftResult?.EnergyCostUsd?.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.EnergyCostUsd?.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+        AppendTelemetryRow(sb, "API Cost (USD)", leftResult?.ApiCostUsd?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "—", rightResult?.ApiCostUsd?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "—");
         AppendTelemetryRow(sb, "Failure", leftResult?.IsFailure == true ? leftResult.FailureReason ?? "Yes" : "No", rightResult?.IsFailure == true ? rightResult.FailureReason ?? "Yes" : "No");
         sb.AppendLine("      </tbody>");
         sb.AppendLine("    </table>");
@@ -99,9 +99,9 @@ public static class HtmlLabReportRenderer
         sb.AppendLine("      <thead><tr><th>Model</th><th>Before</th><th>After</th><th>Shift</th></tr></thead>");
         sb.AppendLine("      <tbody>");
         if (leftElo is not null)
-            sb.AppendLine($"      <tr><td>{EscapeHtml(duel.LeftModelId)}</td><td>{leftElo.EloBefore:F1}</td><td>{leftElo.EloAfter:F1}</td><td>{(leftElo.EloShift >= 0 ? "+" : "")}{leftElo.EloShift:F1}</td></tr>");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"      <tr><td>{EscapeHtml(duel.LeftModelId)}</td><td>{leftElo.EloBefore:F1}</td><td>{leftElo.EloAfter:F1}</td><td>{(leftElo.EloShift >= 0 ? "+" : "")}{leftElo.EloShift:F1}</td></tr>");
         if (rightElo is not null)
-            sb.AppendLine($"      <tr><td>{EscapeHtml(duel.RightModelId)}</td><td>{rightElo.EloBefore:F1}</td><td>{rightElo.EloAfter:F1}</td><td>{(rightElo.EloShift >= 0 ? "+" : "")}{rightElo.EloShift:F1}</td></tr>");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"      <tr><td>{EscapeHtml(duel.RightModelId)}</td><td>{rightElo.EloBefore:F1}</td><td>{rightElo.EloAfter:F1}</td><td>{(rightElo.EloShift >= 0 ? "+" : "")}{rightElo.EloShift:F1}</td></tr>");
         sb.AppendLine("      </tbody>");
         sb.AppendLine("    </table>");
         sb.AppendLine("  </div>");
@@ -122,11 +122,11 @@ public static class HtmlLabReportRenderer
         {
             var label = isWinner ? "Winner" : "Loser";
             var labelClass = isWinner ? "winner-label" : "loser-label";
-            sb.AppendLine($"    <h3><span class=\"{labelClass}\">{label}</span>: {EscapeHtml(modelId)}</h3>");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"    <h3><span class=\"{labelClass}\">{label}</span>: {EscapeHtml(modelId)}</h3>");
             sb.AppendLine("    <div class=\"source-panel\">");
             // Strip <script> tags and on* attributes from output (sanitise)
             var sanitised = SanitiseHtml(result?.HtmlOutputRaw ?? "(no output)");
-            sb.AppendLine($"      <pre>{EscapeHtml(sanitised)}</pre>");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"      <pre>{EscapeHtml(sanitised)}</pre>");
             sb.AppendLine("    </div>");
         }
 
@@ -139,7 +139,7 @@ public static class HtmlLabReportRenderer
 
     private static void AppendTelemetryRow(StringBuilder sb, string metric, string left, string right)
     {
-        sb.AppendLine($"      <tr><td>{EscapeHtml(metric)}</td><td>{EscapeHtml(left)}</td><td>{EscapeHtml(right)}</td></tr>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"      <tr><td>{EscapeHtml(metric)}</td><td>{EscapeHtml(left)}</td><td>{EscapeHtml(right)}</td></tr>");
     }
 
     private static string EscapeHtml(string? input)

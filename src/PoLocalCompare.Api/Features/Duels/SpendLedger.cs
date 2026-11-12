@@ -27,7 +27,7 @@ public sealed class SpendLedger(TableServiceClient tables, ILogger<SpendLedger> 
         var now = DateTimeOffset.UtcNow;
         try
         {
-            await _table.AddEntityAsync(new TableEntity(now.ToString("yyyyMMdd"), Ulid.NewUlid(now).ToString())
+            await _table.AddEntityAsync(new TableEntity(now.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture), Ulid.NewUlid(now).ToString())
             {
                 ["Purpose"] = purpose,
                 ["Deployment"] = deployment,
@@ -44,8 +44,9 @@ public sealed class SpendLedger(TableServiceClient tables, ILogger<SpendLedger> 
     public async Task<double> SumAsync(DateTimeOffset day)
     {
         var total = 0.0;
+        var dayPartition = day.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
         await foreach (var entity in _table.QueryAsync<TableEntity>(
-            filter: TableClient.CreateQueryFilter($"PartitionKey eq {day.ToString("yyyyMMdd")}"),
+            filter: TableClient.CreateQueryFilter($"PartitionKey eq {dayPartition}"),
             select: ["CostUsd"]))
         {
             total += entity.GetDouble("CostUsd") ?? 0;
