@@ -189,7 +189,7 @@ self.onmessage = async (event) => {
             // Serving weights from wwwroot/models is not enough on a locked-down network:
             // prebuiltAppConfig points model_lib at raw.githubusercontent.com, a separate
             // host from huggingface.co that a proxy can block on its own. Prefer a vendored
-            // copy at models/_libs/<name>.wasm (installed by SCRIPTS/download-models.py,
+            // copy at models/_libs/<name>.wasm (installed by scripts/download-models.py,
             // the only vendoring path this repo has)
             // and fall back to the upstream URL when it is absent. The probe also fails
             // harmlessly when localModelBaseUrl is a CDN URL, which keeps the CDN path intact.

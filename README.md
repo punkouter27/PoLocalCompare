@@ -41,7 +41,7 @@ $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.De
 
 ## Tests
 
-`dotnet test` per project under `tests/`. **Unit, Integration and E2E-API gate the deploy** — [.github/workflows/deploy.yml](.github/workflows/deploy.yml) runs all three in a `test` job that `build` depends on. Integration and E2E-API need Docker (Testcontainers spins Azurite).
+`dotnet test` per project under `tests/`. **Unit, Integration and E2E-API gate the deploy** — [.github/workflows/deploy.yml](.github/workflows/deploy.yml) is the shared Po workflow (identical in every Po .NET web repo, never edited here): it runs Unit itself, and this repo's [scripts/ci-checks.ps1](scripts/ci-checks.ps1) hook adds Integration, E2E-API, `check-clean.ps1` and the browser-model catalog check before the publish. Bicep is applied only by the manual `.github/workflows/infra.yml`. Integration and E2E-API need Docker (Testcontainers spins Azurite).
 
 **E2E-UI is deliberately not in CI**: it drives a real headed Chrome against a running instance and exercises WebGPU paths a runner has no GPU for. It is the one suite that goes stale silently — run it locally after touching UI markup.
 

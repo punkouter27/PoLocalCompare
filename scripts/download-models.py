@@ -4,9 +4,9 @@ Download WebLLM MLC model weights + model libraries directly from the internet.
 Run from repo root on a machine with egress to huggingface.co and
 raw.githubusercontent.com:
 
-    python SCRIPTS/download-models.py            # every seeded model
-    MODELS=small python SCRIPTS/download-models.py
-    MODELS=Qwen3-1.7B-q4f16_1-MLC python SCRIPTS/download-models.py
+    python scripts/download-models.py            # every seeded model
+    MODELS=small python scripts/download-models.py
+    MODELS=Qwen3-1.7B-q4f16_1-MLC python scripts/download-models.py
 
 The model list is derived from ModelSeeder.cs + web-llm.js by
 plan-webllm-artifacts.py, so there is no second list to keep in sync. MODELS is
@@ -28,7 +28,7 @@ Integrity does not depend on that: every LFS file is verified against the sha256
 that the Hub advertises in its tree listing, and a file that fails is re-fetched.
 
 There is no air-gapped route in this repo. Older revisions of AGENT.MD and
-SCRIPTS/README.md pointed at a "Fetch WebLLM artifacts" GitHub Actions
+scripts/README.md pointed at a "Fetch WebLLM artifacts" GitHub Actions
 workflow plus receive-artifacts.ps1; neither has ever existed here
 (.github/workflows/ holds only deploy.yml). If this machine cannot reach
 huggingface.co, browser models fall back to the CDN or fail to load.

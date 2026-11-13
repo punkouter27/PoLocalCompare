@@ -186,7 +186,7 @@ host, so both fetch paths also vendor the `.wasm` libraries into `wwwroot/models
 only vendoring path this repo has, and it drives `curl` rather than `huggingface_hub` for the
 reason PRD §9 item 8 records. (This paragraph used to point at a "Fetch WebLLM artifacts" GitHub
 workflow and a `scripts/receive-artifacts.ps1`; neither has ever existed in this repo —
-`.github/workflows/` holds only `deploy.yml`. Don't go looking for them.)
+`.github/workflows/` holds only `deploy.yml` and the manual `infra.yml`. Don't go looking for them.)
 
 ### 4.4 Authentication (BFF)
 The API is a **Backend-for-Frontend**: it owns the OIDC code flow and the session. The Blazor WASM
@@ -282,7 +282,7 @@ python scripts/download-models.py
 
 # 2b. There is no offline/air-gapped workflow in this repo. The "Fetch WebLLM artifacts"
 #     workflow and scripts/receive-artifacts.ps1 that older revisions of this file mention
-#     do not exist; .github/workflows/ holds only deploy.yml. On a network that blocks
+#     do not exist; .github/workflows/ holds only deploy.yml and infra.yml. On a network that blocks
 #     HuggingFace, browser models simply fall back to the CDN or fail to load.
 
 # 3. (Optional) Set Azure AI Foundry key - appsettings.Development.json or an env var.
@@ -357,8 +357,8 @@ dotnet test tests/PoLocalCompare.E2EUI         # Playwright (app must be running
 - Integration / E2E-API tests run in a **non-Production** host so the `X-Fake-User` guest bypass works.
 - E2E-UI needs a running app and `playwright install`; it runs **headed** by default (`HEADLESS=1` to
   suppress) across a 390×844 mobile and 1440×900 desktop viewport, and is **not** run in CI.
-- Unit / Integration / E2EAPI run in CI as a `test` job that `build` depends on, so a red suite blocks
-  the deploy. E2E-UI is excluded (no GPU on the runner) and remains a local-only gate.
+- Unit runs in the shared deploy.yml; Integration / E2EAPI run from `scripts/ci-checks.ps1`, which it
+  calls before the publish, so a red suite blocks the deploy. E2E-UI is excluded (no GPU on the runner) and remains a local-only gate.
 
 ---
 
@@ -370,6 +370,14 @@ pwsh scripts/provision-azure.ps1
 
 # Deploy code: push to master — deploy.yml builds, tests and zip-deploys
 ```
+
+- **deploy.yml is the shared Po workflow**, byte-identical in every Po .NET web repo (reference copy in
+  PoTraffic, synced by `PoPunkouterSoftware/scripts/sync-ci.ps1`). Never edit it here: this repo's extras
+  are its hooks — `scripts/ci-checks.ps1` (Git LFS pull + rebuild for `web-llm.js`, `check-clean.ps1`,
+  the browser-model catalog check, Integration and E2EAPI) and `scripts/post-deploy-smoke.ps1` (SPA mount,
+  cache-buster freshness, anonymous 401s). It reads repo variables `AZURE_WEBAPP_NAME` and
+  `AZURE_RESOURCE_GROUP`. Bicep is never applied by a deploy; `.github/workflows/infra.yml` is a manual
+  what-if/apply.
 
 - **Subscription:** punkouter27@gmail.com since 2026-10-25. The original punkouter26@outlook.com
   deployment (`app-polocalcompare-win2`, `polocalcomparedevsa2`, `kv-poshared2`) is left running and is
@@ -395,9 +403,9 @@ pwsh scripts/provision-azure.ps1
 - **CI identity:** app registration `PoLocalCompare-GitHub` with a federated credential for
   `repo:punkouter27/PoLocalCompare:ref:refs/heads/master`, holding **Website Contributor on the
   `PoLocalCompare` RG only**. That is enough to deploy and deliberately not enough to run the
-  template, so deploy.yml fails with a pointer to the script instead of provisioning. The script
+  template: provisioning is `scripts/provision-azure.ps1` (or the manual `infra.yml`), never a deploy. The script
   sets the repo variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and
-  `AZURE_WEBAPP_NAME`.
+  `AZURE_WEBAPP_NAME`; the shared deploy.yml also needs `AZURE_RESOURCE_GROUP` (`PoLocalCompare`).
 - **App-scoped secrets** use the `PoLocalCompare--` prefix (e.g. `PoLocalCompare--AzureAiFoundry--ApiKey`);
   `PrefixKeyVaultSecretManager("PoLocalCompare")` strips the prefix. The script copies every
   `PoLocalCompare--*` secret from the outlook `kv-poshared2` except `ConnectionStrings--*`, which

@@ -1,7 +1,7 @@
 targetScope = 'subscription'
 
 // Provisions PoLocalCompare from nothing into one subscription (since 2026-10-25 the
-// punkouter27@gmail.com one). Run through SCRIPTS/provision-azure.ps1, which also seeds the vault
+// punkouter27@gmail.com one). Run through scripts/provision-azure.ps1, which also seeds the vault
 // and wires GitHub OIDC — CI only deploys code onto what this creates.
 
 @description('Azure region for both resource groups')

@@ -79,8 +79,8 @@ nothing else watches: a tier over its test budget; a class applied in markup tha
 defines (the element just renders unstyled); a class a stylesheet defines that nothing applies; a
 C# type named nowhere but its own declaration; a stylesheet or script loaded without a `?v=`
 cache-buster; and an effect script that reads `data-fx` or queries reduced motion itself instead
-of calling `poPrefs.motionAllowed()`. It reads source only, so it is deterministic and cheap, and the `hygiene` job in
-[deploy.yml](.github/workflows/deploy.yml) runs it beside the suites.
+of calling `poPrefs.motionAllowed()`. It reads source only, so it is deterministic and cheap, and CI runs it from
+[scripts/ci-checks.ps1](scripts/ci-checks.ps1), the repo hook the shared [deploy.yml](.github/workflows/deploy.yml) calls.
 
 ### Tests
 
@@ -99,8 +99,9 @@ UI tests run **headed Chrome by default** across a mobile and a desktop viewport
 to suppress windows and `BASE_URL` to point elsewhere. Browsers install via
 `pwsh tests/PoLocalCompare.E2EUI/bin/Debug/net10.0/playwright.ps1 install chromium`.
 
-Unit, Integration and E2EAPI **gate the deploy** — [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
-runs them in a `test` job that `build` depends on. **E2EUI is not in CI** (real headed Chrome, WebGPU
+Unit, Integration and E2EAPI **gate the deploy** — the shared [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
+(same file in every Po .NET web repo; never edit it here) runs Unit, and [scripts/ci-checks.ps1](scripts/ci-checks.ps1)
+runs Integration and E2EAPI; [scripts/post-deploy-smoke.ps1](scripts/post-deploy-smoke.ps1) checks the live site after the health gate. **E2EUI is not in CI** (real headed Chrome, WebGPU
 paths a runner has no GPU for), so it is the one suite that goes stale silently; run it locally after
 touching UI markup.
 

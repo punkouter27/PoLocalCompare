@@ -8,7 +8,7 @@ namespace PoLocalCompare.Api.Features.Models;
 /// the browser worker resolves every model against.
 /// </summary>
 /// <remarks>
-/// Same parse as <c>SCRIPTS/plan-webllm-artifacts.py</c>, and for the same reason: the worker
+/// Same parse as <c>scripts/plan-webllm-artifacts.py</c>, and for the same reason: the worker
 /// looks a model up in <c>prebuiltAppConfig</c> to find its <c>model_lib</c> wasm, so an id
 /// with no entry there cannot load no matter what the catalog says. Discovery lists only what
 /// this returns, which is how a runtime-added browser model is guaranteed to be runnable.

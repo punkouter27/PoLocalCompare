@@ -102,7 +102,7 @@ public static class ModelsEndpoints
         .AllowAnonymous();
 
         // There is deliberately no POST /download here. Weights are vendored by
-        // SCRIPTS/download-models.py ahead of time (see SCRIPTS/README.md); the endpoint that
+        // scripts/download-models.py ahead of time (see scripts/README.md); the endpoint that
         // once kicked that script off in the background had no caller in the UI and was removed
         // on 2026-09-10. Nothing in the client ever invoked it — the JS only ever read
         // download-status above.
