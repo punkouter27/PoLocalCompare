@@ -9,3 +9,6 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# web-llm.js (~6 MB bundle) is a Git LFS object; scripts/ci-checks.ps1 pulls it.
+src/PoLocalCompare.Client/wwwroot/js/web-llm.js filter=lfs diff=lfs merge=lfs -text
