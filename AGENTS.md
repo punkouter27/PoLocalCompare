@@ -186,7 +186,7 @@ host, so both fetch paths also vendor the `.wasm` libraries into `wwwroot/models
 only vendoring path this repo has, and it drives `curl` rather than `huggingface_hub` for the
 reason PRD §9 item 8 records. (This paragraph used to point at a "Fetch WebLLM artifacts" GitHub
 workflow and a `scripts/receive-artifacts.ps1`; neither has ever existed in this repo —
-`.github/workflows/` holds only `deploy.yml` and the manual `infra.yml`. Don't go looking for them.)
+`.github/workflows/` holds only `deploy.yml` (Bicep runs from it by hand with the `infra` input). Don't go looking for them.)
 
 ### 4.4 Authentication (BFF)
 The API is a **Backend-for-Frontend**: it owns the OIDC code flow and the session. The Blazor WASM
@@ -282,7 +282,7 @@ python scripts/download-models.py
 
 # 2b. There is no offline/air-gapped workflow in this repo. The "Fetch WebLLM artifacts"
 #     workflow and scripts/receive-artifacts.ps1 that older revisions of this file mention
-#     do not exist; .github/workflows/ holds only deploy.yml and infra.yml. On a network that blocks
+#     do not exist; .github/workflows/ holds only deploy.yml. On a network that blocks
 #     HuggingFace, browser models simply fall back to the CDN or fail to load.
 
 # 3. (Optional) Set Azure AI Foundry key - appsettings.Development.json or an env var.
@@ -376,7 +376,7 @@ pwsh scripts/provision-azure.ps1
   are its hooks — `scripts/ci-checks.ps1` (Git LFS pull + rebuild for `web-llm.js`, `check-clean.ps1`,
   the browser-model catalog check, Integration and E2EAPI) and `scripts/post-deploy-smoke.ps1` (SPA mount,
   cache-buster freshness, anonymous 401s). It reads repo variables `AZURE_WEBAPP_NAME` and
-  `AZURE_RESOURCE_GROUP`. Bicep is never applied by a deploy; `.github/workflows/infra.yml` is a manual
+  `AZURE_RESOURCE_GROUP`. Bicep is never applied by a deploy; `.github/workflows/deploy.yml` (run by hand with `infra`) is a manual
   what-if/apply.
 
 - **Subscription:** punkouter27@gmail.com since 2026-10-25. The original punkouter26@outlook.com
@@ -403,7 +403,7 @@ pwsh scripts/provision-azure.ps1
 - **CI identity:** app registration `PoLocalCompare-GitHub` with a federated credential for
   `repo:punkouter27/PoLocalCompare:ref:refs/heads/master`, holding **Website Contributor on the
   `PoLocalCompare` RG only**. That is enough to deploy and deliberately not enough to run the
-  template: provisioning is `scripts/provision-azure.ps1` (or the manual `infra.yml`), never a deploy. The script
+  template: provisioning is `scripts/provision-azure.ps1` (or a manual `deploy.yml` run with `infra` = what-if, then apply), never a deploy. The script
   sets the repo variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and
   `AZURE_WEBAPP_NAME`; the shared deploy.yml also needs `AZURE_RESOURCE_GROUP` (`PoLocalCompare`).
 - **App-scoped secrets** use the `PoLocalCompare--` prefix (e.g. `PoLocalCompare--AzureAiFoundry--ApiKey`);
