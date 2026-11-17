@@ -97,10 +97,17 @@ public static class ModelsEndpoints
             [FromRoute] string webLlmModelId,
             IWebHostEnvironment environment) =>
         {
+            // A bare folder name only: anything with a separator or ".." could probe the disk
+            // outside wwwroot/models, and this route is anonymous.
+            var safeId = webLlmModelId.IndexOfAny(['/', '\\']) < 0 && !webLlmModelId.Contains("..", StringComparison.Ordinal);
             var modelsRoot = Path.Combine(environment.WebRootPath ?? "wwwroot", "models", webLlmModelId);
-            var downloaded = Directory.Exists(modelsRoot)
+            var downloaded = safeId
+                && Directory.Exists(modelsRoot)
                 && Directory.EnumerateFiles(modelsRoot, "mlc-chat-config.json").Any();
-            return Results.Ok(new { webLlmModelId, downloaded, localPath = downloaded ? modelsRoot : null });
+            // No server filesystem path in the response (removed 2026-11-17): the absolute
+            // wwwroot location leaked the host's directory layout to anonymous callers, and no
+            // client read it — both JS callers only use `downloaded`.
+            return Results.Ok(new { webLlmModelId, downloaded });
         })
         .WithName("GetModelDownloadStatus")
         .WithSummary("Reports whether the WebLLM model weights are present locally on disk.")

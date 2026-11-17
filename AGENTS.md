@@ -335,7 +335,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-11-17): **100 unit / 49 integration / 22 E2E-API / 25 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-11-17): **100 unit / 50 integration / 22 E2E-API / 25 E2E-UI**,
 all passing, and `scripts/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 

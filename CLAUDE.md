@@ -109,7 +109,7 @@ AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration �
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
 onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has three
-cases spare** (100/49/22/25 as of 2026-11-17; the /api/diag anonymity and no-secrets cases took integration from 47) and `scripts/check-clean.ps1` fails when a tier
+cases spare** (100/50/22/25 as of 2026-11-17; the /api/diag and download-status no-leak cases took integration from 47 to its cap) and `scripts/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
