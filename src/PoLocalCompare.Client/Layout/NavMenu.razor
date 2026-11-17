@@ -58,7 +58,7 @@
             @* Nothing until the session is known. The first render ran before /auth/me answered,
                so a signed-in visitor saw Sign in + Guest flash and then swap for their badge —
                measured as a layout shift on every route. *@
-            <div class="navmenu__auth">
+            <div class="navmenu__auth @(_identityResolved && _identity is null ? "navmenu__auth--signed-out" : null)">
                 @if (_identityResolved && _identity is null)
                 {
                     @* Same control as the Login card, just sized small so it sits in the navbar. *@
@@ -73,20 +73,25 @@
                     }
                 }
 
-                @* ── One menu for everything session-shaped ──
-                   Native <details>/<summary>: keyboard operable with no script, and it works the
-                   same at every width — which is what makes /catalog reachable below 768px.
-                   Theme, sound and the optional features live on /settings since 2026-10-26.
-                   Closing: Escape (OnMenuKeyDown) and any navigation re-key the element, which
-                   recreates it closed. Signed out there is only Settings, so the gear is a
-                   plain link rather than a menu of one. *@
-                @if (_identityResolved && _identity is null)
+                @* ── Settings: always on the bar, beside the account (2026-11-17) ──
+                   It used to hide inside the account menu while signed in, so the one place that
+                   turns on the optional features took two clicks to find and was invisible from
+                   the header. Now the gear sits next to the identity at every width, signed in
+                   or out. *@
+                @if (_identityResolved)
                 {
-                    <a class="navmenu__menu-trigger navmenu__settings-link" href="settings" aria-label="Settings">
+                    <a class="navmenu__menu-trigger navmenu__settings-link" href="settings"
+                       aria-label="Settings" title="Settings — theme, sound and optional features">
                         <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
                     </a>
                 }
-                else if (_identityResolved)
+
+                @* ── One menu for everything session-shaped ──
+                   Native <details>/<summary>: keyboard operable with no script, and it works the
+                   same at every width — which is what makes /catalog reachable below 768px.
+                   Closing: Escape (OnMenuKeyDown) and any navigation re-key the element, which
+                   recreates it closed. *@
+                @if (_identityResolved && _identity is not null)
                 {
                 <details class="navmenu__menu" @key="_menuKey" @onkeydown="OnMenuKeyDown">
                     <summary class="navmenu__menu-trigger" @ref="_menuTrigger" aria-label="@($"Account menu for {_identity}")">
@@ -106,11 +111,6 @@
                     </summary>
 
                     <div class="navmenu__menu-panel">
-                        <NavLink class="navmenu__menu-item" href="settings"
-                                 title="Theme, sound and optional features">
-                            <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
-                            <span>Settings</span>
-                        </NavLink>
                         <NavLink class="navmenu__menu-item" href="catalog"
                                  title="Add browser or Ollama models to the catalog">
                             <span class="navmenu__menu-glyph" aria-hidden="true">🧪</span>

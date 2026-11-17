@@ -97,16 +97,6 @@ public abstract class UiTestBase : IAsyncLifetime
         return page;
     }
 
-    /// <summary>
-    /// Opens the nav's user menu — a native &lt;details&gt; holding Settings, Catalog and Logout. There is no phone drawer to open first any more: since 2026-10-11
-    /// the links and the session controls sit on the bar at every width.
-    /// </summary>
-    protected static async Task OpenUserMenuAsync(IPage page)
-    {
-        if (await page.Locator(".navmenu__menu[open]").CountAsync() == 0)
-            await page.Locator(".navmenu__menu-trigger").ClickAsync();
-    }
-
     /// <summary>Identity the dev-only fake-auth route signs the browser in as.</summary>
     protected const string GuestIdentity = "GUEST_E2E_TEST";
 

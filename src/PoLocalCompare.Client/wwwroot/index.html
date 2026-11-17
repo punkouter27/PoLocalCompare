@@ -11,26 +11,18 @@
          simply does not appear — which is how the box-sizing fix was initially verified
          against a stale sheet. Bump the number on every CSS edit. (The service worker is a
          pass-through no-op that WebLLM registers; the stale copy comes from the HTTP cache.) -->
-    <!-- Fonts, as <link> rather than an @import at the top of app.css. An @import cannot be
-         seen by the preload scanner — it is only discovered once app.css has been fetched and
-         parsed — so the font request used to sit behind the stylesheet on the critical path.
-         preconnect opens the two connections (googleapis for the CSS, gstatic for the files)
-         while that is still happening.
-
-         Weights: 400/600/700/800 for Space Grotesk, 400 for JetBrains Mono. The previous
-         request included 500 for both and 600 for the mono face, none of which any rule in
-         the app declares, and omitted 800, which .home__slot-vs does — so the one weight
-         that was actually needed was the one not being downloaded, and the browser faked it. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=JetBrains+Mono:wght@400&display=swap" />
+    <!-- Fonts, as <link> rather than an @import at the top of app.css: an @import is only
+         discovered once app.css has been parsed. Self-hosted since 2026-11-17 (see fonts.css
+         for why the Google Fonts links went), so there is no third-party preconnect either.
+         The latin file is preloaded because the first paint needs it. -->
+    <link rel="preload" href="fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="css/fonts.css?v=1" />
     <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css?v=12.1.12" />
     <link rel="stylesheet" href="css/po-tokens.css?v=1" />
     <link rel="stylesheet" href="css/po-motion.css?v=1" />
     <link rel="stylesheet" href="css/app.css?v=29" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="PoLocalCompare.Client.styles.css?v=48" rel="stylesheet" />
+    <link href="PoLocalCompare.Client.styles.css?v=49" rel="stylesheet" />
     <!-- Loaded in <head>, before first paint: applying the theme after the body renders
          flashes the wrong palette on every navigation. -->
     <script src="js/prefs.js?v=5"></script>

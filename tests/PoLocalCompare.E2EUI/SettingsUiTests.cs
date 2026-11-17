@@ -95,24 +95,25 @@ public sealed class SettingsUiTests : UiTestBase
         Assert.Equal("light", await ThemeAttributeAsync(page));
         Assert.Equal("on", await page.EvaluateAsync<string?>("() => document.documentElement.getAttribute('data-fx')"));
 
-        // And the tokens actually reach a rendered surface: the leaderboard grid is a plain
-        // .po-table styled from the design tokens, so its computed colour must track the choice.
+        // And the tokens actually reach a rendered surface. The page title, not the ranking
+        // table: until 2026-11-17 this read `.po-table th`, which only exists once a model has a
+        // judged duel — on a fresh store the leaderboard is, by design, one empty-state banner,
+        // so the test failed on data rather than on theming. The title renders in every state.
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
-        var header = page.Locator(".po-table th").First;
-        await Assertions.Expect(header).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        var lightColor = await header.EvaluateAsync<string>("el => getComputedStyle(el).color");
+        var title = page.Locator(".leaderboard__title");
+        await Assertions.Expect(title).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        var lightColor = await title.EvaluateAsync<string>("el => getComputedStyle(el).color");
 
-        // Reached the way a user reaches it: from the user menu.
-        await OpenUserMenuAsync(page);
-        await page.Locator(".navmenu__menu-item", new() { HasText = "Settings" }).ClickAsync();
+        // Reached the way a user reaches it: the gear on the header, beside the account badge.
+        await page.Locator(".navmenu__settings-link").ClickAsync();
         await ThemeChip(page, "Dark").ClickAsync();
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync("data-theme", "dark");
 
         await page.GotoAsync("/leaderboard");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
-        header = page.Locator(".po-table th").First;
-        await Assertions.Expect(header).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        var darkColor = await header.EvaluateAsync<string>("el => getComputedStyle(el).color");
+        title = page.Locator(".leaderboard__title");
+        await Assertions.Expect(title).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        var darkColor = await title.EvaluateAsync<string>("el => getComputedStyle(el).color");
 
         Assert.NotEqual(lightColor, darkColor);
     }

@@ -178,11 +178,17 @@
         font-size: var(--text-sm);
     }
 
-    /* A fixed slot for the session control while signed in (or not yet known), so the links
+    /* A fixed slot for the session controls while signed in (or not yet known), so the links
        are laid out once: as a flexible box, the badge arriving took width from them and every
-       link shifted. 3rem is the disc plus its caret. */
-    .navmenu__inner:not(:has(.navmenu__auth > :not(.navmenu__menu))) .navmenu__auth {
-        flex: 0 0 3rem;
+       link shifted. The slot is the settings gear plus the disc; the caret goes on a phone —
+       the disc alone reads as the account control and the row needs the width. */
+    .navmenu__inner:not(:has(.navmenu__auth--signed-out)) .navmenu__auth {
+        flex: 0 0 4.75rem;
+        gap: 0;
+    }
+
+    .navmenu__menu-caret {
+        display: none;
     }
 
     /* The badge becomes a 28px disc holding the initial. */
@@ -202,11 +208,11 @@
     /* Signed out, the session controls are Sign in, Guest and the gear — too wide to share the
        row — so the links drop to a second one as they used to. This bar is then 6.25rem, taller
        than --nav-height; the only page it shows on is the sign-in card, which pins nothing. */
-    .navmenu__inner:has(.navmenu__auth > :not(.navmenu__menu)) {
+    .navmenu__inner:has(.navmenu__auth--signed-out) {
         flex-wrap: wrap;
     }
 
-    .navmenu__inner:has(.navmenu__auth > :not(.navmenu__menu)) .navmenu__links {
+    .navmenu__inner:has(.navmenu__auth--signed-out) .navmenu__links {
         order: 3;
         flex: 1 0 100%;
         border-top: 1px solid var(--border);
@@ -301,8 +307,9 @@
 }
 
 /* ── User menu (<details>) ─────────────────────────────────────────────────────
-   Settings, Catalog and Logout behind the identity badge. Signed out, the gear is a plain
-   link to /settings (.navmenu__settings-link) — a menu of one item is a detour.
+   Catalog, the dev personas and Logout behind the identity badge. Settings is not in it: the
+   gear (.navmenu__settings-link) sits on the bar beside the badge at every width, signed in
+   or out (2026-11-17).
    Focus rings and the 24px/44px target floor for button and summary come from app.css;
    only the NavLink anchor needs the floor restated. */
 .navmenu__menu {
@@ -331,8 +338,7 @@
     background: var(--surface-1);
 }
 
-/* The signed-out gear is an anchor, which app.css's 24px floor for button and summary
-   does not cover. */
+/* The gear is an anchor, which app.css's 24px floor for button and summary does not cover. */
 .navmenu__settings-link {
     justify-content: center;
     min-block-size: var(--target-min);
