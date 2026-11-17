@@ -24,6 +24,7 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
 
     [Theory]
     [InlineData("/health")]
+    [InlineData("/api/diag")]
     [InlineData("/api/diag/smoke")]
     public async Task ProbeEndpoints_AreAnonymous(string path)
     {
@@ -55,7 +56,7 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
     }
 
     [Fact]
-    public async Task DiagPage_RendersAndMasksSecrets()
+    public async Task DiagPage_RendersWithoutAnyConfiguredEndpoint()
     {
         using var anonymous = _host.CreateAnonymousClient();
 
@@ -64,7 +65,43 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
 
         Assert.True(response.IsSuccessStatusCode);
         Assert.Contains("Diagnostics", html);
-        // The masked form is "abcd****wxyz"; a rendered full URI would not contain the stars.
+        // Not even a masked form any more (2026-11-17): the page renders no configured URI.
         Assert.DoesNotContain("BlobEndpoint=", html);
+        Assert.DoesNotContain("****", html);
+    }
+
+    [Fact]
+    public async Task DiagJson_NeverExposesSecretsOrInternals()
+    {
+        // A host given secret-shaped config, with a Foundry endpoint that cannot resolve so
+        // its probe fails and an exception (whose message names the host) is in play.
+        const string foundryHost = "diag-secret-foundry.invalid";
+        const string apiKey = "sk-diag-SECRET-KEY-0123456789";
+        await using var host = new IntegrationHost(azurite.ConnectionString, settings: new Dictionary<string, string>
+        {
+            ["AzureAiFoundry:Endpoint"] = $"https://{foundryHost}/",
+            ["AzureAiFoundry:ApiKey"] = apiKey,
+        });
+        using var anonymous = host.CreateAnonymousClient();
+
+        var response = await anonymous.GetAsync("/api/diag");
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var body = JsonDocument.Parse(json).RootElement;
+        Assert.Matches("^[0-9]{6}$", body.GetProperty("version").GetString());
+        Assert.Equal("Development", body.GetProperty("environment").GetString());
+        Assert.Contains(body.GetProperty("stores").EnumerateArray(), s => s.GetProperty("name").GetString() == "Table Storage");
+        var foundry = body.GetProperty("services").EnumerateArray().Single(s => s.GetProperty("name").GetString() == "Azure AI Foundry");
+        Assert.Equal("Unhealthy", foundry.GetProperty("status").GetString());
+
+        string[] forbidden =
+        [
+            foundryHost, apiKey, azurite.ConnectionString, "AccountKey", "AccountName", "devstoreaccount1",
+            "://", "vault.azure.net", "login.microsoftonline", "68817373-07de-4686-9f67-6f8938cb3f4e",
+            "@", "C:\\", "/home/", " at ", "Exception:",
+        ];
+        foreach (var needle in forbidden)
+            Assert.DoesNotContain(needle, json, StringComparison.OrdinalIgnoreCase);
     }
 }

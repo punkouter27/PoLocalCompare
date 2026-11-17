@@ -20,6 +20,7 @@ public static class HealthEndpoints
         // and the /diag page keep working.
         app.MapHealthChecks("/health", new HealthCheckOptions
         {
+            Predicate = check => !check.Tags.Contains(HealthCheckTags.DiagOnly),
             ResponseWriter = WriteHealthResponseAsync,
         })
         .WithName("Health")
@@ -43,7 +44,8 @@ public static class HealthEndpoints
             }
             catch (Exception ex)
             {
-                checks["azureTableStorage"] = new { status = "Unhealthy", error = ex.Message };
+                // The type only: an exception message can carry an account name or endpoint.
+                checks["azureTableStorage"] = new { status = "Unhealthy", error = ex.GetType().Name };
                 overallHealthy = false;
             }
 
@@ -97,8 +99,10 @@ public static class HealthEndpoints
             if (entry.Data.TryGetValue("latencyMs", out var latency))
                 detail["latencyMs"] = latency;
 
+            // The exception TYPE, never its message: /health is anonymous, and a storage or
+            // HTTP exception message can name the account, endpoint or vault it failed against.
             if (entry.Status == HealthStatus.Unhealthy && entry.Exception is not null)
-                detail["error"] = entry.Exception.Message;
+                detail["error"] = entry.Exception.GetType().Name;
 
             checks[name] = detail;
         }

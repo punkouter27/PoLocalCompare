@@ -35,13 +35,21 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.NotNull(auth);
         Assert.True(brand!.X < auth!.X, "Branding should sit left of the session controls.");
 
-        // The signed-in identity is part of that right-hand cluster.
+        // The signed-in identity is part of that right-hand cluster, and so is Settings: a gear
+        // on the bar immediately left of the badge at every width (2026-11-17 — it used to be
+        // reachable only from inside the account menu).
         await Assertions.Expect(page.Locator(".navmenu__user-badge")).ToBeVisibleAsync();
+        var gear = page.Locator(".navmenu__auth .navmenu__settings-link");
+        await Assertions.Expect(gear).ToBeVisibleAsync();
+        var gearBox = await gear.BoundingBoxAsync();
+        var badgeBox = await page.Locator(".navmenu__user-badge").BoundingBoxAsync();
+        Assert.True(gearBox!.X + gearBox.Width <= badgeBox!.X + 1, "The settings gear should sit just left of the account badge.");
+        Assert.True(gearBox.Width >= 24 && gearBox.Height >= 24, $"Gear was {gearBox.Width}×{gearBox.Height}.");
 
         var problems = await page.EvaluateAsync<string[]>(
             """
             () => {
-                const sel = '.navmenu__brand, .navmenu__mock-chip, .navmenu__link, .navmenu__menu-trigger';
+                const sel = '.navmenu__brand, .navmenu__mock-chip, .navmenu__link, .navmenu__settings-link, .navmenu__menu > .navmenu__menu-trigger';
                 const els = [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
                 const label = e => (e.textContent || e.className).trim().slice(0, 24);
                 const bad = [];
@@ -138,11 +146,28 @@ public sealed class NavigationUiTests : UiTestBase
         // Two halves of one contract. /diag is server-rendered on purpose — it is the page you
         // open when the client is the thing that is broken, and index.html's boot fallback links
         // to it — but standards also say /health and /diag carry no UI link.
+        // Signed out on purpose — /diag must work before (and without) a session — and the base
+        // class fails the case on any console error or failed request, at both widths.
         var page = await NewPageAsync(width, height);
         await page.GotoAsync("/diag");
-        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
 
         await Assertions.Expect(page.Locator("h1")).ToContainTextAsync("Diagnostics");
+
+        // The diagnostics standard: overall banner, API / storage / services sections, version
+        // (YYMMDD) and environment, all filled from /api/diag, and a Refresh that re-enables.
+        await Assertions.Expect(page.Locator("#diag-banner")).Not.ToHaveTextAsync("Checking…", new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("#diag-api-rows")).ToContainTextAsync("ms");
+        await Assertions.Expect(page.Locator("#diag-store-rows")).ToContainTextAsync("Table Storage");
+        await Assertions.Expect(page.Locator("#diag-service-rows")).ToContainTextAsync("Azure AI Foundry");
+        await Assertions.Expect(page.Locator("#diag-version")).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^[0-9]{6}$"));
+        await Assertions.Expect(page.Locator("#diag-environment")).Not.ToHaveTextAsync("—");
+        await page.Locator("#diag-refresh").ClickAsync();
+        await Assertions.Expect(page.Locator("#diag-refresh")).ToBeEnabledAsync(new() { Timeout = 30_000 });
+
+        var overflows = await page.EvaluateAsync<bool>(
+            "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1");
+        Assert.False(overflows, $"/diag overflows horizontally at {width}×{height}.");
 
         await page.GotoAsync(SeedAuthUrl("/"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });

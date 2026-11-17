@@ -166,7 +166,14 @@ try
             "keyVault",
             HealthStatus.Unhealthy,
             [HealthCheckTags.Dependency],
-            "KeyVault:Uri", "Key Vault");
+            "KeyVault:Uri", "Key Vault")
+        // Sign-in provider reachability, for /diag only: an Entra hiccup must not fail /health
+        // and with it the deploy's health gate, since signed-out pages and /diag still work.
+        .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
+            "entraId",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly],
+            "AzureAd:Authority", "Microsoft Entra ID");
 
     // RFC 7807 bodies for unhandled exceptions (UseExceptionHandler below), stamped with the
     // request id so a user-reported error can be found in the log.
@@ -388,6 +395,7 @@ try
 
     // ─── Health endpoint (T038) ──────────────────────────────────────────────
     app.MapHealthEndpoints();
+    app.MapDiagEndpoints();
     // Uniform cross-app liveness probe (see PoPlatform). Same shape in every Po app, which
     // is what lets the portfolio dashboard poll them all and render one uptime grid.
     app.MapPoLiveness();

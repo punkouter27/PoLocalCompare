@@ -54,34 +54,29 @@
             max-width: 70ch;
             line-height: 1.45;
         }
-        .diag-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 0.9rem;
-            margin-bottom: 1.1rem;
-        }
-        .diag-summary__card {
-            background: linear-gradient(180deg, #0f1513 0%, #0a0f0d 100%);
-            border: 1px solid #1f2a25;
+        /* Overall banner: role="status", so a Refresh that changes it is announced. */
+        .diag-banner {
+            margin: 0 0 1rem;
+            padding: 0.8rem 1rem;
             border-radius: 8px;
-            padding: 0.8rem 0.9rem;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
-        }
-        .diag-summary__label {
-            color: #8a9b94;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-            font-size: 0.7rem;
-            margin-bottom: 0.3rem;
-        }
-        .diag-summary__value {
+            border: 1px solid #1f2a25;
             font-weight: 700;
-            color: #f8fffb;
-            font-size: 1.15rem;
+            font-size: 1rem;
         }
-        .diag-summary__value--ok { color: #4ade80; }
-        .diag-summary__value--warn { color: #f59e0b; }
-        .diag-summary__value--bad { color: #f87171; }
+        .diag-banner--ok { color: #4ade80; background: #0d1f14; border-color: #2f7a4a; }
+        .diag-banner--warn { color: #fbbf24; background: #221a08; border-color: #7a5c18; }
+        .diag-banner--bad { color: #fca5a5; background: #2a1010; border-color: #7f2d2d; }
+        .diag-banner--idle { color: #c7d3ce; background: #0a0f0d; }
+        .diag-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .diag-meta { color: #9cb4aa; font-size: 0.8rem; }
+        .diag-meta strong { color: #e5e7eb; }
+        .diag-purpose { color: #9cb4aa; font-size: 0.75rem; margin-top: 0.15rem; }
         section {
             margin-bottom: 1rem;
             background: linear-gradient(180deg, #0d1210 0%, #070b09 100%);
@@ -124,6 +119,16 @@
             color: #fca5a5;
             background: rgba(248, 113, 113, 0.14);
             border-color: rgba(248, 113, 113, 0.48);
+        }
+        .diag-status-chip--warn {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.12);
+            border-color: rgba(251, 191, 36, 0.45);
+        }
+        .diag-status-chip--muted {
+            color: #c7d3ce;
+            background: #111814;
+            border-color: #2a3a33;
         }
 
         /* ── Model health ──────────────────────────────────────────────────
@@ -200,63 +205,57 @@
     <main class="diag-body">
         <h1>Diagnostics</h1>
         <p class="diag-lead">
-            Runtime observability snapshot for local troubleshooting. Use this page first when startup or middleware behavior looks inconsistent.
-            Connection states below come from the same health checks <a class="diag-header__back" href="/health">/health</a> reports, so the two always agree.
+            Is everything working? This page checks the app's own API, its storage and the outside services it relies on.
+            The states come from the same health checks <a class="diag-header__back" href="/health">/health</a> reports, so the two always agree.
         </p>
 
-        <div class="diag-summary">
-            <div class="diag-summary__card">
-                <div class="diag-summary__label">Overall Status</div>
-                <div class="diag-summary__value @(Model.IsHealthy ? "diag-summary__value--ok" : "diag-summary__value--bad")">@Model.OverallStatus</div>
-            </div>
-            @foreach (var dep in Model.Dependencies)
-            {
-                var ok = string.Equals(dep.Status, "Healthy", StringComparison.OrdinalIgnoreCase);
-                var notConfigured = string.Equals(dep.Status, "NotConfigured", StringComparison.OrdinalIgnoreCase);
-                var valueClass = notConfigured
-                    ? "diag-summary__value--warn"
-                    : ok ? "diag-summary__value--ok" : "diag-summary__value--bad";
-                <div class="diag-summary__card">
-                    <div class="diag-summary__label">@dep.Name</div>
-                    <div class="diag-summary__value @valueClass">@dep.Status</div>
-                </div>
-            }
+        @* Status comes from GET /api/diag (diag-health.js), which carries no endpoints, keys or
+           exception messages. Until 2026-11-17 this page rendered the Key Vault and Foundry
+           URIs (masked) and raw exception messages; it now shows neither. *@
+        <p id="diag-banner" class="diag-banner diag-banner--idle" role="status">Checking…</p>
+
+        <div class="diag-toolbar">
+            <button type="button" class="mh-btn mh-btn--primary" id="diag-refresh">Refresh</button>
+            <span class="diag-meta" id="diag-checked"></span>
+            <span class="diag-meta">Version <strong id="diag-version">—</strong></span>
+            <span class="diag-meta">Environment <strong id="diag-environment">—</strong></span>
         </div>
 
         <section>
-            <h2 id="diag-connections">Connections</h2>
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-connections">
+            <h2 id="diag-api">API</h2>
+            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-api">
             <table>
-                <thead><tr><th>Dependency</th><th>Status</th><th>Latency</th><th>Detail</th></tr></thead>
-                <tbody>
-                    @foreach (var dep in Model.Dependencies)
-                    {
-                        var ok = string.Equals(dep.Status, "Healthy", StringComparison.OrdinalIgnoreCase);
-                        <tr>
-                            <td>@dep.Name</td>
-                            <td>
-                                <span class="diag-status-chip @(ok ? "diag-status-chip--ok" : "diag-status-chip--bad")">@dep.Status</span>
-                            </td>
-                            <td>@(dep.LatencyMs is null ? "—" : $"{dep.LatencyMs} ms")</td>
-                            <td>@(dep.Error ?? "—")</td>
-                        </tr>
-                    }
-                </tbody>
+                <thead><tr><th scope="col">Component</th><th scope="col">Status</th><th scope="col">Response time</th><th scope="col">Checked</th></tr></thead>
+                <tbody id="diag-api-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
             </table>
             </div>
         </section>
 
         <section>
-            <h2>Endpoints (masked)</h2>
-            <p>Azure AI Foundry: <code>@Model.MaskValue(Model.FoundryEndpoint)</code></p>
-            <p>Key Vault: <code>@Model.MaskValue(Model.KeyVaultUri)</code></p>
+            <h2 id="diag-stores">Database / storage</h2>
+            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-stores">
+            <table>
+                <thead><tr><th scope="col">Store</th><th scope="col">Status</th><th scope="col">Latency</th><th scope="col">Checked</th></tr></thead>
+                <tbody id="diag-store-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
+            </table>
+            </div>
         </section>
 
         <section>
-            <h2 id="diag-config">Configuration Keys</h2>
+            <h2 id="diag-services">Services</h2>
+            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-services">
+            <table>
+                <thead><tr><th scope="col">Service</th><th scope="col">Status</th><th scope="col">Latency</th><th scope="col">Checked</th></tr></thead>
+                <tbody id="diag-service-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
+            </table>
+            </div>
+        </section>
+
+        <section>
+            <h2 id="diag-config">Configuration</h2>
             <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-config">
             <table>
-                <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                <thead><tr><th scope="col">Setting</th><th scope="col">Value</th></tr></thead>
                 <tbody>
                     @foreach (var item in Model.ConfigItems)
                     {
@@ -314,6 +313,7 @@
         <script src="/js/webllm-interop.js?v=6"></script>
         <script src="/js/diag-interop.js?v=8"></script>
         <script src="/js/diag-models.js?v=2"></script>
+        <script src="/js/diag-health.js?v=1"></script>
     </main>
 </body>
 </html>

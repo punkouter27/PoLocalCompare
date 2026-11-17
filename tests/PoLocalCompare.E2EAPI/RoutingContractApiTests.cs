@@ -21,6 +21,7 @@ public sealed class RoutingContractApiTests(ApiAppFixture app)
     private static readonly string[] AnonymousAllowList =
     [
         "/Diag",
+        "/api/diag",
         "/api/diag/smoke",
         "/api/duels/",
         "/api/duels/{duelId}/local-result",

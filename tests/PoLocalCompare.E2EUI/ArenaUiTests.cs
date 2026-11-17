@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Playwright;
 
 namespace PoLocalCompare.E2EUI;
@@ -10,39 +9,47 @@ namespace PoLocalCompare.E2EUI;
 /// matched the list route, and failed deserializing an array into one DuelDto.
 ///
 /// This asserts the page mounts, shows duel content, and exposes the Lab Report anchor, which is
-/// what that bug broke. See <see cref="UiTestBase"/> for prerequisites; not run in CI.
+/// what that bug broke. Self-sufficient since 2026-11-17: it seeds the duel it needs when the
+/// store has none. See <see cref="UiTestBase"/> for prerequisites; not run in CI.
 /// </summary>
 [Trait("Category", "UI")]
 public sealed class ArenaUiTests : UiTestBase
 {
     /// <summary>
-    /// Reads a real duel id from the API rather than seeding one: the Arena needs a duel that
-    /// already has results, and creating one here would run live inference.
+    /// The newest recorded duel, or — on a fresh store — one seeded through the
+    /// Development/Test-only <c>POST /api/dev/seed-duel</c>, which writes a finished, Voided duel
+    /// with two result rows and no inference. Until 2026-11-17 the suite needed a duel someone had
+    /// run by hand and failed outright without one. Reusing an existing duel keeps repeated runs
+    /// from filling the Archive with fixtures.
     /// </summary>
-    private static async Task<string?> FirstDuelIdAsync(IPage page)
+    private static async Task<string?> DuelIdAsync(IPage page)
     {
-        var json = await page.EvaluateAsync<string>(
-            "async () => { const r = await fetch('/api/duels?limit=1'); return r.ok ? await r.text() : ''; }");
-
-        if (string.IsNullOrWhiteSpace(json)) return null;
-
-        using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0
-            ? doc.RootElement[0].GetProperty("duelId").GetString()
-            : null;
+        var id = await page.EvaluateAsync<string?>(
+            """
+            async () => {
+                const list = await fetch('/api/duels?limit=1');
+                if (list.ok) {
+                    const rows = await list.json();
+                    if (Array.isArray(rows) && rows.length > 0) return rows[0].duelId;
+                }
+                const seeded = await fetch('/api/dev/seed-duel', { method: 'POST' });
+                return seeded.ok ? (await seeded.json()).duelId : null;
+            }
+            """);
+        return string.IsNullOrWhiteSpace(id) ? null : id;
     }
 
     [Theory]
     [MemberData(nameof(Viewports))]
     public async Task Arena_LoadsTheRequestedDuel_AndTheArchiveOffersTheLabReport(int width, int height)
     {
-        var page = await SignedInPageAsync(width, height, "/archive");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
+        // Seeded (when needed) from a signed-in page first, so the Archive loads with it.
+        var page = await SignedInPageAsync(width, height, "/");
+        var duelId = await DuelIdAsync(page);
+        Assert.True(duelId is not null, "Could not find or seed a duel (is the app running in Development?).");
 
-        var duelId = await FirstDuelIdAsync(page);
-        // Stated rather than silently skipped: a green run that asserted nothing would be
-        // worse than a red one that says what is missing.
-        Assert.True(duelId is not null, "No duels recorded — run a duel or a tournament before this suite.");
+        await page.GotoAsync("/archive");
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
 
         // The export slice has no UI of its own, so the anchor is the only thing making that
         // endpoint reachable — it just lives on the Archive row rather than in the Arena, where

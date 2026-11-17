@@ -8,6 +8,9 @@ namespace PoLocalCompare.Api.Features.Diagnostics;
 public static class HealthCheckTags
 {
     public const string Dependency = "dependency";
+
+    /// <summary>Reported by /api/diag but left out of /health (and so out of the deploy gate).</summary>
+    public const string DiagOnly = "diag-only";
 }
 
 /// <summary>
@@ -100,7 +103,10 @@ public sealed class ConfiguredEndpointHealthCheck(
         catch (Exception ex)
         {
             sw.Stop();
-            return HealthCheckResult.Unhealthy(
+            // The registration's failure status, so a dependency registered as Degraded (the
+            // diag-only sign-in probe) reads that way rather than as a hard failure.
+            return new HealthCheckResult(
+                context.Registration?.FailureStatus ?? HealthStatus.Unhealthy,
                 $"{_displayName} unreachable.",
                 ex,
                 new Dictionary<string, object> { ["latencyMs"] = sw.ElapsedMilliseconds });
