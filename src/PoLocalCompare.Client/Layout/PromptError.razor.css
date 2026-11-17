@@ -1,0 +1,7 @@
+/* ValidationMessage renders its own <div class="validation-message">, outside this scope. */
+.prompt-error ::deep .validation-message {
+    margin-top: var(--space-xs);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--accent-red);
+}

@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using PoLocalCompare.Api.Auth;
 using static PoLocalCompare.Api.Auth.AnonymousWrites;
@@ -20,12 +21,17 @@ public static class TournamentsEndpoints
         OpenIf(allowAnonymousWrites, group.MapPost("/", async (
             [FromBody] CreateTournamentRequest request,
             HttpContext httpContext,
+            [FromServices] IValidator<CreateTournamentRequest> validator,
             [FromServices] CreateTournamentHandler handler,
             [FromServices] TournamentRepository repository,
             [FromServices] TournamentRunner runner,
             [FromServices] SpendGuard spendGuard,
             [FromServices] IBackgroundTaskQueue taskQueue) =>
         {
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return Results.ValidationProblem(validation.ToDictionary());
+
             // Whatever the field: a bracket cannot run without the judge, and the judge bills.
             if (await spendGuard.IsOverBudgetAsync())
                 return SpendGuard.Refusal();
@@ -114,11 +120,3 @@ public static class TournamentsEndpoints
         return app;
     }
 }
-
-/// <param name="ModelIds">
-/// The field, in any order — the handler seeds it by rating. Must hold 2, or 9 to 16, distinct ids.
-/// </param>
-/// <param name="PromptText">The single prompt every match in the bracket receives.</param>
-public sealed record CreateTournamentRequest(
-    IReadOnlyList<ModelId>? ModelIds,
-    string? PromptText);

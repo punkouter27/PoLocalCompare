@@ -1,5 +1,6 @@
 @page "/catalog"
 @using PoLocalCompare.Shared.DTOs
+@using PoLocalCompare.Shared.Validation
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 
@@ -288,12 +289,18 @@
 
     /// <summary>Id of the row whose name is being edited, if any.</summary>
     private string? _renaming;
+
+    /// <summary>The rename box's inline error — the Shared rules POST /api/models/discovered applies.</summary>
+    private string? _renameError;
+
+    private static readonly AddDiscoveredModelRequestValidator AddValidator = new();
     private ElementReference _renameInput;
     private bool _focusRename;
 
     private void BeginRename(string id)
     {
         _renaming = id;
+        _renameError = null;
         _focusRename = true;
     }
 
@@ -310,9 +317,16 @@
             {
                 <input class="catalog__input" @ref="_renameInput"
                        aria-label="@($"Display name for {id}")"
+                       aria-invalid="@(_renameError is not null ? "true" : null)"
+                       aria-describedby="@(_renameError is not null ? "catalog-rename-error" : null)"
+                       maxlength="@AddDiscoveredModelRequestValidator.MaxDisplayNameLength"
                        value="@NameFor(id, suggested)"
-                       @oninput="@(e => _names[id] = e.Value?.ToString() ?? string.Empty)"
+                       @oninput="@(e => { _names[id] = e.Value?.ToString() ?? string.Empty; _renameError = null; })"
                        @onkeydown="@(e => OnRenameKeyDownAsync(e, kind, id, suggested))" />
+                @if (_renameError is not null)
+                {
+                    <span id="catalog-rename-error" class="catalog__field-error">@_renameError</span>
+                }
             }
             else
             {
@@ -529,12 +543,22 @@
             return;
         }
 
+        var name = NameFor(id, suggested);
+        var validation = AddValidator.Validate(new AddDiscoveredModelRequest(kind, id, name));
+        if (!validation.IsValid)
+        {
+            // Keep the box open so the error sits next to the field it is about.
+            _renaming = id;
+            _renameError = validation.Errors[0].ErrorMessage;
+            return;
+        }
+
         _adding = id;
         _renaming = null;
+        _renameError = null;
         _status = null;
         try
         {
-            var name = NameFor(id, suggested);
             var added = await ApiClient.AddDiscoveredModelAsync(new AddDiscoveredModelRequest(kind, id, name));
             _status = $"Added {added?.DisplayName ?? name}. It's on the Compare page now.";
 

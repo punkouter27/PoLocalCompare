@@ -370,21 +370,23 @@
             <h2 id="tourney-prompt-heading" class="po-section-title">The prompt</h2>
             <textarea class="tourney__textarea"
                       aria-labelledby="tourney-prompt-heading"
-                      aria-describedby="tourney-start-hint"
-                      aria-invalid="@(PromptFlagged ? "true" : null)"
+                      aria-describedby="tourney-prompt-error tourney-start-hint"
+                      aria-invalid="@(PromptFlagged || _promptCheck.HasError ? "true" : null)"
                       @ref="_promptBox"
                       rows="4"
                       maxlength="@PromptRules.MaxPromptLength"
                       placeholder="e.g. Build a self-contained single HTML file with a working scientific calculator."
                       @bind="_prompt"
-                      @bind:event="oninput"></textarea>
+                      @bind:event="oninput"
+                      @bind:after="OnPromptEdited"></textarea>
+            <PromptError Check="_promptCheck" Id="tourney-prompt-error" />
 
             @* The shared picker, the same one Home uses. This was a private row of six
                SelfRunning templates rendered as buttons — a second, smaller prompt library
                with no categories, no excerpts and no indication of which one was applied,
                sitting beside a textarea that had also drifted from Home's on border, size
                and focus treatment. One prompt composer, used twice. *@
-            <PromptPicker CurrentPrompt="@_prompt" OnPromptSelected="@(t => _prompt = t)" />
+            <PromptPicker CurrentPrompt="@_prompt" OnPromptSelected="ApplyPrompt" />
         </section>
 
         <PageActions Align="PageActionsAlign.Center">

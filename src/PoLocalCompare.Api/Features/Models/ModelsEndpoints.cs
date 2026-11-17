@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Hybrid;
 using PoLocalCompare.Shared.DTOs;
@@ -54,9 +55,14 @@ public static class ModelsEndpoints
 
         group.MapPost("/discovered", async (
             [FromBody] AddDiscoveredModelRequest request,
+            [FromServices] IValidator<AddDiscoveredModelRequest> validator,
             [FromServices] AddDiscoveredModelHandler handler,
             CancellationToken ct) =>
         {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid)
+                return Results.ValidationProblem(validation.ToDictionary());
+
             try
             {
                 var dto = await handler.HandleAsync(request, ct);

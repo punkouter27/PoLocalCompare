@@ -39,6 +39,17 @@ public partial class Tournament
     private bool _choosingEntrants;
 
     private string _prompt = string.Empty;
+
+    /// <summary>The Shared prompt rules (what POST /api/tournaments applies), shown inline.</summary>
+    private readonly PromptCheck _promptCheck = new();
+
+    private void OnPromptEdited() => _promptCheck.Changed(_prompt);
+
+    private void ApplyPrompt(string text)
+    {
+        _prompt = text;
+        OnPromptEdited();
+    }
     private bool _loadingEntrants = true;
     private bool _starting;
     private string? _error;
@@ -358,7 +369,7 @@ public partial class Tournament
     {
         if (!CanAttemptStart) return;
 
-        if (!PromptReady)
+        if (!_promptCheck.Validate(_prompt) || !PromptReady)
         {
             _promptNudged = true;
             await _promptBox.FocusAsync();

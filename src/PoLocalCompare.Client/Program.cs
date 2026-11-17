@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
-using FluentValidation;
 using PoLocalCompare.Client;
 using PoLocalCompare.Client.Services;
 using PoLocalCompare.Shared.DTOs;
-using PoLocalCompare.Shared.Validation;
 using Radzen;
 using System;
 
@@ -33,10 +31,9 @@ try
     builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
         sp.GetRequiredService<BffAuthenticationStateProvider>());
 
-    // ─── Radzen UI & Validation ──────────────────────────────────────────────────
+    // ─── Radzen UI ──────────────────────────────────────────────────
     builder.Services.AddRadzenComponents();
     builder.Services.AddScoped<DialogNotificationHelper>();
-    builder.Services.AddScoped<IValidator<RefinePromptRequest>, RefinePromptRequestValidator>();
 
     // ─── DuelApiClient (T098) ────────────────────────────────────────────────────
     builder.Services.AddScoped<DuelApiClient>();

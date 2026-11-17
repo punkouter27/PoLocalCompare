@@ -11,7 +11,6 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject WebGpuCapability WebGpu
-@inject FluentValidation.IValidator<RefinePromptRequest> PromptValidator
 @inject DialogNotificationHelper Notify
 
 <PageTitle>Compare · PoLocalCompare</PageTitle>
@@ -243,13 +242,15 @@
                     <textarea id="@PromptId"
                               class="home__textarea @(_promptLongWarning || PromptFlagged ? "home__textarea--warn" : "")"
                               aria-labelledby="home-prompt-heading"
-                              aria-describedby="home-prompt-counter home-compare-hint"
-                              aria-invalid="@(PromptFlagged ? "true" : null)"
+                              aria-describedby="home-prompt-error home-prompt-counter home-compare-hint"
+                              aria-invalid="@(_promptCheck.HasError ? "true" : null)"
                               placeholder="e.g. Build a single-page HTML app that shows today's weather for any city the user types."
                               rows="5"
                               maxlength="@PromptRules.MaxPromptLength"
                               @bind="_prompt"
-                              @bind:event="oninput"></textarea>
+                              @bind:event="oninput"
+                              @bind:after="OnPromptEdited"></textarea>
+                    <PromptError Check="_promptCheck" Id="home-prompt-error" />
                     <div class="home__textarea-meta">
                         <span id="home-prompt-counter"
                               class="@(_promptLongWarning ? "home__textarea-counter home__textarea-counter--warn" : "home__textarea-counter")">
@@ -323,6 +324,11 @@
     private ModelDto? _leftModel;
     private ModelDto? _rightModel;
     private string _prompt = string.Empty;
+
+    /// <summary>The Shared prompt rules, shown inline under the box once Compare was pressed.</summary>
+    private readonly PromptCheck _promptCheck = new();
+
+    private void OnPromptEdited() => _promptCheck.Changed(_prompt);
     private bool _loading = true;
     private string? _loadError;
     private string? _error;
@@ -458,6 +464,7 @@
     private void ApplyPromptAsync(string text)
     {
         _prompt = text;
+        OnPromptEdited();
         _promptBeforeSharpen = null;
         _sharpenNote = null;
     }
@@ -483,6 +490,7 @@
 
             _promptBeforeSharpen = original;
             _prompt = brief;
+            OnPromptEdited();
             _sharpenNote = "Rewritten as a brief — edit it, or undo.";
         }
         catch (Exception ex) when (ex is DuelApiClient.DuelStartException or HttpRequestException or TaskCanceledException)
@@ -500,6 +508,7 @@
         if (_promptBeforeSharpen is null) return;
         _ = AudioService.PlayTickAsync();
         _prompt = _promptBeforeSharpen;
+        OnPromptEdited();
         _promptBeforeSharpen = null;
         _sharpenNote = null;
     }
@@ -667,6 +676,7 @@
         _leftModel ??= ordered.ElementAtOrDefault(0);
         _rightModel ??= ordered.FirstOrDefault(m => m.ModelId != _leftModel?.ModelId);
         _prompt = "Build a self-contained single HTML file with a click-counter app: a centered card showing a large number and a button. Clicking increments the count. Use a clean modern design with rounded corners and a gradient background.";
+        OnPromptEdited();
     }
 
     /// <summary>
@@ -722,16 +732,9 @@
     private async Task StartDuelAsync()
     {
         if (!CanAttemptCompare) return;
-        var promptValidation = await PromptValidator.ValidateAsync(new RefinePromptRequest(_prompt));
-        if (!promptValidation.IsValid)
-        {
-            _promptNudged = true;
-            _focusPrompt = true;
-            _error = promptValidation.Errors[0].ErrorMessage;
-            Notify.Error("Check your prompt", _error);
-            return;
-        }
-        if (!CanCompare)
+        // The Shared PromptFormValidator — the rules POST /api/duels applies — with its message
+        // inline under the box (PromptError), not in a toast.
+        if (!_promptCheck.Validate(_prompt) || !CanCompare)
         {
             _promptNudged = true;
             _focusPrompt = true;

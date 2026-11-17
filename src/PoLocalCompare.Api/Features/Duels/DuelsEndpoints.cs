@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Azure;
+using FluentValidation;
 using PoLocalCompare.Api.Auth;
 using static PoLocalCompare.Api.Auth.AnonymousWrites;
 using PoLocalCompare.Shared.DTOs;
@@ -31,15 +32,15 @@ public static class DuelsEndpoints
         var commenceDuel = OpenIf(allowAnonymousWrites, group.MapPost("/", async (
             [FromBody] CommenceDuelRequest request,
             HttpContext httpContext,
+            [FromServices] IValidator<CommenceDuelRequest> validator,
             [FromServices] CommenceDuelHandler handler,
             [FromServices] SpendGuard spendGuard,
             [FromServices] DuelExecutionService executionService) =>
         {
-            if (string.IsNullOrWhiteSpace(request.PromptText))
-                return Results.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    ["PromptText"] = ["PromptText is required."]
-                });
+            // The same Shared validator the Compare form runs, so the page and the API agree.
+            var validation = await validator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return Results.ValidationProblem(validation.ToDictionary());
 
             if (await spendGuard.BlocksAsync(request.LeftModelId, request.RightModelId))
                 return SpendGuard.Refusal();
@@ -311,16 +312,6 @@ public static class DuelsEndpoints
         return app;
     }
 }
-
-/// <param name="AutoJudgeDelaySeconds">
-/// Optional per-duel grace window. Omit to use <c>AiJudge:DelaySeconds</c>; a tournament sends 0
-/// so an unattended run is never waiting on a human pick that will not come.
-/// </param>
-public sealed record CommenceDuelRequest(
-    ModelId LeftModelId,
-    ModelId RightModelId,
-    string PromptText,
-    int? AutoJudgeDelaySeconds = null);
 
 public sealed record LocalResultRequest(
     ModelId ModelId,
