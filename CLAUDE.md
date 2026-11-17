@@ -109,7 +109,7 @@ AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration �
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
 onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has three
-cases spare** (100/45/22/25 as of 2026-10-29) and `scripts/check-clean.ps1` fails when a tier
+cases spare** (100/49/22/25 as of 2026-11-17; the /api/diag anonymity and no-secrets cases took integration from 47) and `scripts/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
@@ -261,11 +261,17 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **The leaderboard's `±N` is a Bradley–Terry interval,** read-side only; ranking is `CurrentElo`.
   **"First token" is a median.** The value chart is `ValueChart` over `ValueChartLayout`.
 - **Integration tests share one Azurite,** so scope assertions to the models the test created.
-- **`/api/dev/judge-calibration` is the only `/api/dev/*` endpoint,** Development-only and behind a
-  session (reset and cost repricing were removed 2026-10-26).
+- **`/api/dev/*` is Development/Test-only and behind a session:** `judge-calibration`, and
+  `seed-duel` (2026-11-17), which writes one finished, Voided duel with no inference so the E2E-UI
+  Arena test can run on a fresh store — it banks no ELO and the startup sweeper never re-judges
+  it. Reset and cost repricing were removed 2026-10-26.
 - **Observability is Serilog and nothing else,** with one App Insights sink.
 - **Model health lives on `/diag`, in vanilla JS,** because `/diag` must work when the WASM client
-  is the broken thing.
+  is the broken thing. Its status half (banner, API, storage, services with purpose/latency,
+  version, environment, a busy-guarded Refresh) is `diag-health.js` over anonymous
+  `GET /api/diag` (2026-11-17), which carries no URI, key, id or exception message — exception
+  TYPE at most — and an integration test pins that. `/health` reports exception types too.
+  The Entra sign-in probe is tagged `diag-only`, so it never fails `/health` or the deploy gate.
 
 ### Client structure
 
@@ -277,6 +283,15 @@ protects. A rule with no obvious reason usually has an expensive one.
   the `.razor` file, where alone they compile.
 - **The Arena's status band is one region driven by one enum** (`ArenaPhaseResolver` →
   `ArenaStatusBand`). `.arena-band__box--verdict` is sticky; do not restate `position` on the base.
+- **Settings is a gear on the header, beside the account badge, at every width** (2026-11-17 —
+  it had been inside the account menu while signed in). The menu holds Catalog, the dev
+  personas and Logout.
+- **Every submitting form validates with a FluentValidation validator in
+  `Shared/Validation`** that the endpoint also runs (`Results.ValidationProblem`): the prompt
+  (`PromptFormValidator` / `CommenceDuelRequestValidator` / `CreateTournamentRequestValidator`)
+  and the catalog rename (`AddDiscoveredModelRequestValidator`). Errors render inline under the
+  field (`PromptError` + `PromptCheck` over the `FluentValidationValidator` EditContext bridge),
+  never as a toast, and the start buttons stay disabled while a request is in flight.
 - **Optional features are off until /settings turns them on** — decoration and paid extras only:
   visual effects, sound, Arena telemetry, the leaderboard chart, and the paid AI helpers (Sharpen
   prompt, scouting report). What makes ratings converge (the ±, Suggest matchup, tournaments) is
@@ -320,7 +335,10 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **The Arena page is exactly as wide as its two panels;** `--preview-scale` is set on `.arena`.
 - **A route id is shape-checked before it is fetched** (`RouteIdShape`, loose on purpose — seeds
   are 25 characters).
-- **Fonts load from `index.html`, not from an `@import` in `app.css`.**
+- **Fonts load from `index.html`, not from an `@import` in `app.css`,** and are **self-hosted**
+  (`wwwroot/fonts`, declared in `css/fonts.css`) since 2026-11-17: the Google Fonts files were
+  CORS-fetched, and any extra request header (dev/audit fake-auth) made gstatic refuse them,
+  logging a console error on every page. No third-party font origin.
 - **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
   2026-10-26): the verdict nebula (WebGPU, WebGL2 fallback, 1.9 s) and the champion storm (WebGPU
   compute, 100k particles, 7.2 s). Both start only with Settings → Visual effects on and the GPU lease free, tear down mid-frame
@@ -358,7 +376,8 @@ protects. A rule with no obvious reason usually has an expensive one.
 - Restart the app and verify it starts cleanly after a code change (see Working rules).
 - Never store local config with `dotnet user-secrets` — `appsettings.Development.json`, an
   environment variable, or Azure Key Vault.
-- `/health` and `/diag` exist but must have **no UI links**. `/diag` masks secret values.
+- `/health` and `/diag` exist but must have **no UI links**. `/diag` shows no secret values at
+  all — not even masked (2026-11-17).
 - When `Features:UseRealAi` is off, the `USING MOCK DATA` indicator must render (`NavMenu.razor` —
   a compact MOCK chip beside the brand since 2026-09-26, the full sentence in its title and a
   visually-hidden span).
