@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Components.Authorization;
+
 namespace PoLocalCompare.Client.Layout;
 
 /// <summary>
-/// Helpers for projecting signed-in identity and dev switcher choices inside <see cref="NavMenu"/>.
+/// The signed-in identity as the header and /settings show it, and the dev personas /settings
+/// can switch between outside Production.
 /// </summary>
 internal static class AccountMenu
 {
@@ -11,27 +14,25 @@ internal static class AccountMenu
         "dev-judge",
     ];
 
-    public static string LocalPart(string? identity)
+    /// <summary>
+    /// The account's email (preferred_username, then the email claim, then the name), or null
+    /// when signed out or when the session cannot be read.
+    /// </summary>
+    public static async Task<string?> ResolveIdentityAsync(AuthenticationStateProvider authState)
     {
-        if (string.IsNullOrEmpty(identity))
-            return string.Empty;
+        try
+        {
+            var user = (await authState.GetAuthenticationStateAsync()).User;
+            if (user.Identity?.IsAuthenticated != true)
+                return null;
 
-        var at = identity.IndexOf('@');
-        return at > 0 ? identity[..at] : identity;
-    }
-
-    public static string? DomainPart(string? identity)
-    {
-        if (string.IsNullOrEmpty(identity))
+            return user.FindFirst("preferred_username")?.Value
+                ?? user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                ?? user.Identity.Name;
+        }
+        catch (HttpRequestException)
+        {
             return null;
-
-        var at = identity.IndexOf('@');
-        return at > 0 && at < identity.Length - 1 ? identity[at..] : null;
-    }
-
-    public static string Initial(string? identity)
-    {
-        var local = LocalPart(identity);
-        return local.Length > 0 ? local[..1].ToUpperInvariant() : "?";
+        }
     }
 }

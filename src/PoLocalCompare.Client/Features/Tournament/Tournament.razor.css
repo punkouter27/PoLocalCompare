@@ -201,7 +201,7 @@
 /* [href]: a match with no duel yet is not a link, so it must not hover like one. */
 .tourney__match[href]:hover,
 .tourney__match:focus-visible {
-    border-color: var(--accent-green);
+    border-color: var(--po-accent);
 }
 
 .tourney__match:focus-visible {
@@ -408,7 +408,7 @@
 
 .tourney__recent-item:hover .tourney__recent-prompt,
 .tourney__recent-item:focus-visible .tourney__recent-prompt {
-    color: var(--accent-green);
+    color: var(--po-accent);
 }
 
 .tourney__recent-prompt {

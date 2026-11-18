@@ -13,7 +13,13 @@
                     <p class="visually-hidden">Loading&hellip;</p>
                 </Authorizing>
             </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            @* Only after the first in-app navigation. On a fresh load nothing has focus, which is
+               what lets Tab open the developer window (po-devwindow.js); after that, moving focus
+               to the new page's heading is what a screen reader needs. *@
+            @if (_navigated)
+            {
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            }
         </Found>
     </Router>
 </CascadingAuthenticationState>

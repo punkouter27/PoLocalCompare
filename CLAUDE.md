@@ -79,8 +79,8 @@ nothing else watches: a tier over its test budget; a class applied in markup tha
 defines (the element just renders unstyled); a class a stylesheet defines that nothing applies; a
 C# type named nowhere but its own declaration; a stylesheet or script loaded without a `?v=`
 cache-buster; and an effect script that reads `data-fx` or queries reduced motion itself instead
-of calling `poPrefs.motionAllowed()`. It reads source only, so it is deterministic and cheap, and CI runs it from
-[scripts/ci-checks.ps1](scripts/ci-checks.ps1), the repo hook the shared [deploy.yml](.github/workflows/deploy.yml) calls.
+of calling `poPrefs.motionAllowed()`. It reads source only, so it is deterministic and cheap. Run it
+before a push, alone or through [scripts/ci-checks.ps1](scripts/ci-checks.ps1); CI no longer runs it.
 
 ### Tests
 
@@ -99,11 +99,15 @@ UI tests run **headed Chrome by default** across a mobile and a desktop viewport
 to suppress windows and `BASE_URL` to point elsewhere. Browsers install via
 `pwsh tests/PoLocalCompare.E2EUI/bin/Debug/net10.0/playwright.ps1 install chromium`.
 
-Unit, Integration and E2EAPI **gate the deploy** — the shared [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
-(same file in every Po .NET web repo; never edit it here) runs Unit, and [scripts/ci-checks.ps1](scripts/ci-checks.ps1)
-runs Integration and E2EAPI; [scripts/post-deploy-smoke.ps1](scripts/post-deploy-smoke.ps1) checks the live site after the health gate. **E2EUI is not in CI** (real headed Chrome, WebGPU
-paths a runner has no GPU for), so it is the one suite that goes stale silently; run it locally after
-touching UI markup.
+**Tests run locally; CI does not run them.** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
+is identical in every Po .NET web repo and each repo owns its copy (never change one copy alone).
+Since 2026-11-18 it only builds, publishes, deploys and waits for `/health/live` to report the pushed
+commit: no tests, no infra job, no rollback, no PR runs. Its one hook here is
+[scripts/ci-package.ps1](scripts/ci-package.ps1), which pulls the Git LFS `web-llm.js` and re-publishes
+so the package never ships the pointer. Before pushing, run Unit and the related tiers, and
+[scripts/ci-checks.ps1](scripts/ci-checks.ps1) (check-clean, the catalog check, Integration, E2EAPI);
+[scripts/post-deploy-smoke.ps1](scripts/post-deploy-smoke.ps1) checks the live site by hand. E2EUI
+needs real headed Chrome with WebGPU; run it after touching UI markup.
 
 AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
@@ -267,8 +271,10 @@ protects. A rule with no obvious reason usually has an expensive one.
   it. Reset and cost repricing were removed 2026-10-26.
 - **Observability is Serilog and nothing else,** with one App Insights sink.
 - **Model health lives on `/diag`, in vanilla JS,** because `/diag` must work when the WASM client
-  is the broken thing. Its status half (banner, API, storage, services with purpose/latency,
-  version, environment, a busy-guarded Refresh) is `diag-health.js` over anonymous
+  is the broken thing. It wears the app's shell (Po header, gear, stamp; `css/po-tokens.css` +
+  `css/diag.css`, no inline script or style) and fits a phone. Its status half (banner, one
+  `po-diag__card` with a `po-badge--ok|warn|bad` per dependency in API / Data / Services, a
+  busy-guarded Refresh) is `diag-health.js` over anonymous
   `GET /api/diag` (2026-11-17), which carries no URI, key, id or exception message — exception
   TYPE at most — and an integration test pins that. `/health` reports exception types too.
   The Entra sign-in probe is tagged `diag-only`, so it never fails `/health` or the deploy gate.
@@ -283,9 +289,13 @@ protects. A rule with no obvious reason usually has an expensive one.
   the `.razor` file, where alone they compile.
 - **The Arena's status band is one region driven by one enum** (`ArenaPhaseResolver` →
   `ArenaStatusBand`). `.arena-band__box--verdict` is sticky; do not restate `position` on the base.
-- **Settings is a gear on the header, beside the account badge, at every width** (2026-11-17 —
-  it had been inside the account menu while signed in). The menu holds Catalog, the dev
-  personas and Logout.
+- **The header is the Po shell** (`NavMenu.razor`, `po-header` from `po-tokens.css`, 2026-11-18):
+  the name upper-left; the email (`po-header__email`) or Sign in, then the one settings gear
+  (`po-header__settings` to `/settings`) upper-right, signed in and out. There is no account menu:
+  `/settings` holds the email, Sign out, Catalog and the dev personas. One `po-version` stamp
+  (`BuildVersion.razor`, `vYYMMDD`, the UTC commit date from `Directory.Build.props`) on every
+  page, /diag included. Tab with nothing focused opens `/po-dev.html` (`js/po-devwindow.js`),
+  which is why `FocusOnNavigate` only runs after the first in-app navigation.
 - **Every submitting form validates with a FluentValidation validator in
   `Shared/Validation`** that the endpoint also runs (`Results.ValidationProblem`): the prompt
   (`PromptFormValidator` / `CommenceDuelRequestValidator` / `CreateTournamentRequestValidator`)
@@ -310,9 +320,9 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **There is a design-token scale, and raw values are the defect.** Missing a step? Add the step.
 - **Three breakpoints: 640 / 1024 / 1400.** Exceptions: Home collapses at 1080; the nav at 768.
 - **`.po-page` is the only page shell, and the gutter is declared exactly once.**
-- **There is no hamburger, and the nav is one 3.5rem row at every width** — below 768px the
-  logo without its wordmark, "Bracket"/"Ranks" as the short labels, and the badge as an initial.
-  `--nav-height` is 3.5rem everywhere; only the signed-out bar wraps to two rows.
+- **There is no hamburger, and the header is one 56px row at every width** — 640–768px the links
+  take the short labels "Bracket"/"Ranks"; below 640px they leave the header for `BottomNav`.
+  `--nav-height` is `--po-header-h`; the stamp sits above BottomNav through `--po-stamp-lift`.
 - **Status tints are the `--*-surface` / `--*-border` tokens, never an `rgba()` literal.**
 - **There is no component library — `.po-btn` and `.po-table` are the primitives.** Radzen has
   been added and removed twice. **`.po-btn--chip` is the only filter chip** (with `aria-pressed`).
@@ -335,8 +345,9 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **The Arena page is exactly as wide as its two panels;** `--preview-scale` is set on `.arena`.
 - **A route id is shape-checked before it is fetched** (`RouteIdShape`, loose on purpose — seeds
   are 25 characters).
-- **Fonts load from `index.html`, not from an `@import` in `app.css`,** and are **self-hosted**
-  (`wwwroot/fonts`, declared in `css/fonts.css`) since 2026-11-17: the Google Fonts files were
+- **Inter (text) and Space Grotesk (headings) are the only text faces,** self-hosted in
+  `wwwroot/fonts` and declared by `css/po-tokens.css` (2026-11-18; monospace is the platform's).
+  Material Symbols stays as BottomNav's icon font. Self-hosted since 2026-11-17: the Google Fonts files were
   CORS-fetched, and any extra request header (dev/audit fake-auth) made gstatic refuse them,
   logging a console error on every page. No third-party font origin.
 - **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
@@ -357,8 +368,8 @@ protects. A rule with no obvious reason usually has an expensive one.
   `PreferencesService` binds `globalThis.poPrefs` (sync, trim-safe) and `Sparkline` passes a
   `Span<double>` as a `MemoryView`. The Client assembly is `[SupportedOSPlatform("browser")]`, so
   call sites need no guard; `AllowUnsafeBlocks` is on only for the source generator.
-- **`prefs.js` is the one `<head>` script for user choices** — theme (`poTheme`) and extras
-  (`poPrefs`). `theme.js` was folded into it on 2026-10-29.
+- **`prefs.js` is the one `<head>` script for user choices** — the extras (`poPrefs`). There is no
+  theme choice since 2026-11-18: light and dark follow `prefers-color-scheme` only.
 - **Do not reintroduce what the prunes removed** (2026-08-13, -08-23, -09-10, -09-26, -10-12, -10-26)
   without a user-facing reason: HISTORY.md lists each one. The Archive's outcome chips came back
   on 2026-10-26 with one (U4).
@@ -399,9 +410,10 @@ protects. A rule with no obvious reason usually has an expensive one.
 - Styling is scoped `.razor.css` + design tokens; there are **no** inline `style=` attributes or
   `<style>` blocks left. A genuinely dynamic value (a progress width, an animation stagger) is passed
   as a CSS custom property — `style="--fill: 42%"` — and consumed by a rule in the stylesheet, so the
-  styling itself stays in CSS. Colour tokens are declared for light, for `prefers-color-scheme: dark`,
-  and again under `:root[data-theme=...]`; the `[data-theme]` blocks must stay last or the header's
-  theme toggle cannot override the OS preference.
+  styling itself stays in CSS. Colours come from `css/po-tokens.css` (the same file in every Po
+  app, linked first; never edit one copy alone): `app.css` aliases its own names (`--surface-*`,
+  `--text*`, `--accent-*`) to `--po-*`, so the one indigo accent and the device-following
+  light/dark reach every scoped sheet. No `[data-theme]` block and no theme toggle.
 - **`box-sizing: border-box` is global** (`app.css`, a `*, *::before, *::after` rule). It was absent
   until 2026-09-10, so every `width: 100%` + padding rule rendered wider than its container and the
   excess was silently **clipped** by `article.app-content { overflow-x: clip }` — `.po-page` resolved

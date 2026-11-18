@@ -60,9 +60,8 @@ function motionOff() {
 }
 
 /**
- * Reads a design token off the document so particles inherit the live theme — including the
- * user's explicit [data-theme] override, which is why this reads computed style rather than
- * hard-coding a palette.
+ * Reads a design token off the document so particles inherit the live light or dark palette,
+ * which is why this reads computed style rather than hard-coding one.
  */
 function token(name, fallback) {
     try {

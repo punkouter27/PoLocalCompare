@@ -1,16 +1,7 @@
 /* ── Fonts ───────────────────────────────────────────────────────────────────
-   The families are requested from index.html with <link rel="preconnect"> + <link
-   rel="stylesheet">, NOT with an @import here. An @import inside a stylesheet is invisible
-   to the browser's preload scanner: it cannot be discovered until app.css has been fetched
-   AND parsed, so the font request is serialised behind it on the critical path. A <link> in
-   the head is discovered in the initial HTML scan and fetched in parallel.
-
-   The weights requested there are also narrower than they were. Space Grotesk carried 500,
-   which is declared nowhere in this app (grep font-weight: the values in use are 400, 600,
-   700 and, until this pass, a synthetic 800/900), and JetBrains Mono carried 400/500/600 for
-   two rules that both inherit their weight. 800 is requested now because .home__slot-vs
-   genuinely wants it — it was asking for a face that was not being loaded, which the browser
-   answers by smearing 700 into a faux bold. */
+   Inter (text) and Space Grotesk (headings) are declared by po-tokens.css from the
+   self-hosted files in wwwroot/fonts, and nothing else loads a text face: no Google Fonts,
+   no @import here. Monospace is the platform's (--po-font-mono). */
 
 /* ── Box sizing ─────────────────────────────────────────────────────────────
    There was NO box-sizing rule in this file except a single local one on
@@ -37,11 +28,262 @@
 }
 
 /* ── Design tokens ───────────────────────────────────────────────────────────
-   Colour tokens are declared three times: once as the light default, once under
-   prefers-color-scheme for a system-dark viewer, and once under [data-theme] so an
-   explicit user choice beats the system. The [data-theme] blocks must come last —
-   they win by source order, which is what lets the header toggle override the OS.
-   Non-colour tokens (space, radius, motion) are theme-invariant and declared once.  */
+   Every colour, font and radius here is an alias of a --po-* token from po-tokens.css (the
+   same file in every Po app, loaded first): light and dark follow the device's
+   prefers-color-scheme and nothing else, and the accent is the estate's one indigo. There is
+   no theme toggle and no [data-theme] override any more (Po web standard, 2026-11-18). The
+   app keeps its own names so the scoped stylesheets did not have to change; what they point
+   at did. Spacing, type and motion scales are this app's own and are declared once below. */
+:root {
+    --surface-base: var(--po-bg);
+    --surface-1: var(--po-surface);
+    --surface-2: var(--po-surface-2);
+    --surface-accent: var(--po-accent-soft);
+    --border: var(--po-border);
+    --border-strong: color-mix(in srgb, var(--po-border) 70%, var(--po-text-muted));
+    --text: var(--po-text);
+    --text-muted: var(--po-text-muted);
+    --text-dim: var(--po-text-muted);
+
+    /* Status hues are the estate's status tokens; blue and purple were two accents and are
+       now the one accent. */
+    --accent-green: var(--po-success);
+    --accent-yellow: var(--po-warning);
+    --accent-red: var(--po-danger);
+    --accent-blue: var(--po-accent);
+    --accent-purple: var(--po-accent);
+    --accent-cyan: var(--po-info);
+
+    --on-accent: var(--po-on-accent);
+    --on-accent-green: var(--po-on-accent);
+    --link-hover: var(--po-accent-hover);
+
+    --glass-bg: color-mix(in srgb, var(--po-surface) 78%, transparent);
+    --glass-border: var(--po-border);
+    --glass-shadow: var(--po-shadow);
+    --glass-blur: 14px;
+    --page-gradient: none;
+
+    --font-sans: var(--po-font);
+    --font-mono: var(--po-font-mono);
+    --po-focus-ring: var(--po-focus);
+
+    /* Radzen. po-tokens.css bridges these too, but Radzen's material-base.css loads after it
+       and redeclares them (Roboto, its own primary), so they are restated here, after both. */
+    --rz-primary: var(--po-accent);
+    --rz-primary-light: var(--po-accent-hover);
+    --rz-primary-lighter: var(--po-accent-soft);
+    --rz-primary-dark: var(--po-accent-hover);
+    --rz-on-primary: var(--po-on-accent);
+    --rz-success: var(--po-success);
+    --rz-warning: var(--po-warning);
+    --rz-danger: var(--po-danger);
+    --rz-info: var(--po-info);
+    --rz-text-font-family: var(--po-font);
+    --rz-body-background-color: var(--po-bg);
+    --rz-base-background-color: var(--po-surface);
+    --rz-text-color: var(--po-text);
+    --rz-body-color: var(--text);
+    --rz-panel-background-color: var(--surface-1);
+    --rz-base-100: var(--surface-base);
+    --rz-base-200: var(--surface-1);
+    --rz-base-300: var(--surface-2);
+    --rz-text-secondary-color: var(--text-muted);
+    --rz-text-tertiary-color: var(--text-dim);
+    --rz-border-color: var(--border);
+    --rz-grid-background-color: var(--surface-1);
+    --rz-grid-header-background-color: var(--surface-2);
+    --rz-grid-header-color: var(--text-muted);
+    --rz-grid-cell-color: var(--text);
+    --rz-grid-border-color: var(--border);
+    --rz-grid-hover-background-color: var(--surface-2);
+}
+
+/* Material Symbols is the bottom nav's icon font (served by Radzen.Blazor). An icon font, so
+   it stays beside the two text faces. */
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: block;
+    src: url('/_content/Radzen.Blazor/fonts/MaterialSymbolsOutlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+:root {
+    /* Animation Tokens */
+    --transition-fast: 150ms ease;
+    --transition-medium: 300ms ease;
+    --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* ── Spacing scale ───────────────────────────────────────────────────
+       Extended from five steps to nine. The original scale jumped 0.25 → 0.5 → 1,
+       which left no token for the gaps people actually needed, so 28 distinct raw
+       rem values grew up alongside it (0.28, 0.35, 0.375, 0.45, 0.55, 0.6, 0.65,
+       0.7, 0.75, 0.8, 0.85 — most of them visually indistinguishable from each
+       other). The in-between steps below are the ones that were being hand-rolled;
+       adding them is what makes "use a token" a realistic instruction rather than
+       advice everyone has to ignore. */
+    --space-2xs: 0.125rem;
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-smd: 0.75rem;
+    --space-md: 1rem;
+    --space-mlg: 1.25rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+
+    /* A single-column form (Settings): wide enough for a label, a hint and its control on
+       one row, narrow enough that the control stays near the words it belongs to. */
+    --measure-form: 45rem;
+
+    /* ── Typography scale ────────────────────────────────────────────────
+       There were no typography tokens at all, and 31 distinct font-size values —
+       thirteen of them inside the 0.7–0.95rem band (0.7, 0.72, 0.74, 0.75, 0.78,
+       0.8, 0.8125, 0.82, 0.85, 0.87, 0.875, 0.9, 0.95). Nobody can see the
+       difference between 0.72rem and 0.75rem; what they produce is a page where
+       nothing lines up on a vertical rhythm and every new surface invents its own
+       sizes. Seven steps, each a visible increment from the last. */
+    --text-2xs: 0.6875rem;   /* 11px — badges, seed numbers, table micro-labels */
+    --text-xs:  0.75rem;     /* 12px — metadata, captions, timestamps */
+    --text-sm:  0.8125rem;   /* 13px — secondary body, hints, table cells */
+    --text-md:  0.875rem;    /* 14px — body default */
+    --text-lg:  1rem;        /* 16px — emphasised body, section titles */
+    /* The top four steps are fluid. Below --text-xl the scale is UI chrome — table cells,
+       badges, captions — where a size that moves with the viewport just makes dense layouts
+       unpredictable, so those stay fixed. From --text-xl up the text is display copy, where
+       a fixed size is either cramped at 1400px or overflowing at 360px.
+
+       Each clamp keeps the previous fixed value as its MAXIMUM, so nothing gets larger than
+       it was on a wide screen and the only change is that small screens now scale down. The
+       preferred term is `rem + vw` rather than pure vw so the text still honours the user's
+       browser font size (a pure-vw heading ignores it entirely and fails SC 1.4.4). */
+    --text-xl:  clamp(1.125rem, 1.05rem + 0.35vw, 1.25rem);   /* 18 → 20px — card and panel headings */
+    --text-2xl: clamp(1.375rem, 1.19rem + 0.8vw, 1.625rem);   /* 22 → 26px — page titles */
+    --text-3xl: clamp(1.75rem, 1.34rem + 1.8vw, 2.25rem);     /* 28 → 36px — hero */
+    --text-4xl: clamp(2.5rem, 1.65rem + 3.7vw, 3.5rem);       /* 40 → 56px — the 404 numeral */
+
+    /* Line heights. Tight for headings, open for prose — a single value across
+       both is what makes dense tables feel airy and paragraphs feel cramped. */
+    --leading-tight: 1.2;
+    --leading-snug: 1.35;
+    --leading-normal: 1.55;
+
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+    /* Home's "vs" between the slots — the one 800 in the app, and the face index.html
+       already loads for it; it was a raw value until a token existed to point at. */
+    --weight-extrabold: 800;
+
+    /* ── Breakpoints ─────────────────────────────────────────────────────
+       Documented values, NOT custom properties: a custom property is illegal
+       inside a @media condition (`@media (max-width: var(--bp-md))` does not
+       work), and @custom-media has no native support. So these are a convention
+       enforced by review, and they are listed here because that is the only place
+       a convention can live.
+
+           --bp-sm   640px   phone      → single column, tables become cards
+           --bp-md  1024px   tablet     → two columns collapse to one
+           --bp-lg  1400px   wide       → max content width reached
+
+       Before this, 13 different breakpoints were in use (360, 420, 575, 720, 760,
+       768, 820, 900, 1000, 1023, 1080, 1200, 1360, 1400) and eight stylesheets had
+       none at all. New media queries use one of the three above unless there is a
+       specific reason written next to it.
+
+       AUDIT 2026-09-02: the convention had drifted back. --bp-md was in use ZERO
+       times — the actual set was 640 (widespread), 1080 (Home only) and 1400
+       (ModelProfile only), so every width between phone and 1400px got the desktop
+       layout with no adaptation, and seven scoped stylesheets had no media query at
+       all (ModelCard, SandboxedViewport, MainLayout, Archive, Leaderboard, Login,
+       NotFound). Those now use 1024. Home keeps 1080 as its documented exception —
+       its picker-plus-console grid is genuinely tight below that — and NavMenu keeps
+       the Bootstrap-legacy 767.98/991.98/1279.98 values, where the fractional part is
+       load-bearing against paired min-width rules.
+
+       Prefer a container query to a media query for anything inside a component that
+       renders at more than one width: see TelemetryHud, ModelProfile and SandboxedViewport,
+       which measure their own box rather than the window. */
+
+    /* ── Chrome ──────────────────────────────────────────────────────────
+       The height of the sticky top nav. It was referenced by the comment on `.content`
+       ("a descendant that needs a floor must use calc(100dvh - var(--nav-height))") and
+       by nothing else, because it had never been declared — so the one calc the codebase
+       tells you to write would have resolved to an invalid length and been dropped. The
+       value is .navmenu's own min-height; the two must stay in step, which is why the
+       stylesheet now reads this token rather than restating 3.5rem. */
+    --nav-height: var(--po-header-h);
+
+    /* Border Radius Scale */
+    --radius-sm: var(--po-radius-sm);
+    --radius-md: var(--po-radius);
+    --radius-lg: 1rem;
+    --radius-full: var(--po-radius-pill);
+}
+
+/* ── Status tints ─────────────────────────────────────────────────────────────
+   Derived rather than declared: each is a mix of an accent with the current
+   surface, and both inputs are already themed, so one definition covers light and
+   dark and there is no fourth copy to keep in sync. Components used to hardcode
+   these (a literal #052e16 for a success panel, #1f0a0a for a failure card), which
+   is exactly what made light mode unreadable.
+
+   Pairing rule: -surface as the background, -border as the border, and the plain
+   --accent-* as the text on top. Those accents are already contrast-checked
+   against --surface-1 (see the light block above), and mixing 12% of a hue into a
+   surface moves it far too little to disturb that. */
+:root {
+    --success-surface: color-mix(in srgb, var(--accent-green) 12%, var(--surface-1));
+    --success-border:  color-mix(in srgb, var(--accent-green) 38%, var(--surface-1));
+
+    --warn-surface:    color-mix(in srgb, var(--accent-yellow) 12%, var(--surface-1));
+    --warn-border:     color-mix(in srgb, var(--accent-yellow) 38%, var(--surface-1));
+
+    --danger-surface:  color-mix(in srgb, var(--accent-red) 12%, var(--surface-1));
+    --danger-border:   color-mix(in srgb, var(--accent-red) 38%, var(--surface-1));
+
+    --info-surface:    color-mix(in srgb, var(--accent-blue) 12%, var(--surface-1));
+    --info-border:     color-mix(in srgb, var(--accent-blue) 38%, var(--surface-1));
+
+    --violet-surface:  color-mix(in srgb, var(--accent-purple) 12%, var(--surface-1));
+    --violet-border:   color-mix(in srgb, var(--accent-purple) 38%, var(--surface-1));
+
+    /* Added when the hand-rolled tints were folded in: the two cyan accents on Home (and the
+       since-removed nav ticker) had no token to move to, which is part of why they were
+       hand-rolled in the first place. */
+    --cyan-surface:    color-mix(in srgb, var(--accent-cyan) 12%, var(--surface-1));
+    --cyan-border:     color-mix(in srgb, var(--accent-cyan) 38%, var(--surface-1));
+}
+
+/* ── Why these tints are OPAQUE, and the failure that made it matter ──────────
+   Each --*-surface mixes an accent into --surface-1, which is a solid colour. The result is
+   solid too, so the contrast of --accent-* on top of it is the same wherever the chip lands:
+   on a card, on the nav bar, over the aurora. Measured in light theme it is 4.53 (cyan) to
+   5.03 (blue); in dark, 4.78 (red) to 9.18 (green). All clear SC 1.4.3.
+
+   Around twenty surfaces used to hand-roll the same effect as a TRANSLUCENT literal instead —
+   `rgba(45, 220, 132, 0.08)`, `color-mix(in srgb, var(--accent-cyan) 12%, transparent)` — and
+   that broke the guarantee twice over. A translucent tint composites against whatever is
+   behind it, so the same chip measured differently on the nav (--surface-base) than on a card
+   (--surface-1): the old nav ticker pills landed at 4.26 and 4.45 against the nav, both under 4.5,
+   while the identical treatment passed elsewhere. And every one of those literals was the
+   DARK-theme accent value frozen into the stylesheet, so a light-theme viewer got a dark
+   palette's hue behind light-palette text — the tokens exist precisely so a colour cannot be
+   picked in one theme and shipped to both.
+
+   So: a status tint is --*-surface for the fill, --*-border for the edge, and the plain
+   --accent-* for the text. Do not reintroduce an rgba() literal for one. */
 
 /* `clip`, not `hidden`. Both stop a stray wide child from producing a horizontal scrollbar,
    but `hidden` makes the element a scroll container — and since html's overflow propagates to
@@ -50,7 +292,7 @@
    froze at its static position. `clip` clips without creating a scroll container, which is
    exactly what it was added for; article.app-content already uses it for the same reason. */
 html, body {
-    font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+    font-family: var(--po-font);
     background-color: var(--surface-base);
     color: var(--text);
     margin: 0;
@@ -65,7 +307,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
     color: var(--text);
-    font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+    font-family: var(--po-font-display);
     letter-spacing: -0.015em;
 }
 
@@ -165,9 +407,9 @@ a:hover {
 }
 
 .po-btn--success {
-    background: var(--accent-green);
-    border-color: var(--accent-green);
-    color: var(--on-accent-green);
+    background: var(--po-accent);
+    border-color: var(--po-accent);
+    color: var(--po-on-accent);
 }
 
 /* The filled and tinted variants restate their own background on hover. The base hover rule
@@ -175,10 +417,10 @@ a:hover {
    `filter` and `color` kept its text colour and lost its fill — white on near-white for
    --success, which is a button that goes blank the moment the pointer reaches it. */
 .po-btn--success:hover:not(:disabled) {
-    background: var(--accent-green);
-    border-color: var(--accent-green);
+    background: var(--po-accent);
+    border-color: var(--po-accent);
     filter: brightness(1.12);
-    color: var(--on-accent-green);
+    color: var(--po-on-accent);
 }
 
 .po-btn--secondary {
@@ -194,16 +436,16 @@ a:hover {
 /* Tinted, not filled — for links out of an empty state and other low-emphasis
    affirmatives that would over-shout as --success. */
 .po-btn--ghost {
-    background: var(--success-surface);
-    border-color: var(--success-border);
-    color: var(--accent-green);
+    background: var(--po-accent-soft);
+    border-color: color-mix(in srgb, var(--po-accent) 38%, var(--surface-1));
+    color: var(--po-accent);
 }
 
 .po-btn--ghost:hover:not(:disabled) {
-    background: var(--success-surface);
-    border-color: var(--success-border);
+    background: var(--po-accent-soft);
+    border-color: color-mix(in srgb, var(--po-accent) 38%, var(--surface-1));
     filter: brightness(1.08);
-    color: var(--accent-green);
+    color: var(--po-accent);
 }
 
 .po-btn--warn {
@@ -248,18 +490,18 @@ a:hover {
 }
 
 .po-btn--chip[aria-pressed="true"] {
-    color: var(--accent-green);
-    background: var(--success-surface);
-    border-color: var(--accent-green);
+    color: var(--po-accent);
+    background: var(--po-accent-soft);
+    border-color: var(--po-accent);
     /* The second visual channel. Colour alone would leave the active chip indistinguishable
        from the rest for a viewer who cannot separate the two hues. */
-    box-shadow: inset 0 0 0 1px var(--accent-green);
+    box-shadow: inset 0 0 0 1px var(--po-accent);
 }
 
 .po-btn--chip[aria-pressed="true"]:hover:not(:disabled) {
-    color: var(--accent-green);
-    background: var(--success-surface);
-    border-color: var(--accent-green);
+    color: var(--po-accent);
+    background: var(--po-accent-soft);
+    border-color: var(--po-accent);
 }
 
 /* Data table — semantic <table>, horizontally scrollable inside .po-table-wrap. */
@@ -766,6 +1008,20 @@ p a, li a, td a {
    block, no bespoke card markup. Those were the implementations this replaced, and they
    disagreed with each other about both the breakpoint and what a phone should see.
    Every table in the app, the Archive and Catalog included, uses it. */
+/* The stamp (po-tokens.css .po-version) sits above BottomNav where BottomNav shows, and above
+   Home's Compare bar, which is pinned along the bottom below 1080px. */
+@media (max-width: 640px) {
+    :root {
+        --po-stamp-lift: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 1080px) {
+    html:has(.home__compare) .po-version {
+        bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
 @media (max-width: 640px) {
     .po-table--cards thead {
         /* Not display:none — that removes it from the accessibility tree too. Clipped instead,

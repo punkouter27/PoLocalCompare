@@ -1,293 +1,109 @@
 @page
 @model PoLocalCompare.Api.Pages.DiagModel
-
+@* /diag — anonymous in every environment. The same shell as the app (po-tokens.css: header,
+   gear, stamp, status cards) so it reads as one of its pages; no inline script or style, so it
+   loads under any CSP the app sends. Status cards come from diag-health.js over GET /api/diag,
+   which carries no endpoint, key, path or exception message. *@
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Diagnostics — PoLocalCompare</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: radial-gradient(circle at top right, #102016 0%, #060809 45%, #040506 100%);
-            color: #ecf4f0;
-            font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
-            font-size: 0.9rem;
-            min-height: 100vh;
-        }
-        .diag-header {
-            background: rgba(6, 8, 9, 0.92);
-            border-bottom: 1px solid #1e2723;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            position: sticky;
-            top: 0;
-            backdrop-filter: blur(8px);
-            z-index: 10;
-        }
-        .diag-header__title { font-weight: 700; font-size: 1rem; color: #fff; margin: 0; }
-        /* SC 2.5.8 Target Size — these were 15px tall, well under the 24px minimum the rest
-           of the app holds to. Padding rather than font-size keeps the header compact. */
-        .diag-header__back {
-            color: #22c55e;
-            text-decoration: none;
-            font-size: 0.8rem;
-            display: inline-flex;
-            align-items: center;
-            min-height: 24px;
-            padding: 0 0.25rem;
-        }
-        .diag-header__back:hover { text-decoration: underline; }
-        .diag-header__back:focus-visible { outline: 2px solid #40e48e; outline-offset: 2px; }
-        /* An inline link in prose is exempt from the target minimum, so the one in the lead
-           paragraph opts back out rather than inflating the line height around it. */
-        .diag-lead .diag-header__back { min-height: 0; padding: 0; display: inline; }
-        .diag-body { padding: 1.5rem; max-width: 980px; }
-        h1 { color: #40e48e; font-size: 1.5rem; margin: 0 0 0.4rem; }
-        .diag-lead {
-            margin: 0 0 1.2rem;
-            color: #9cb4aa;
-            max-width: 70ch;
-            line-height: 1.45;
-        }
-        /* Overall banner: role="status", so a Refresh that changes it is announced. */
-        .diag-banner {
-            margin: 0 0 1rem;
-            padding: 0.8rem 1rem;
-            border-radius: 8px;
-            border: 1px solid #1f2a25;
-            font-weight: 700;
-            font-size: 1rem;
-        }
-        .diag-banner--ok { color: #4ade80; background: #0d1f14; border-color: #2f7a4a; }
-        .diag-banner--warn { color: #fbbf24; background: #221a08; border-color: #7a5c18; }
-        .diag-banner--bad { color: #fca5a5; background: #2a1010; border-color: #7f2d2d; }
-        .diag-banner--idle { color: #c7d3ce; background: #0a0f0d; }
-        .diag-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem 1rem;
-            margin-bottom: 1rem;
-        }
-        .diag-meta { color: #9cb4aa; font-size: 0.8rem; }
-        .diag-meta strong { color: #e5e7eb; }
-        .diag-purpose { color: #9cb4aa; font-size: 0.75rem; margin-top: 0.15rem; }
-        section {
-            margin-bottom: 1rem;
-            background: linear-gradient(180deg, #0d1210 0%, #070b09 100%);
-            border: 1px solid #1a2420;
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.26);
-        }
-        h2 { color: #9ab1a7; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.75rem; border-bottom: 1px solid #1a2320; padding-bottom: 0.4rem; }
-        p { margin: 0.35rem 0; color: #e5e7eb; }
-        strong { color: #22c55e; }
-        code { color: #7dd3fc; background: #111814; padding: 0.1rem 0.3rem; border-radius: 3px; }
-        /* Tables scroll inside their own box. Without this the Configuration Keys table pushed
-           the document to 425px on a 390px viewport and the whole page scrolled sideways.
-           tabindex=0 in the markup makes the scroll area keyboard-operable (SC 2.1.1). */
-        .diag-table-wrap { overflow-x: auto; }
-        .diag-table-wrap:focus-visible { outline: 2px solid #40e48e; outline-offset: 2px; }
-        table { width: 100%; border-collapse: collapse; min-width: 22rem; }
-        /* #7b8d86 on #0a0f0d is 4.0:1 — under the 4.5:1 minimum for this size (SC 1.4.3). */
-        th { text-align: left; color: #9fb2ab; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.4rem 0.5rem; border-bottom: 1px solid #1b2622; }
-        td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #0d1411; color: #d1d5db; }
-        td:first-child { color: #9ca3af; }
-        tr:last-child td { border-bottom: none; }
-        .diag-status-chip {
-            display: inline-block;
-            padding: 0.15rem 0.55rem;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            border: 1px solid;
-            vertical-align: middle;
-            margin-left: 0.25rem;
-        }
-        .diag-status-chip--ok {
-            color: #4ade80;
-            background: rgba(74, 222, 128, 0.14);
-            border-color: rgba(74, 222, 128, 0.45);
-        }
-        .diag-status-chip--bad {
-            color: #fca5a5;
-            background: rgba(248, 113, 113, 0.14);
-            border-color: rgba(248, 113, 113, 0.48);
-        }
-        .diag-status-chip--warn {
-            color: #fbbf24;
-            background: rgba(251, 191, 36, 0.12);
-            border-color: rgba(251, 191, 36, 0.45);
-        }
-        .diag-status-chip--muted {
-            color: #c7d3ce;
-            background: #111814;
-            border-color: #2a3a33;
-        }
-
-        /* ── Model health ──────────────────────────────────────────────────
-           Moved here from the Home page on 2026-08-23. It is a diagnostic, not part of the
-           duel flow, and it belongs beside the dependency checks it complements. Rebuilt in
-           vanilla JS rather than ported: this is a server-rendered Razor Page on purpose (it
-           has to work when the WASM client is the broken thing), so it cannot host a Blazor
-           component. The probing half already lived in framework-free /js/diag-interop.js. */
-        .mh-env {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.35rem 0.8rem;
-            padding: 0.6rem 0.75rem;
-            margin-bottom: 0.8rem;
-            border: 1px solid #1f2a25;
-            border-radius: 6px;
-            background: #0a0f0d;
-        }
-        .mh-env__item { color: #c7d3ce; }
-        .mh-env__item--ok { color: #4ade80; }
-        .mh-env__item--bad { color: #fca5a5; }
-        .mh-env__item--muted { color: #7f8f89; }
-        .mh-actions {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.8rem;
-        }
-        .mh-btn {
-            font: inherit;
-            min-height: 32px;
-            padding: 0.3rem 0.85rem;
-            border-radius: 6px;
-            border: 1px solid #2a3a33;
-            background: #101815;
-            color: #d6e4de;
-            cursor: pointer;
-        }
-        .mh-btn:hover:not(:disabled) { border-color: #40e48e; }
-        .mh-btn:focus-visible { outline: 2px solid #40e48e; outline-offset: 2px; }
-        .mh-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .mh-btn--primary { background: #14361f; border-color: #2f7a4a; color: #b8f5cf; }
-        .mh-prompt {
-            font: inherit;
-            flex: 1 1 18rem;
-            min-width: 0;
-            min-height: 32px;
-            padding: 0.3rem 0.5rem;
-            border-radius: 6px;
-            border: 1px solid #1f2a25;
-            background: #070b09;
-            color: #d6e4de;
-        }
-        .mh-prompt:focus-visible { outline: 2px solid #40e48e; outline-offset: 1px; }
-        .mh-note { color: #8a9b94; font-size: 0.8rem; margin: 0 0 0.8rem; }
-        .mh-st--ok      { color: #4ade80; }
-        .mh-st--bad     { color: #fca5a5; }
-        .mh-st--run     { color: #fbbf24; }
-        .mh-st--idle    { color: #7f8f89; }
-        .mh-st--skip    { color: #7f8f89; }
-        .mh-num { font-variant-numeric: tabular-nums; }
-        .mh-detail { color: #8a9b94; }
-    </style>
+    <meta name="robots" content="noindex" />
+    <title>Diagnostics · PoLocalCompare</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/css/po-tokens.css?v=2" />
+    <link rel="stylesheet" href="/css/diag.css?v=2" />
+    <script src="/js/po-devwindow.js?v=1"></script>
 </head>
 <body>
-    @* Landmarks: axe flagged nine unlandmarked regions and no <main> at all. Header/main are
-       the whole fix — every section already sits inside the body div. *@
-    <header class="diag-header">
-        <span class="diag-header__title">PoLocalCompare</span>
-        <a class="diag-header__back" href="/">← Back to App</a>
-        <a class="diag-header__back" href="/health">Health JSON</a>
+    <header class="po-header">
+        <a class="po-header__title" href="/">
+            <span class="diag__glyph" aria-hidden="true">PL</span>
+            <span>PoLocalCompare</span>
+        </a>
+        <div class="po-header__actions">
+            @if (Model.Email is not null)
+            {
+                <span class="po-header__email" title="@Model.Email">@Model.Email</span>
+            }
+            else
+            {
+                <a class="diag__btn diag__btn--primary" href="/auth/login?returnUrl=%2Fdiag">Sign in</a>
+            }
+            <a class="po-header__settings" href="/settings" aria-label="Settings" title="Settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </a>
+        </div>
     </header>
-    <main class="diag-body">
-        <h1>Diagnostics</h1>
-        <p class="diag-lead">
-            Is everything working? This page checks the app's own API, its storage and the outside services it relies on.
-            The states come from the same health checks <a class="diag-header__back" href="/health">/health</a> reports, so the two always agree.
-        </p>
 
-        @* Status comes from GET /api/diag (diag-health.js), which carries no endpoints, keys or
-           exception messages. Until 2026-11-17 this page rendered the Key Vault and Foundry
-           URIs (masked) and raw exception messages; it now shows neither. *@
-        <p id="diag-banner" class="diag-banner diag-banner--idle" role="status">Checking…</p>
-
-        <div class="diag-toolbar">
-            <button type="button" class="mh-btn mh-btn--primary" id="diag-refresh">Refresh</button>
-            <span class="diag-meta" id="diag-checked"></span>
-            <span class="diag-meta">Version <strong id="diag-version">—</strong></span>
-            <span class="diag-meta">Environment <strong id="diag-environment">—</strong></span>
+    <main class="po-diag">
+        <div class="diag__intro">
+            <h1 class="diag__title">Diagnostics</h1>
+            <p class="diag__lead">
+                Is everything working? This page checks the app itself, where it keeps its data and
+                the outside services it relies on. It uses the same checks as the health probe, so the
+                two always agree.
+            </p>
         </div>
 
-        <section>
-            <h2 id="diag-api">API</h2>
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-api">
-            <table>
-                <thead><tr><th scope="col">Component</th><th scope="col">Status</th><th scope="col">Response time</th><th scope="col">Checked</th></tr></thead>
-                <tbody id="diag-api-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
-            </table>
-            </div>
+        <p id="diag-banner" class="diag__banner diag__banner--idle" role="status">Checking…</p>
+
+        <div class="diag__toolbar">
+            <button type="button" class="diag__btn diag__btn--primary" id="diag-refresh">Refresh</button>
+            <span class="diag__meta" id="diag-checked"></span>
+            <span class="diag__meta">Build <strong>v@(PoLocalCompare.Api.Pages.DiagModel.Stamp)</strong></span>
+            <span class="diag__meta">Environment <strong id="diag-environment">…</strong></span>
+        </div>
+
+        <section class="po-diag__group" aria-labelledby="diag-api">
+            <h2 class="diag__group-title" id="diag-api">API</h2>
+            <div id="diag-api-cards" class="diag__cards"><p class="diag__empty">Checking…</p></div>
         </section>
 
-        <section>
-            <h2 id="diag-stores">Database / storage</h2>
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-stores">
-            <table>
-                <thead><tr><th scope="col">Store</th><th scope="col">Status</th><th scope="col">Latency</th><th scope="col">Checked</th></tr></thead>
-                <tbody id="diag-store-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
-            </table>
-            </div>
+        <section class="po-diag__group" aria-labelledby="diag-data">
+            <h2 class="diag__group-title" id="diag-data">Data</h2>
+            <div id="diag-store-cards" class="diag__cards"><p class="diag__empty">Checking…</p></div>
         </section>
 
-        <section>
-            <h2 id="diag-services">Services</h2>
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-services">
-            <table>
-                <thead><tr><th scope="col">Service</th><th scope="col">Status</th><th scope="col">Latency</th><th scope="col">Checked</th></tr></thead>
-                <tbody id="diag-service-rows"><tr><td colspan="4">Checking…</td></tr></tbody>
-            </table>
-            </div>
+        <section class="po-diag__group" aria-labelledby="diag-services">
+            <h2 class="diag__group-title" id="diag-services">Services</h2>
+            <div id="diag-service-cards" class="diag__cards"><p class="diag__empty">Checking…</p></div>
         </section>
 
-        <section>
-            <h2 id="diag-config">Configuration</h2>
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-config">
-            <table>
-                <thead><tr><th scope="col">Setting</th><th scope="col">Value</th></tr></thead>
-                <tbody>
-                    @foreach (var item in Model.ConfigItems)
-                    {
-                        <tr><td>@item.Key</td><td>@item.Value</td></tr>
-                    }
-                </tbody>
-            </table>
-            </div>
+        <section class="po-diag__group" aria-labelledby="diag-config">
+            <h2 class="diag__group-title" id="diag-config">Settings in effect</h2>
+            <dl class="diag__config">
+                @foreach (var item in Model.ConfigItems)
+                {
+                    <div class="diag__config-row"><dt>@item.Key</dt><dd>@item.Value</dd></div>
+                }
+            </dl>
         </section>
 
-        <section>
-            <h2 id="diag-models">Model health</h2>
+        <section class="po-diag__group diag__models" aria-labelledby="diag-models">
+            <h2 class="diag__group-title" id="diag-models">Model health</h2>
             <p class="mh-note">
                 Runs one short prompt through every registered model and reports what came back.
-                Remote models are probed server-side; Ollama models run on the local daemon;
-                browser models run on this tab's GPU, so leave the page open while they do.
+                Remote models are checked by the server, Ollama models on the local daemon, and
+                browser models on this tab's GPU, so leave the page open while they run.
+                Signing in is needed to read the model list.
             </p>
 
             <div class="mh-env" id="mh-env">
-                <span class="mh-env__item">Checking environment…</span>
+                <span class="mh-env__item">Checking this device…</span>
             </div>
 
             <div class="mh-actions">
-                <button type="button" class="mh-btn mh-btn--primary" id="mh-run">Test all models</button>
-                <button type="button" class="mh-btn" id="mh-cancel" disabled>Cancel</button>
-                <button type="button" class="mh-btn" id="mh-refresh">Reload catalog</button>
-                <input class="mh-prompt" id="mh-prompt" aria-label="Verification prompt"
+                <button type="button" class="diag__btn diag__btn--primary" id="mh-run">Test all models</button>
+                <button type="button" class="diag__btn" id="mh-cancel" disabled>Cancel</button>
+                <button type="button" class="diag__btn" id="mh-refresh">Reload list</button>
+                <input class="mh-prompt" id="mh-prompt" aria-label="Test prompt"
                        value="In one sentence, explain what an API is." />
             </div>
 
-            <div class="diag-table-wrap" tabindex="0" role="region" aria-labelledby="diag-models">
-                <table>
+            <div class="diag__table-wrap" tabindex="0" role="region" aria-labelledby="diag-models">
+                <table class="diag__table">
                     <thead>
                         <tr>
                             <th scope="col">Model</th>
@@ -299,21 +115,22 @@
                         </tr>
                     </thead>
                     <tbody id="mh-rows">
-                        <tr><td colspan="6">Loading catalog…</td></tr>
+                        <tr><td colspan="6">Loading the model list…</td></tr>
                     </tbody>
                 </table>
             </div>
             <p class="mh-note" id="mh-summary" role="status"></p>
         </section>
-
-        @* The probing half of the old Blazor panel: WebGPU/WebNN capability, local-asset
-           resolution and the WebLLM worker runner. Framework-free already, which is why the
-           panel could move to a Razor Page at all. webllm-interop is loaded first because
-           diag-interop's checkModelFile calls its resolveBrowserModelAvailability. *@
-        <script src="/js/webllm-interop.js?v=6"></script>
-        <script src="/js/diag-interop.js?v=8"></script>
-        <script src="/js/diag-models.js?v=2"></script>
-        <script src="/js/diag-health.js?v=1"></script>
     </main>
+
+    <span class="po-version" aria-label="Build version">v@(PoLocalCompare.Api.Pages.DiagModel.Stamp)</span>
+
+    @* The probing half of model health: WebGPU/WebNN capability, local-asset resolution and the
+       WebLLM worker runner. webllm-interop is loaded first because diag-interop's checkModelFile
+       calls its resolveBrowserModelAvailability. *@
+    <script src="/js/webllm-interop.js?v=6"></script>
+    <script src="/js/diag-interop.js?v=8"></script>
+    <script src="/js/diag-models.js?v=3"></script>
+    <script src="/js/diag-health.js?v=2"></script>
 </body>
 </html>

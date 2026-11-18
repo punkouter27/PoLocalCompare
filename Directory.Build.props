@@ -11,4 +11,25 @@
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
+  <!-- Build stamp (Po web standard): vYYMMDD in the lower-right corner of every page, where
+       YYMMDD is the UTC date of the HEAD commit (fallback: the UTC build date). The one
+       generation path for the server and the client alike: both read the BuildVersion
+       assembly metadata this target adds. TZ=UTC makes format-local print the UTC date. -->
+  <Target Name="PoBuildStamp" BeforeTargets="GetAssemblyAttributes">
+    <!-- Exec runs a .cmd file on Windows, where a percent sign must be doubled, and sh elsewhere. -->
+    <PropertyGroup>
+      <_PoPct>%25</_PoPct>
+      <_PoPct Condition="'$(OS)' == 'Windows_NT'">%25%25</_PoPct>
+    </PropertyGroup>
+    <Exec Command="git log -1 --format=$(_PoPct)cd --date=format-local:$(_PoPct)y$(_PoPct)m$(_PoPct)d" EnvironmentVariables="TZ=UTC" ConsoleToMsBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_PoGitStamp" />
+      <Output TaskParameter="ExitCode" PropertyName="_PoGitExit" />
+    </Exec>
+    <!-- Only a clean six-digit answer counts; anything else (no git, no history) is the fallback. -->
+    <PropertyGroup>
+      <PoStamp Condition="'$(_PoGitExit)' == '0' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(_PoGitStamp)', '^\d{6}$'))">$(_PoGitStamp)</PoStamp>
+    </PropertyGroup>
+    <PropertyGroup><PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp></PropertyGroup>
+    <ItemGroup><AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute"><_Parameter1>BuildVersion</_Parameter1><_Parameter2>$(PoStamp)</_Parameter2></AssemblyAttribute></ItemGroup>
+  </Target>
 </Project>

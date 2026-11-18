@@ -1,228 +1,35 @@
-/* ── Top horizontal navbar — portrait/phone-first ───────────────────────────
-   Everything here is namespaced .navmenu__. The markup used to carry Bootstrap
-   class names (navbar-*, container-fluid, nav-item, btn-sm, btn-outline-*)
-   without Bootstrap being loaded, so several of them styled nothing at all. */
-.navmenu {
-    background-color: var(--surface-base);
-    border-bottom: 1px solid var(--border);
-    padding: 0 var(--space-md);
-    /* The token, not the literal. app.css tells callers to write
-       calc(100dvh - var(--nav-height)) for a viewport-relative floor, and that instruction
-       is only true while this bar and that token agree — so the bar reads it rather than
-       restating 3.5rem beside it. */
-    min-height: var(--nav-height);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    width: 100%;
-    /* Include the 1rem inline padding in the 100% width; without border-box the
-       header overflowed the viewport by 2rem and MainLayout's overflow-x:clip
-       sheared the right edge off the nav toggle on mobile portrait. */
-    box-sizing: border-box;
-}
+/* ── NavMenu: the Po shell header ────────────────────────────────────────────
+   .po-header, .po-header__title, __actions, __email and __settings are styled by
+   po-tokens.css (the same file in every Po app). This sheet only adds what is this app's own:
+   the PL glyph, the MOCK chip and the route links between the title and the actions.
+   Below 640px the links go (BottomNav carries them); 640–768px they take short labels. */
 
-.navmenu__inner {
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    /* Safe-area insets go on this inner row, not on the bar or on .page: the bar's
-       background must stay full-bleed edge to edge, while the CONTROLS inside it must
-       clear a landscape notch and the curved corners. env() is 0px everywhere else. */
-    padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-smd);
-}
-
-/* ::deep — the element is rendered by <BrandMark>, outside this file's scope id. */
-::deep .navmenu__brand {
-    /* Geometry-only hook for <BrandMark />: flex, gap, the touch-target min-height, and a
-       hover accent. The brand glyph and label live in BrandMark.razor.css. */
+.navmenu__start {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    flex: 0 0 auto;
-    white-space: nowrap;
-    min-height: 44px;           /* ≥44px touch target */
-    text-decoration: none;
-    color: var(--text);
-    font-weight: 700;
-    font-size: var(--text-xl);
-    letter-spacing: -0.02em;
-}
-
-::deep .navmenu__brand:hover {
-    color: var(--accent-green);
-}
-
-
-.navmenu__collapse {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    min-width: 0;
-    flex: 1 1 auto;
-}
-
-.navmenu__links {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    /* Never shrink: the links are nowrap, so a shrunken box would let its text
-       spill out and be overlapped by whatever sits next to it. */
-    flex: 0 0 auto;
-    min-width: 0;
-}
-
-.navmenu__links > li {
+    /* Never squeezed: the name stays whole at 412px; the email is what ellipsises. */
     flex: 0 0 auto;
 }
 
-/* ── Nav links ─────────────────────────────────────────────────────────────
-   ::deep because NavLink renders the anchor itself, outside this component's
-   scope id. The .active class is appended by NavLink, not by our markup. */
-::deep .navmenu__link {
-    display: flex;
+.navmenu__glyph {
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-xs);
-    white-space: nowrap;
-    color: var(--text-muted);
-    padding: var(--space-sm) var(--space-smd);
-    border-radius: 6px;
-    text-decoration: none;
+    justify-content: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    flex: 0 0 auto;
+    border-radius: var(--radius-sm);
+    background: var(--po-accent);
+    color: var(--po-on-accent);
+    font-family: var(--po-font-display);
     font-size: var(--text-md);
-    transition: color 0.15s ease, background 0.15s ease;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.04em;
 }
 
-::deep .navmenu__link:hover {
-    color: var(--text);
-    background: var(--surface-1);
-}
-
-::deep .navmenu__link.active {
-    color: var(--accent-green);
-    background: var(--success-surface);
-    font-weight: 600;
-}
-
-.navmenu__link-text {
-    font-size: var(--text-md);
-}
-
-/* ── Mobile collapsed menu ──────────────────────────────────────────────────── */
-/* ── Known debt: Bootstrap-era breakpoints ────────────────────────────────
-   767.98 / 991.98 are Bootstrap's off-by-0.02 boundaries (1279.98 went with the old
-   right-hand cluster), left from before Bootstrap
-   was removed. They are NOT on the app's 640/1024/1400 scale. The fractional part is
-   load-bearing here rather than cosmetic — each pairs with a `min-width: 768px` rule, and
-   rounding one side without the other opens a gap where neither matches.
-
-   Deliberately not consolidated in the 2026-08-22 design-token pass: the nav is the one
-   surface where a wrong breakpoint is immediately visible (the hamburger appearing at the
-   wrong width), and that pass had no way to verify the result in a browser. Fix it with the
-   E2E-UI suite open. */
-/* Short label forms exist for the phone bar only. */
-.navmenu__link-text--short,
-.navmenu__user-initial {
-    display: none;
-}
-
-@media (max-width: 767.98px) {
-    /* ── One row, no drawer ──────────────────────────────────────────────────
-       The bar was brand + hamburger with everything in a drawer (two taps for a list of
-       four), then brand + session on one row and the links on a second — 100px of every phone
-       screen. Now it is one 3.5rem row: the brand's mark without its wordmark, the four links
-       with short forms for the two long labels, and the identity badge as an initial. That is
-       ~324px of content, so it fits a 360px phone with its 16px gutters. */
-    .navmenu__inner {
-        gap: var(--space-xs);
-    }
-
-    .navmenu__collapse {
-        display: contents;
-    }
-
-    ::deep .navmenu__brand .brand-mark__label,
-    .navmenu__link-text--long,
-    .navmenu__user-badge-name,
-    .navmenu__user-badge-domain {
-        display: none;
-    }
-
-    .navmenu__link-text--short {
-        display: inline;
-    }
-
-    .navmenu__links {
-        flex: 1 1 auto;
-        justify-content: space-between;
-        gap: 0;
-        /* A bar too narrow for all four (a MOCK chip on a 360px phone) scrolls the row rather
-           than clipping a link. */
-        overflow-x: auto;
-        scrollbar-width: none;
-    }
-
-    ::deep .navmenu__link {
-        justify-content: center;
-        min-block-size: 2.75rem;
-        padding: 0 var(--space-xs);
-        font-size: var(--text-sm);
-    }
-
-    .navmenu__link-text {
-        font-size: var(--text-sm);
-    }
-
-    /* A fixed slot for the session controls while signed in (or not yet known), so the links
-       are laid out once: as a flexible box, the badge arriving took width from them and every
-       link shifted. The slot is the settings gear plus the disc; the caret goes on a phone —
-       the disc alone reads as the account control and the row needs the width. */
-    .navmenu__inner:not(:has(.navmenu__auth--signed-out)) .navmenu__auth {
-        flex: 0 0 4.75rem;
-        gap: 0;
-    }
-
-    .navmenu__menu-caret {
-        display: none;
-    }
-
-    /* The badge becomes a 28px disc holding the initial. */
-    .navmenu__user-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        inline-size: 1.75rem;
-        block-size: 1.75rem;
-        padding: 0;
-    }
-
-    .navmenu__user-initial {
-        display: inline;
-    }
-
-    /* Signed out, the session controls are Sign in, Guest and the gear — too wide to share the
-       row — so the links drop to a second one as they used to. This bar is then 6.25rem, taller
-       than --nav-height; the only page it shows on is the sign-in card, which pins nothing. */
-    .navmenu__inner:has(.navmenu__auth--signed-out) {
-        flex-wrap: wrap;
-    }
-
-    .navmenu__inner:has(.navmenu__auth--signed-out) .navmenu__links {
-        order: 3;
-        flex: 1 0 100%;
-        border-top: 1px solid var(--border);
-    }
-}
-
-/* ── USING MOCK DATA chip (standards §7) ────────────────────────────────────
-   A compact status tint beside the brand, not a full-width row: the full sentence is in the
-   title and a visually-hidden span. Opaque --danger-* tokens, so --accent-red text keeps the
-   same contrast on it in both themes. */
+/* ── USING MOCK DATA chip (standards §7) ──
+   Opaque --danger-* tokens, so --accent-red text keeps its contrast in both schemes. */
 .navmenu__mock-chip {
     flex: 0 0 auto;
     display: inline-flex;
@@ -238,190 +45,71 @@
     cursor: help;
 }
 
-/* ── Auth / GUEST identity (standards §6) ──────────────────────────────────── */
-/* Takes the rest of the row and packs its controls to the right edge. With margin-left: auto
-   it was only as wide as its content, so when the session resolved and the badge arrived the
-   box grew leftwards — a layout shift on every route. Now its left edge never moves. */
-.navmenu__auth {
+.navmenu__nav {
+    flex: 1 1 auto;
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-sm);
-    flex: 1 0 auto;
-}
-
-/* The buttons keep their intrinsic width; only the identity badge below is allowed to
-   give ground, because it is the only child that truncates cleanly. */
-.navmenu__auth > .po-btn {
-    flex: 0 0 auto;
-    white-space: nowrap;
-}
-
-.navmenu__user-badge {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: 999px;
-    letter-spacing: 0.03em;
-    white-space: nowrap;
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: clamp(120px, 22vw, 260px);
-    /* Ellipsis is the LAST resort now, not the first. The badge sheds its domain span
-       (below) before it clips, so an identity that used to render as
-       "punkouter26@gmail…." now renders as "punkouter26" — a whole word, and the half
-       that identifies the account. The full value is in the title attribute regardless. */
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* The '@domain' half. Present on wide screens, dropped when the bar gets tight — dropping
-   a complete token reads as a deliberate short form, where a mid-string ellipsis reads as
-   a bug. Guest identities have no '@' and render nothing here. */
-.navmenu__user-badge-domain {
-    opacity: 0.75;
-}
-
-@media (max-width: 1024px) {
-    .navmenu__user-badge-domain {
-        display: none;
-    }
-
-    /* With the domain gone the badge no longer needs a viewport-proportional cap — a local
-       part is short, so let it size to its content and stop competing for the row. */
-    .navmenu__user-badge {
-        max-width: none;
-    }
-}
-
-.navmenu__user-badge--guest {
-    background: var(--warn-surface);
-    color: var(--accent-yellow);
-    border: 1px solid var(--warn-border);
-}
-
-.navmenu__user-badge--oauth {
-    background: var(--success-surface);
-    color: var(--accent-green);
-    border: 1px solid var(--success-border);
-}
-
-/* ── User menu (<details>) ─────────────────────────────────────────────────────
-   Catalog, the dev personas and Logout behind the identity badge. Settings is not in it: the
-   gear (.navmenu__settings-link) sits on the bar beside the badge at every width, signed in
-   or out (2026-11-17).
-   Focus rings and the 24px/44px target floor for button and summary come from app.css;
-   only the NavLink anchor needs the floor restated. */
-.navmenu__menu {
-    position: relative;
-    flex: 0 1 auto;
-    min-width: 0;
-}
-
-.navmenu__menu-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    max-width: 100%;
-    padding: var(--space-2xs);
-    border-radius: var(--radius-full);
-    color: var(--text);
-    cursor: pointer;
-    list-style: none;           /* drops the disclosure triangle (Firefox) */
-}
-
-.navmenu__menu-trigger::-webkit-details-marker {
-    display: none;              /* ...and in Chromium/WebKit */
-}
-
-.navmenu__menu-trigger:hover {
-    background: var(--surface-1);
-}
-
-/* The gear is an anchor, which app.css's 24px floor for button and summary does not cover. */
-.navmenu__settings-link {
     justify-content: center;
-    min-block-size: var(--target-min);
-    min-inline-size: var(--target-min);
-    text-decoration: none;
+    min-width: 0;
 }
 
-.navmenu__menu-caret {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    transition: transform 0.15s ease;
-}
-
-.navmenu__menu[open] .navmenu__menu-caret {
-    transform: rotate(180deg);
-}
-
-.navmenu__menu-panel {
-    position: absolute;
-    inset-inline-end: 0;
-    inset-block-start: calc(100% + var(--space-xs));
-    z-index: 110;
-    display: flex;
-    flex-direction: column;
-    min-width: max-content;
-    padding: var(--space-xs);
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--glass-shadow);
-}
-
-/* ::deep because the Catalog entry is a NavLink, whose anchor renders outside this
-   component's scope id; the buttons match it too. */
-::deep .navmenu__menu-item {
+.navmenu__links {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    width: 100%;
-    min-block-size: var(--target-min);
-    padding: var(--space-sm) var(--space-smd);
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: none;
-    color: var(--text);
-    font: inherit;
-    font-size: var(--text-md);
-    text-align: start;
-    text-decoration: none;
+    gap: var(--space-xs);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* ::deep because NavLink renders the anchor itself, outside this component's scope id. */
+::deep .navmenu__link {
+    display: flex;
+    align-items: center;
+    min-height: var(--target-min, 44px);
     white-space: nowrap;
-    cursor: pointer;
-}
-
-::deep .navmenu__menu-item:hover {
-    background: var(--surface-2);
+    color: var(--text-muted);
+    padding: 0 var(--space-smd);
+    border-radius: var(--radius-sm);
     text-decoration: none;
+    font-size: var(--text-md);
+    transition: color 0.15s ease, background 0.15s ease;
 }
 
-::deep .navmenu__menu-item.active {
-    color: var(--accent-green);
+::deep .navmenu__link:hover {
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+::deep .navmenu__link.active {
+    color: var(--po-accent);
+    background: var(--po-accent-soft);
     font-weight: 600;
 }
 
-.navmenu__menu-item--logout {
-    border-top: 1px solid var(--border);
-    border-start-start-radius: 0;
-    border-start-end-radius: 0;
+.navmenu__link-text--short {
+    display: none;
 }
 
-.navmenu__menu-glyph {
-    font-size: var(--text-lg);
-    line-height: 1;
-}
-
-/* ── Tablet crowding ────────────────────────────────────────────────────────
-   Between 768 and 992px the bar carries brand + four links + the menu trigger on one row.
-   The wordmark drops out; the
-   anchor's name comes from its aria-label, so hiding the text costs a screen reader nothing.
-   The theme-label, link-padding and badge-width trims that used to live here up to 1280px
-   went with the right-hand cluster, which is now a single trigger. */
-@media (min-width: 768px) and (max-width: 991.98px) {
-    ::deep .navmenu__brand .brand-mark__label {
+@media (max-width: 767.98px) {
+    .navmenu__link-text--long {
         display: none;
+    }
+
+    .navmenu__link-text--short {
+        display: inline;
+    }
+
+    ::deep .navmenu__link {
+        padding: 0 var(--space-xs);
+        font-size: var(--text-sm);
     }
 }
 
+/* Phones: BottomNav has the routes, and the Login card in the page body has the Guest
+   button, so the header keeps only the name, the session control and the gear. */
+@media (max-width: 640px) {
+    .navmenu__nav,
+    .navmenu__guest {
+        display: none;
+    }
+}

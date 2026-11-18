@@ -10,9 +10,6 @@
     <PlaywrightPlatform Condition="'$(Configuration)' == 'Release'">none</PlaywrightPlatform>
     </PropertyGroup>
 
-  <ItemGroup>
-    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PoLocalCompare.Shared\PoLocalCompare.Shared.csproj" />

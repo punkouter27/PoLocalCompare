@@ -37,6 +37,7 @@ try
     // silently repoint a local dev run at production storage and beat any env-var override.
     var preKvTableConnection = builder.Configuration["ConnectionStrings:AzureTableStorage"];
     var preKvBlobConnection = builder.Configuration["ConnectionStrings:AzureBlobStorage"];
+    var preKvStorageAccount = builder.Configuration["AzureStorage:AccountName"];
 
     var keyVaultUri = builder.Configuration["KeyVault:Uri"];
     if (!string.IsNullOrEmpty(keyVaultUri))
@@ -111,6 +112,13 @@ try
 
         if (builder.Configuration["ConnectionStrings:AzureBlobStorage"] != preKvBlobConnection)
             builder.Configuration["ConnectionStrings:AzureBlobStorage"] = preKvBlobConnection ?? "UseDevelopmentStorage=true";
+
+        // The managed-identity path wins over both strings (InfrastructureServiceExtensions), so
+        // a vault-provided AzureStorage:AccountName would send a local run, signed in through the
+        // Azure CLI, straight to the real account — the shared model catalog included, which
+        // ModelSeeder writes on every Development start. Only a machine-local value may set it.
+        if (builder.Configuration["AzureStorage:AccountName"] != preKvStorageAccount)
+            builder.Configuration["AzureStorage:AccountName"] = preKvStorageAccount ?? string.Empty;
     }
 
     // Fail fast in Production on the config the app cannot run without: with no storage connection

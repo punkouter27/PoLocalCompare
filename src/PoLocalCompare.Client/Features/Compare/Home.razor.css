@@ -651,7 +651,7 @@
 }
 
 .home__compare:has(.po-btn:not(:disabled))::before {
-    --po-edge-a: var(--accent-green);
+    --po-edge-a: var(--po-accent);
     --po-edge-b: var(--accent-cyan);
 }
 

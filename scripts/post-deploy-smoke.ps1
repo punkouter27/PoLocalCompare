@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Checks the live site after the shared deploy.yml health gate has passed.
+    Checks the live site; run by hand after a deploy (the shared deploy.yml no longer calls it).
 
 .DESCRIPTION
     1. SPA mount: index.html carries the Blazor bootstrap and _framework/blazor.webassembly.js is

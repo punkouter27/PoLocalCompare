@@ -30,7 +30,7 @@ public static class DiagEndpoints
 
     private static readonly string Version =
         typeof(DiagEndpoints).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "BuildStamp")?.Value ?? "unknown";
+            .FirstOrDefault(a => a.Key == "BuildVersion")?.Value ?? "unknown";
 
     public static IEndpointRouteBuilder MapDiagEndpoints(this IEndpointRouteBuilder app)
     {

@@ -226,7 +226,7 @@
 
 .profile__opponent:hover,
 .profile__opponent:focus-visible {
-    color: var(--accent-green);
+    color: var(--po-accent);
 }
 
 /* ── Kill list, phone ───────────────────────────────────────────────
@@ -446,7 +446,7 @@
 
 .profile__gallery-item:hover,
 .profile__gallery-item:focus-visible {
-    border-color: var(--accent-green);
+    border-color: var(--po-accent);
 }
 
 /* A 16:9 window the width of the tile, and a size container so the frame inside can read

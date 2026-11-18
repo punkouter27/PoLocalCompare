@@ -1,11 +1,12 @@
 /**
- * diag-health.js — the status half of /diag: overall banner, API, database/storage, services,
- * version and environment, with a Refresh that cannot be double-fired.
+ * diag-health.js — the status half of /diag: the overall banner and one card per dependency in
+ * three groups (API, Data, Services), with a Refresh that cannot be double-fired.
  *
  * Plain JS for the same reason as diag-models.js: /diag is a server-rendered Razor Page so it
  * still works when the WASM client is the broken thing. Everything comes from GET /api/diag,
- * which carries no endpoints, keys or exception messages; the API row is this fetch itself —
- * if it answers, the API is reachable, and its round trip is the response time shown.
+ * which carries no endpoints, keys or exception messages; the API card is this fetch itself —
+ * if it answers, the API is reachable, and its round trip is the time shown. Cards use the
+ * shell's po-diag__card and po-badge--ok|warn|bad (po-tokens.css).
  */
 (() => {
     'use strict';
@@ -14,10 +15,9 @@
     const banner = byId('diag-banner');
     const refresh = byId('diag-refresh');
     const checked = byId('diag-checked');
-    const apiBody = byId('diag-api-rows');
-    const storeBody = byId('diag-store-rows');
-    const serviceBody = byId('diag-service-rows');
-    const version = byId('diag-version');
+    const apiCards = byId('diag-api-cards');
+    const storeCards = byId('diag-store-cards');
+    const serviceCards = byId('diag-service-cards');
     const environment = byId('diag-environment');
 
     const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -25,30 +25,48 @@
     const time = (iso) => new Date(iso).toLocaleTimeString();
 
     const BANNER = {
-        Healthy: ['ok', 'All systems are working.'],
+        Healthy: ['ok', 'Everything is working.'],
         Degraded: ['warn', 'The app is up, but something it depends on is struggling.'],
-        Unhealthy: ['bad', 'Something the app needs is down — see below.'],
+        Unhealthy: ['bad', 'Something the app needs is down. See the red cards below.'],
     };
 
-    function chip(status, configured) {
-        if (!configured) return '<span class="diag-status-chip diag-status-chip--muted">Not configured</span>';
-        const tone = status === 'Healthy' ? 'ok' : status === 'Degraded' ? 'warn' : 'bad';
-        return `<span class="diag-status-chip diag-status-chip--${tone}">${esc(status)}</span>`;
+    // Plain words for the badge; the tone is what po-badge--ok|warn|bad colours.
+    function badge(status, configured) {
+        if (!configured) return '<span class="po-badge po-badge--warn">Not set up here</span>';
+        if (status === 'Healthy') return '<span class="po-badge po-badge--ok">Working</span>';
+        if (status === 'Degraded') return '<span class="po-badge po-badge--warn">Slow or partly down</span>';
+        return '<span class="po-badge po-badge--bad">Not working</span>';
     }
 
-    function rowsFor(checks, colspan, empty) {
-        if (!checks.length) return `<tr><td colspan="${colspan}">${esc(empty)}</td></tr>`;
-        return checks.map((c) => `
-            <tr>
-                <td>${esc(c.name)}<div class="diag-purpose">${esc(c.purpose)}</div></td>
-                <td>${chip(c.status, c.configured)}${c.problem ? `<div class="diag-purpose">${esc(c.problem)}</div>` : ''}</td>
-                <td>${c.latencyMs == null ? '—' : `${esc(c.latencyMs)} ms`}</td>
-                <td>${esc(time(c.checkedAt))}</td>
-            </tr>`).join('');
+    function card(name, purpose, status, configured, latencyMs, checkedAt) {
+        const detail = [
+            latencyMs == null ? null : `answered in ${esc(latencyMs)} ms`,
+            checkedAt ? `checked ${esc(time(checkedAt))}` : null,
+        ].filter(Boolean).join(' · ');
+        return `
+            <div class="po-diag__card">
+                <span class="diag__card-name">${esc(name)}</span>
+                ${badge(status, configured)}
+                <span class="diag__card-purpose">${esc(purpose)}</span>
+                <span class="diag__card-detail">${detail}</span>
+            </div>`;
     }
+
+    function cardsFor(checks, empty) {
+        if (!checks.length) return `<p class="diag__empty">${esc(empty)}</p>`;
+        return checks.map((c) => card(c.name, c.purpose, c.status, c.configured, c.latencyMs, c.checkedAt)).join('');
+    }
+
+    // Whole class names, not `--${tone}`: check-clean.ps1 reads an interpolated class as unused.
+    const BANNER_CLASS = {
+        ok: 'diag__banner diag__banner--ok',
+        warn: 'diag__banner diag__banner--warn',
+        bad: 'diag__banner diag__banner--bad',
+        idle: 'diag__banner diag__banner--idle',
+    };
 
     function setBanner(tone, text) {
-        banner.className = `diag-banner diag-banner--${tone}`;
+        banner.className = BANNER_CLASS[tone];
         banner.textContent = text;
     }
 
@@ -65,25 +83,18 @@
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const report = await response.json();
 
-            const [tone, text] = BANNER[report.status] ?? ['warn', `Status: ${report.status}`];
+            const [tone, text] = BANNER[report.status] ?? ['warn', 'Some checks did not report a clear answer.'];
             setBanner(tone, text);
-            apiBody.innerHTML = `
-                <tr>
-                    <td>PoLocalCompare API<div class="diag-purpose">Serves this app, its data and the duels.</div></td>
-                    <td>${chip('Healthy', true)}</td>
-                    <td>${elapsed} ms</td>
-                    <td>${esc(time(report.checkedAt))}</td>
-                </tr>`;
-            storeBody.innerHTML = rowsFor(report.stores, 4, 'No stores are registered.');
-            serviceBody.innerHTML = rowsFor(report.services, 4, 'No external services are registered.');
-            version.textContent = report.version;
+            apiCards.innerHTML = card('PoLocalCompare API', 'Serves this app, its data and the duels.', 'Healthy', true, elapsed, report.checkedAt);
+            storeCards.innerHTML = cardsFor(report.stores, 'No data stores are registered.');
+            serviceCards.innerHTML = cardsFor(report.services, 'No outside services are registered.');
             environment.textContent = report.environment;
             checked.textContent = `Last checked ${time(report.checkedAt)}`;
-        } catch (err) {
-            setBanner('bad', 'Could not reach the API. The server may be down or restarting — try Refresh.');
-            apiBody.innerHTML = `<tr><td>PoLocalCompare API</td><td>${chip('Unhealthy', true)}</td><td>—</td><td>${esc(new Date().toLocaleTimeString())}</td></tr>`;
-            storeBody.innerHTML = '<tr><td colspan="4">Unknown — the API did not answer.</td></tr>';
-            serviceBody.innerHTML = '<tr><td colspan="4">Unknown — the API did not answer.</td></tr>';
+        } catch {
+            setBanner('bad', 'Could not reach the API. The server may be down or restarting. Try Refresh.');
+            apiCards.innerHTML = card('PoLocalCompare API', 'Serves this app, its data and the duels.', 'Unhealthy', true, null, new Date().toISOString());
+            storeCards.innerHTML = '<p class="diag__empty">Unknown: the API did not answer.</p>';
+            serviceCards.innerHTML = '<p class="diag__empty">Unknown: the API did not answer.</p>';
             checked.textContent = '';
         } finally {
             refresh.disabled = false;

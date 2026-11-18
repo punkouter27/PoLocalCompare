@@ -1,10 +1,14 @@
-<footer class="build-stamp" aria-label="Build version">@Stamp</footer>
+@* The Po build stamp: vYYMMDD, the UTC date of the commit this build came from, fixed in the
+   lower-right corner by po-tokens.css. Directory.Build.props writes the date into the
+   BuildVersion assembly metadata of the server and the client alike, so /diag and this agree. *@
+<span class="po-version" aria-label="Build version">v@(Stamp)</span>
 
 @code {
-    private static readonly string Stamp =
+    /// <summary>YYMMDD from the BuildVersion assembly metadata (the UTC build date as a fallback).</summary>
+    public static readonly string Stamp =
         typeof(BuildVersion).Assembly
             .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
             .OfType<System.Reflection.AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "BuildStamp")?.Value
+            .FirstOrDefault(a => a.Key == "BuildVersion")?.Value
         ?? DateTimeOffset.UtcNow.ToString("yyMMdd", System.Globalization.CultureInfo.InvariantCulture);
 }

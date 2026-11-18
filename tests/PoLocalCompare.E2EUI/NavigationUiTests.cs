@@ -25,31 +25,31 @@ public sealed class NavigationUiTests : UiTestBase
         // catch it.
         var page = await SignedInPageAsync(width, height);
 
-        // Standards §4 layout contract: Left (branding) | Centre (actions) | Right (session).
-        // Branding and session share the bar's first row at every width — below 768px the
-        // links drop to a second row beneath them rather than into a drawer — so the same
-        // horizontal assertion holds on a phone and on a desktop.
-        var brand = await page.Locator(".navmenu__brand").BoundingBoxAsync();
-        var auth = await page.Locator(".navmenu__auth").BoundingBoxAsync();
-        Assert.NotNull(brand);
-        Assert.NotNull(auth);
-        Assert.True(brand!.X < auth!.X, "Branding should sit left of the session controls.");
+        // The Po shell (po-tokens.css): the app name upper-left, the signed-in identity and the
+        // settings gear upper-right, at every width.
+        var title = await page.Locator(".po-header__title").BoundingBoxAsync();
+        var actions = await page.Locator(".po-header__actions").BoundingBoxAsync();
+        Assert.NotNull(title);
+        Assert.NotNull(actions);
+        Assert.True(title!.X < actions!.X, "The app name should sit left of the session controls.");
+        await Assertions.Expect(page.Locator(".po-header__title")).ToContainTextAsync("PoLocalCompare");
 
-        // The signed-in identity is part of that right-hand cluster, and so is Settings: a gear
-        // on the bar immediately left of the badge at every width (2026-11-17 — it used to be
-        // reachable only from inside the account menu).
-        await Assertions.Expect(page.Locator(".navmenu__user-badge")).ToBeVisibleAsync();
-        var gear = page.Locator(".navmenu__auth .navmenu__settings-link");
+        await Assertions.Expect(page.Locator(".po-header__email")).ToBeVisibleAsync();
+        var gear = page.Locator(".po-header__actions .po-header__settings");
         await Assertions.Expect(gear).ToBeVisibleAsync();
         var gearBox = await gear.BoundingBoxAsync();
-        var badgeBox = await page.Locator(".navmenu__user-badge").BoundingBoxAsync();
-        Assert.True(gearBox!.X + gearBox.Width <= badgeBox!.X + 1, "The settings gear should sit just left of the account badge.");
+        var emailBox = await page.Locator(".po-header__email").BoundingBoxAsync();
+        Assert.True(emailBox!.X + emailBox.Width <= gearBox!.X + 1, "The settings gear should sit right of the email.");
         Assert.True(gearBox.Width >= 24 && gearBox.Height >= 24, $"Gear was {gearBox.Width}×{gearBox.Height}.");
+
+        // One build stamp, vYYMMDD.
+        await Assertions.Expect(page.Locator(".po-version")).ToHaveCountAsync(1);
+        await Assertions.Expect(page.Locator(".po-version")).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^v[0-9]{6}$"));
 
         var problems = await page.EvaluateAsync<string[]>(
             """
             () => {
-                const sel = '.navmenu__brand, .navmenu__mock-chip, .navmenu__link, .navmenu__settings-link, .navmenu__menu > .navmenu__menu-trigger';
+                const sel = '.po-header__title, .navmenu__mock-chip, .navmenu__link, .po-header__email, .po-header__settings';
                 const els = [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
                 const label = e => (e.textContent || e.className).trim().slice(0, 24);
                 const bad = [];
@@ -74,21 +74,24 @@ public sealed class NavigationUiTests : UiTestBase
 
     [Theory]
     [MemberData(nameof(Viewports))]
-    public async Task SkipLink_IsTheFirstTabStopAndMovesFocusToMain(int width, int height)
+    public async Task Tab_OpensTheDeveloperWindow_AndTheSkipLinkMovesFocusToMain(int width, int height)
     {
-        // SC 2.4.1 Bypass Blocks — the link is visually hidden until focused.
+        // Po web standard: Tab with nothing focused opens /po-dev.html in its own window
+        // (js/po-devwindow.js). A fresh load leaves focus on the document — FocusOnNavigate only
+        // runs after the first in-app navigation — so the first Tab is the developer window's.
         var page = await SignedInPageAsync(width, height);
-
-        // Blazor's <FocusOnNavigate Selector="h1"> parks focus on the heading after routing,
-        // so tabbing from there lands *past* the skip link. Reset to the document start —
-        // which is where a person arriving at the page actually begins.
         await page.EvaluateAsync("() => document.activeElement?.blur()");
+        var popupTask = page.Context.WaitForPageAsync(new() { Timeout = 10_000 });
         await page.Keyboard.PressAsync("Tab");
+        var popup = await popupTask;
+        await popup.WaitForLoadStateAsync();
+        Assert.EndsWith("/po-dev.html", popup.Url);
+        await Assertions.Expect(popup.Locator("#live")).ToHaveTextAsync("UP", new() { Timeout = 15_000 });
+        await popup.CloseAsync();
 
-        var focusedClass = await page.EvaluateAsync<string>(
-            "() => document.activeElement?.className ?? ''");
-        Assert.Contains("skip-link", focusedClass);
-
+        // SC 2.4.1 Bypass Blocks — the link is visually hidden until focused, and Enter moves
+        // focus to main.
+        await page.FocusAsync(".skip-link");
         await page.Keyboard.PressAsync("Enter");
 
         var focusedId = await page.EvaluateAsync<string>("() => document.activeElement?.id ?? ''");
@@ -154,14 +157,16 @@ public sealed class NavigationUiTests : UiTestBase
 
         await Assertions.Expect(page.Locator("h1")).ToContainTextAsync("Diagnostics");
 
-        // The diagnostics standard: overall banner, API / storage / services sections, version
-        // (YYMMDD) and environment, all filled from /api/diag, and a Refresh that re-enables.
+        // The diagnostics standard: overall banner, one status card per dependency in the API /
+        // Data / Services groups, the build stamp and environment, all filled from /api/diag, and
+        // a Refresh that re-enables. The page wears the app's header like every other page.
         await Assertions.Expect(page.Locator("#diag-banner")).Not.ToHaveTextAsync("Checking…", new() { Timeout = 30_000 });
-        await Assertions.Expect(page.Locator("#diag-api-rows")).ToContainTextAsync("ms");
-        await Assertions.Expect(page.Locator("#diag-store-rows")).ToContainTextAsync("Table Storage");
-        await Assertions.Expect(page.Locator("#diag-service-rows")).ToContainTextAsync("Azure AI Foundry");
-        await Assertions.Expect(page.Locator("#diag-version")).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^[0-9]{6}$"));
-        await Assertions.Expect(page.Locator("#diag-environment")).Not.ToHaveTextAsync("—");
+        await Assertions.Expect(page.Locator("#diag-api-cards .po-diag__card")).ToContainTextAsync("ms");
+        await Assertions.Expect(page.Locator("#diag-store-cards .po-diag__card")).ToContainTextAsync("Table Storage");
+        await Assertions.Expect(page.Locator("#diag-service-cards")).ToContainTextAsync("Azure AI Foundry");
+        await Assertions.Expect(page.Locator(".po-header__title")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".po-version")).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^v[0-9]{6}$"));
+        await Assertions.Expect(page.Locator("#diag-environment")).Not.ToHaveTextAsync("…");
         await page.Locator("#diag-refresh").ClickAsync();
         await Assertions.Expect(page.Locator("#diag-refresh")).ToBeEnabledAsync(new() { Timeout = 30_000 });
 

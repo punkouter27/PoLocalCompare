@@ -148,14 +148,14 @@
     // ── Catalog ──────────────────────────────────────────────────────────────
 
     async function loadCatalog() {
-        elRows.innerHTML = '<tr><td colspan="6">Loading catalog…</td></tr>';
+        elRows.innerHTML = '<tr><td colspan="6">Loading the model list…</td></tr>';
         try {
             const authRes = await fetch('/auth/me', { credentials: 'include', cache: 'no-store' });
             if (authRes.ok) {
                 const me = await authRes.json();
                 if (!me || !me.isAuthenticated) {
                     elRows.innerHTML = '<tr><td colspan="6">Not signed in — the model catalog needs a session. '
-                        + '<a class="diag-header__back" href="/">Sign in</a>, then reload this page.</td></tr>';
+                        + '<a href="/auth/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
                     return;
                 }
             }
@@ -164,7 +164,7 @@
                 // /diag is anonymous but /api/models is not, and that asymmetry is deliberate —
                 // say so rather than showing an empty table that reads as "no models".
                 elRows.innerHTML = '<tr><td colspan="6">Not signed in — the model catalog needs a session. '
-                    + '<a class="diag-header__back" href="/">Sign in</a>, then reload this page.</td></tr>';
+                    + '<a href="/auth/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
                 return;
             }
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -175,7 +175,7 @@
             summarise();
             await probeEnvironment();
         } catch (e) {
-            elRows.innerHTML = '<tr><td colspan="6">Could not load the catalog — ' + esc(e.message) + '</td></tr>';
+            elRows.innerHTML = '<tr><td colspan="6">Could not load the model list. Try Reload list.</td></tr>';
         }
     }
 

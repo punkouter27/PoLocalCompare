@@ -1,14 +1,16 @@
 <#
 .SYNOPSIS
-    Repo-specific build checks, run by the shared deploy.yml after the unit tests.
+    Repo checks to run locally before a push. The deploy no longer runs them.
 
 .DESCRIPTION
-    Runs from the repo root on ubuntu-latest, after `dotnet build *.slnx -c Release`.
+    Run from the repo root after `dotnet build PoLocalCompare.slnx -c Release`. Until 2026-11-18
+    the shared deploy.yml called this after the unit tests; the Po web standard made the workflow
+    build-and-deploy only, so tests and these checks are a local gate now (and the LFS step the
+    deploy still needs lives in scripts/ci-package.ps1).
 
-    0. Git LFS. src/PoLocalCompare.Client/wwwroot/js/web-llm.js is an LFS object and the shared
-       checkout does not fetch LFS, so the build saw the ~130-byte pointer. Pull the real file and
-       rebuild the API (which carries the client's static assets) so the `--no-build` publish that
-       follows ships the real bundle. Without it every browser model fails at import time.
+    0. Git LFS. src/PoLocalCompare.Client/wwwroot/js/web-llm.js is an LFS object; a clone without
+       LFS has the ~130-byte pointer. Pull the real file and rebuild the API (which carries the
+       client's static assets). Without it every browser model fails at import time.
     1. Repo hygiene: scripts/check-clean.ps1 (test budgets, dead/unused CSS, cache-busters, motion gate).
     2. Browser-model catalog: scripts/plan-webllm-artifacts.py exits non-zero when ModelSeeder.cs
        and web-llm.js's prebuiltAppConfig disagree. Needs the LFS file from step 0.

@@ -1,77 +1,8 @@
-// prefs.js — everything the user chooses in /settings, applied before Blazor boots: the theme
-// (window.poTheme) and the optional extras (window.poPrefs). One <head> script instead of two;
-// both halves have to run before first paint, and neither needs anything else on the page.
+// prefs.js — the optional extras the user switches on in /settings (window.poPrefs), applied
+// before Blazor boots. Light and dark are not a choice any more: they follow the device's
+// prefers-color-scheme through po-tokens.css alone (Po web standard, 2026-11-18), so the theme
+// half that stamped <html data-theme> is gone.
 //
-// ── Theme ────────────────────────────────────────────────────────────────────────────────
-// Theme switching. Three states are possible and they are not the same thing:
-//   "system" — no stored choice; follow prefers-color-scheme and keep following it as it changes.
-//   "light" / "dark" — an explicit user choice, stamped onto <html data-theme> so the
-//   [data-theme] rules in app.css override the prefers-color-scheme block.
-//
-// Everything the theme touches is a CSS custom property in app.css, so stamping the
-// attribute is the whole job -- there is no per-theme stylesheet left to swap.
-(() => {
-    const KEY = 'polocalcompare:theme';
-
-    const systemPrefersDark = () =>
-        window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    const stored = () => {
-        try {
-            const v = localStorage.getItem(KEY);
-            return v === 'light' || v === 'dark' ? v : null;
-        } catch {
-            // Private mode / blocked storage: fall back to following the system.
-            return null;
-        }
-    };
-
-    // The theme actually being rendered, resolving "system" to a concrete value.
-    const effective = () => stored() ?? (systemPrefersDark() ? 'dark' : 'light');
-
-    const paint = () => {
-        const theme = effective();
-        const root = document.documentElement;
-
-        // Only stamp the attribute for an explicit choice. Leaving it off when following the
-        // system lets the prefers-color-scheme block stay in charge, so a viewer who changes
-        // their OS setting mid-session sees it apply without a reload.
-        if (stored()) {
-            root.setAttribute('data-theme', theme);
-        } else {
-            root.removeAttribute('data-theme');
-        }
-    };
-
-    window.poTheme = {
-        // "light" | "dark" | "system"
-        current: () => stored() ?? 'system',
-        effective,
-        set(theme) {
-            try {
-                if (theme === 'system') {
-                    localStorage.removeItem(KEY);
-                } else {
-                    localStorage.setItem(KEY, theme);
-                }
-            } catch {
-                // Storage unavailable — the choice still applies for this page view.
-            }
-            paint();
-            return effective();
-        },
-    };
-
-    paint();
-
-    // Keep following the OS while no explicit choice is stored.
-    if (window.matchMedia) {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-            if (!stored()) paint();
-        });
-    }
-})();
-
 // ── Optional extras ──────────────────────────────────────────────────────────────────────
 // Optional features, switched on and off from /settings. Every key is OFF until the user turns it
 // on — that one rule is the whole default, so an empty localStorage gets the simplest app and

@@ -60,7 +60,7 @@
 }
 
 .prompt-picker__card--active {
-    border-color: var(--accent-green);
+    border-color: var(--po-accent);
     background: var(--surface-accent);
 }
 

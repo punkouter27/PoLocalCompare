@@ -46,7 +46,7 @@
     border: 1px solid var(--danger-border);
     border-radius: var(--radius-sm);
     color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--po-font-mono);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
     white-space: pre-wrap;

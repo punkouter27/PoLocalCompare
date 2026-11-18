@@ -1,13 +1,13 @@
 /* Namespaced .login__ like every other surface. The buttons are .po-btn now, so
    only the brand-mandated Microsoft field is restated below — and it now lives
    inside MicrosoftSignInButton.razor.css so Login and NavMenu share the rule. */
+/* In the page body under the shell header (Po web standard), not a full-screen card that
+   replaces it. The floor is the viewport less the header, per the rule in CLAUDE.md. */
 .login {
-    /* dvh — see app.css .content; 100vh overshoots the visible viewport on mobile. */
-    min-height: 100dvh;
+    min-height: calc(100dvh - var(--nav-height) - var(--space-2xl));
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface-1);
     padding: var(--space-md);
 }
 
@@ -22,7 +22,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-mlg);
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: var(--po-shadow);
 }
 
 .login__divider {

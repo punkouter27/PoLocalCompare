@@ -1,7 +1,11 @@
 @page "/settings"
 @attribute [AllowAnonymous]
 
-@inject PoLocalCompare.Client.Services.ThemeService Theme
+@implements IDisposable
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject DuelApiClient ApiClient
+@inject Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnvironment
 @inject PreferencesService Prefs
 @inject FxService Fx
 @inject AudioService Audio
@@ -13,29 +17,62 @@
    the extras below are the features that made the default app busier than its job (pick two
    models, run a prompt, see who won). Each is off until switched on here — prefs.js reads a
    missing key as off — and the list itself is Preferences.All, so a new extra registers there,
-   not here — sound included. Theme keeps its own row because it is three-way, not on/off.
-   Anonymous on purpose: theme and sound were reachable signed out, and still are.
-   Saved per browser; nothing here reaches the server. *@
+   not here — sound included. Light and dark follow the device; there is no theme choice.
+   It is also the header gear's one destination (Po web standard): the account (email,
+   Catalog, the dev personas, Sign out) sits here instead of in a menu on the header.
+   Anonymous on purpose: sound and the extras are reachable signed out.
+   The extras are saved per browser; nothing in them reaches the server. *@
 <div class="po-page settings">
     <PageHeader Title="Settings"
                 Subtitle="Saved in this browser. The extras are off until you turn them on." />
+
+    @if (_identity is not null)
+    {
+        <section class="po-section" aria-labelledby="settings-account-heading">
+            <h2 id="settings-account-heading" class="po-section-title">Account</h2>
+            <div class="settings__list">
+                <div class="settings__row">
+                    <span class="settings__text">
+                        <span class="settings__label">Signed in as</span>
+                        <span class="po-hint settings__hint settings__email">@_identity</span>
+                    </span>
+                    <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="LogoutAsync">Sign out</button>
+                </div>
+                <div class="settings__row">
+                    <span class="settings__text">
+                        <span class="settings__label">Model catalog</span>
+                        <span class="po-hint settings__hint">Add browser or Ollama models.</span>
+                    </span>
+                    <a class="po-btn po-btn--sm po-btn--secondary" href="catalog">Open catalog</a>
+                </div>
+                @if (!IsProduction)
+                {
+                    <div class="settings__row">
+                        <span class="settings__text">
+                            <span class="settings__label">Dev persona</span>
+                            <span class="po-hint settings__hint">Development only: sign in again as another test user.</span>
+                        </span>
+                        <div class="settings__choices">
+                            @foreach (var persona in AccountMenu.DevPersonas)
+                            {
+                                <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                                        @onclick="() => SwitchDevPersona(persona)">@persona</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
 
     <section class="po-section" aria-labelledby="settings-look-heading">
         <h2 id="settings-look-heading" class="po-section-title">Look</h2>
         <div class="settings__list">
             <div class="settings__row">
                 <span class="settings__text">
-                    <span id="settings-theme-label" class="settings__label">Theme</span>
-                    <span class="po-hint settings__hint">Auto follows your system's light or dark setting.</span>
+                    <span class="settings__label">Theme</span>
+                    <span class="po-hint settings__hint">Light or dark follows your device's setting.</span>
                 </span>
-                <div class="settings__theme" role="group" aria-labelledby="settings-theme-label">
-                    @foreach (var (theme, label) in ThemeChoices)
-                    {
-                        <button type="button" class="po-btn po-btn--chip"
-                                aria-pressed="@(_theme == theme ? "true" : "false")"
-                                @onclick="() => SetThemeAsync(theme)">@label</button>
-                    }
-                </div>
             </div>
         </div>
     </section>
@@ -75,24 +112,54 @@
             </div>
         }
     </section>
+
+    <section class="po-section" aria-labelledby="settings-about-heading">
+        <h2 id="settings-about-heading" class="po-section-title">About</h2>
+        <div class="settings__list">
+            <div class="settings__row">
+                <span class="settings__text">
+                    <span class="settings__label">Build</span>
+                    <span class="po-hint settings__hint">The date of the code this site runs, also in the lower-right corner.</span>
+                </span>
+                <span class="settings__build">v@(BuildVersion.Stamp)</span>
+            </div>
+        </div>
+    </section>
 </div>
 
 @code {
-    private static readonly (AppTheme Theme, string Label)[] ThemeChoices =
-    [
-        (AppTheme.System, "Auto"),
-        (AppTheme.Light, "Light"),
-        (AppTheme.Dark, "Dark"),
-    ];
+    private string? _identity;
 
-    private AppTheme _theme = AppTheme.System;
+    private bool IsProduction => string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
 
-    protected override async Task OnInitializedAsync() => _theme = await Theme.GetAsync();
-
-    private async Task SetThemeAsync(AppTheme theme)
+    protected override async Task OnInitializedAsync()
     {
-        _theme = theme;
-        await Theme.SetAsync(theme);
+        AuthState.AuthenticationStateChanged += OnAuthStateChanged;
+        _identity = await AccountMenu.ResolveIdentityAsync(AuthState);
+    }
+
+    private void OnAuthStateChanged(Task<AuthenticationState> _)
+        => InvokeAsync(async () =>
+        {
+            _identity = await AccountMenu.ResolveIdentityAsync(AuthState);
+            StateHasChanged();
+        });
+
+    public void Dispose() => AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
+
+    private void SwitchDevPersona(string persona)
+    {
+        DevFakeUserHandler.ActiveFakeUser = persona;
+        Nav.NavigateTo($"auth/login/fake?user={Uri.EscapeDataString(persona)}&returnUrl=%2Fsettings", forceLoad: true);
+    }
+
+    private async Task LogoutAsync()
+    {
+        DevFakeUserHandler.ActiveFakeUser = null;
+        try { await ApiClient.LogoutAsync(); }
+        catch (HttpRequestException) { /* the reload below shows the signed-out state regardless */ }
+        // A full reload re-evaluates the (now cleared) session.
+        Nav.NavigateTo("/", forceLoad: true);
     }
 
     /// <summary>A sample of the extra: a burst off the button, or the cue that opens a duel.</summary>

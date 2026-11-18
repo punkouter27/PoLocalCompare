@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Components;
 using PoLocalCompare.Client.Layout;
 
 namespace PoLocalCompare.Client;
@@ -14,8 +15,26 @@ namespace PoLocalCompare.Client;
 /// </remarks>
 [UnconditionalSuppressMessage("Trimming", "IL2111",
     Justification = "NotFound's public constructors are rooted by the DynamicDependency on OnInitialized.")]
-public partial class App
+public sealed partial class App : IDisposable
 {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    /// <summary>True once the visitor has moved to another route inside the app.</summary>
+    private bool _navigated;
+
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties, typeof(NotFound))]
-    protected override void OnInitialized() => base.OnInitialized();
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (_navigated) return;
+        _navigated = true;
+        StateHasChanged();
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 }

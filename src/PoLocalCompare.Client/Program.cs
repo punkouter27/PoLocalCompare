@@ -40,7 +40,6 @@ try
 
     // ─── Phase 3 client services ─────────────────────────────────────────────────
     builder.Services.AddScoped<AudioService>();
-    builder.Services.AddScoped<PoLocalCompare.Client.Services.ThemeService>();
     builder.Services.AddScoped<FxService>();
     builder.Services.AddScoped<PreferencesService>();
     builder.Services.AddScoped<WebLlmService>();

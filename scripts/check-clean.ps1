@@ -159,7 +159,9 @@ $usage = ($usageFiles | ForEach-Object { Get-Content $_.FullName -Raw }) -join "
 $frameworkClasses = @('active', 'valid', 'invalid', 'modified', 'validation-message')
 
 $unused = [System.Collections.Specialized.OrderedDictionary]::new()
-foreach ($file in $cssFiles) {
+# po-tokens.css is the same file in every Po app (the Po web standard): it offers shell classes
+# an app may not use (.po-display), and it is never edited in one repo, so it is not checked here.
+foreach ($file in ($cssFiles | Where-Object { $_.Name -ne 'po-tokens.css' })) {
     # Comments mention file names (`app.css`, `wow.js`) and url(...) contains file extensions (.woff2).
     $css = [regex]::Replace((Get-Content $file.FullName -Raw), '(?s)/\*.*?\*/', '')
     $css = [regex]::Replace($css, 'url\([^)]+\)', '')

@@ -30,7 +30,7 @@
     }
 
     .bottom-nav ::deep .bottom-nav__item.active {
-        color: var(--accent-green);
+        color: var(--po-accent);
     }
 
     .bottom-nav ::deep .bottom-nav__icon {

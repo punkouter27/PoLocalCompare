@@ -1,17 +1,23 @@
 @implements IDisposable
-<nav class="navmenu">
-    <div class="navmenu__inner">
-        @* aria-label, not the visible wordmark, carries the accessible name: between 768 and
-           992px the wordmark is hidden to buy the bar room (rule in NavMenu.razor.css) and the
-           mark itself is decorative. *@
-        <BrandMark Size="BrandMarkSize.Small" Href="" AccessibleLabel="PoLocalCompare home" AdditionalClass="navmenu__brand" />
+@* ── The Po shell header (Po web standard) ─────────────────────────────────────
+   One header on every page, signed in and out: the app name upper-left (`po-header__title`),
+   the email or the Sign-in button plus the settings gear upper-right (`po-header__actions`).
+   The layout of those three comes from po-tokens.css, which is the same file in every Po app;
+   this component's scoped CSS only places the route links between them. The account menu
+   that used to hang off an initial-badge is gone: Catalog, the dev personas and Logout live
+   on /settings, behind the one gear. Below 640px the links drop out of the header because
+   BottomNav carries them. *@
+<header class="po-header navmenu">
+    <div class="navmenu__start">
+        <a class="po-header__title" href="/">
+            <span class="navmenu__glyph" aria-hidden="true">PL</span>
+            <span>PoLocalCompare</span>
+        </a>
 
         @* ── USING MOCK DATA marker (standards §7) — shown when UseRealAi is off ──
-           A compact chip beside the brand rather than a full-width red row above the bar. The
-           visible "MOCK" is aria-hidden; the full sentence is in the title for sighted users and
-           in a visually-hidden span for screen readers, so the literal "USING MOCK DATA" stays
-           in the DOM. The wording names which inference paths are simulated on purpose: browser
-           (WebGPU) models run in this tab and are never mocked. See MockInferenceProxy. *@
+           A compact chip beside the name. The visible "MOCK" is aria-hidden; the full sentence
+           is in the title and a visually-hidden span, so the literal "USING MOCK DATA" stays in
+           the DOM. Browser (WebGPU) models run in this tab and are never mocked. *@
         @if (_usingMockData)
         {
             <span class="navmenu__mock-chip" role="status" title="@MockDataText">
@@ -19,193 +25,67 @@
                 <span class="visually-hidden">@MockDataText</span>
             </span>
         }
-
-        @* No hamburger, and since 2026-10-26 one row at every width. Below 768px the brand is
-           its mark alone, the identity badge its initial, and the two long labels have short
-           forms — that is what fits four links on a 360px bar, where they used to be a second
-           row costing every phone page 44px. Exactly one label form is displayed at a time, so
-           the accessible name is always the visible word (SC 2.5.3). *@
-        <div class="navmenu__collapse">
-            <ul class="navmenu__links">
-                <li>
-                    <NavLink class="navmenu__link" href="" Match="NavLinkMatch.All">
-                        <span class="navmenu__link-text">Compare</span>
-                    </NavLink>
-                </li>
-                <li>
-                    <NavLink class="navmenu__link" href="tournament">
-                        <span class="navmenu__link-text navmenu__link-text--long">Tournament</span>
-                        <span class="navmenu__link-text navmenu__link-text--short">Bracket</span>
-                    </NavLink>
-                </li>
-                <li>
-                    <NavLink class="navmenu__link" href="leaderboard">
-                        <span class="navmenu__link-text navmenu__link-text--long">Leaderboard</span>
-                        <span class="navmenu__link-text navmenu__link-text--short">Ranks</span>
-                    </NavLink>
-                </li>
-                <li>
-                    <NavLink class="navmenu__link" href="archive">
-                        <span class="navmenu__link-text">Archive</span>
-                    </NavLink>
-                </li>
-                @* Catalog is not a top-nav link: it is the lowest-traffic route and tooling
-                   rather than a primary flow. It lives in the user menu (below), which is
-                   reachable at every width including phones. *@
-            </ul>
-
-            @* ── User identity / auth (standards §6) ── *@
-            @* Nothing until the session is known. The first render ran before /auth/me answered,
-               so a signed-in visitor saw Sign in + Guest flash and then swap for their badge —
-               measured as a layout shift on every route. *@
-            <div class="navmenu__auth @(_identityResolved && _identity is null ? "navmenu__auth--signed-out" : null)">
-                @if (_identityResolved && _identity is null)
-                {
-                    @* Same control as the Login card, just sized small so it sits in the navbar. *@
-                    <MicrosoftSignInButton Size="MicrosoftSignInSize.Small"
-                                            Label="Sign in"
-                                            OnClick="LoginWithMicrosoft" />
-                    @if (_allowGuest)
-                    {
-                        <button class="po-btn po-btn--sm po-btn--warn" @onclick="LoginAsGuestAsync">
-                            Guest
-                        </button>
-                    }
-                }
-
-                @* ── Settings: always on the bar, beside the account (2026-11-17) ──
-                   It used to hide inside the account menu while signed in, so the one place that
-                   turns on the optional features took two clicks to find and was invisible from
-                   the header. Now the gear sits next to the identity at every width, signed in
-                   or out. *@
-                @if (_identityResolved)
-                {
-                    <a class="navmenu__menu-trigger navmenu__settings-link" href="settings"
-                       aria-label="Settings" title="Settings — theme, sound and optional features">
-                        <span class="navmenu__menu-glyph" aria-hidden="true">⚙</span>
-                    </a>
-                }
-
-                @* ── One menu for everything session-shaped ──
-                   Native <details>/<summary>: keyboard operable with no script, and it works the
-                   same at every width — which is what makes /catalog reachable below 768px.
-                   Closing: Escape (OnMenuKeyDown) and any navigation re-key the element, which
-                   recreates it closed. *@
-                @if (_identityResolved && _identity is not null)
-                {
-                <details class="navmenu__menu" @key="_menuKey" @onkeydown="OnMenuKeyDown">
-                    <summary class="navmenu__menu-trigger" @ref="_menuTrigger" aria-label="@($"Account menu for {_identity}")">
-                        @* Split at the '@' so the badge can drop the DOMAIN on a narrow screen
-                           instead of ellipsising mid-string; the local part is the identifying
-                           half. The full value stays in the title either way. *@
-                        @* The initial replaces the name below 768px; the summary's aria-label
-                           carries the full identity at every width. *@
-                        <span class="navmenu__user-badge @(_isGuest ? "navmenu__user-badge--guest" : "navmenu__user-badge--oauth")"
-                              title="@(_identity + (_isGuest ? " (guest session)" : " (signed in via Microsoft)"))">
-                            <span class="navmenu__user-initial" aria-hidden="true">@IdentityInitial</span><span class="navmenu__user-badge-name">@IdentityLocalPart</span>@if (IdentityDomain is not null)
-                            {
-                                <span class="navmenu__user-badge-domain">@IdentityDomain</span>
-                            }
-                        </span>
-                        <span class="navmenu__menu-caret" aria-hidden="true">▾</span>
-                    </summary>
-
-                    <div class="navmenu__menu-panel">
-                        <NavLink class="navmenu__menu-item" href="catalog"
-                                 title="Add browser or Ollama models to the catalog">
-                            <span class="navmenu__menu-glyph" aria-hidden="true">🧪</span>
-                            <span>Catalog</span>
-                        </NavLink>
-                        @if (!IsProduction)
-                        {
-                            @foreach (var persona in AccountMenu.DevPersonas)
-                            {
-                                <button type="button"
-                                        class="navmenu__menu-item"
-                                        @onclick="() => SwitchDevPersonaAsync(persona)">
-                                    <span class="navmenu__menu-glyph" aria-hidden="true">⇄</span>
-                                    <span>Switch: @persona</span>
-                                </button>
-                            }
-                        }
-                        <button type="button"
-                                class="navmenu__menu-item navmenu__menu-item--logout"
-                                @onclick="LogoutAsync">
-                            <span class="navmenu__menu-glyph" aria-hidden="true">⎋</span>
-                            <span>Logout</span>
-                        </button>
-                    </div>
-                </details>
-                }
-            </div>
-        </div>
     </div>
-</nav>
+
+    <nav class="navmenu__nav" aria-label="Main">
+        <ul class="navmenu__links">
+            <li>
+                <NavLink class="navmenu__link" href="" Match="NavLinkMatch.All">Compare</NavLink>
+            </li>
+            <li>
+                <NavLink class="navmenu__link" href="tournament">
+                    <span class="navmenu__link-text--long">Tournament</span>
+                    <span class="navmenu__link-text--short">Bracket</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="navmenu__link" href="leaderboard">
+                    <span class="navmenu__link-text--long">Leaderboard</span>
+                    <span class="navmenu__link-text--short">Ranks</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="navmenu__link" href="archive">Archive</NavLink>
+            </li>
+        </ul>
+    </nav>
+
+    @* Nothing session-shaped until /auth/me has answered: the first render ran before it, and a
+       signed-in visitor used to see Sign in flash and then swap for their identity. *@
+    <div class="po-header__actions">
+        @if (_identityResolved && _identity is null)
+        {
+            <MicrosoftSignInButton Size="MicrosoftSignInSize.Small" Label="Sign in" OnClick="LoginWithMicrosoft" />
+            @if (_allowGuest)
+            {
+                <button type="button" class="po-btn po-btn--sm po-btn--warn navmenu__guest" @onclick="LoginAsGuest">Guest</button>
+            }
+        }
+        else if (_identity is not null)
+        {
+            <span class="po-header__email" title="@_identity">@_identity</span>
+        }
+        <a class="po-header__settings" href="/settings" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </a>
+    </div>
+</header>
 
 @code {
     [Inject] private IConfiguration Config { get; set; } = default!;
     [Inject] private NavigationManager Nav { get; set; } = default!;
-    [Inject] private DuelApiClient ApiClient { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = default!;
     [Inject] private Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnvironment { get; set; } = default!;
-
-    private bool IsProduction => string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
 
     private const string MockDataText =
         "USING MOCK DATA — Features:UseRealAi is off. Remote and Ollama responses are simulated.";
 
-
-    // Bumped to recreate the <details> closed: Blazor cannot own its `open` attribute (the
-    // browser toggles it), but it can replace the element.
-    private int _menuKey;
-    private bool _refocusTrigger;
-    private ElementReference _menuTrigger;
-
     private string? _identity;
-    private bool _isGuest;
 
     /// <summary>False until the first /auth/me answer; the session controls render after it.</summary>
     private bool _identityResolved;
-
-    private string IdentityInitial => AccountMenu.Initial(_identity);
-
-    /// <summary>
-    /// The identity up to and excluding the first '@' — the whole value when there is none
-    /// (a guest name, or a UPN that is not email-shaped). This is the half worth keeping when
-    /// the badge has to shed width.
-    /// </summary>
-    private string IdentityLocalPart => AccountMenu.LocalPart(_identity);
-
-    /// <summary>
-    /// The '@domain' remainder, or null when the identity has no '@'. Rendered in its own span
-    /// so CSS can hide it on a narrow screen without the string being cut mid-word.
-    /// </summary>
-    private string? IdentityDomain => AccountMenu.DomainPart(_identity);
     private bool _usingMockData;
     private bool _allowGuest;
-
-    // ── User menu ────────────────────────────────────────────────────────────
-
-    private void CloseMenu() => _menuKey++;
-
-    private void OnMenuKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key != "Escape") return;
-        CloseMenu();
-        _refocusTrigger = true;   // the recreated summary, once it exists — see OnAfterRenderAsync
-    }
-
-    // Collapses the phone drawer too. It used to close only the user menu, and the drawer sits
-    // in the page flow, so every route opened from it started pushed below an open menu.
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
-        InvokeAsync(() => { CloseMenu(); StateHasChanged(); });
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!_refocusTrigger) return;
-        _refocusTrigger = false;
-        await _menuTrigger.FocusAsync();
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -215,75 +95,26 @@
         var isProduction = string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
         _allowGuest = allowGuestByConfig && !isProduction;
 
-        await RefreshIdentityAsync();
-        Nav.LocationChanged += OnLocationChanged;
+        _identity = await AccountMenu.ResolveIdentityAsync(AuthState);
+        _identityResolved = true;
 
         var useRealAi = Config["Features:UseRealAi"];
         _usingMockData = !bool.TryParse(useRealAi, out var flag) || !flag;
     }
 
-    /// <summary>Resolves the current identity from the BFF session (/auth/me via the state provider).</summary>
-    private async Task RefreshIdentityAsync()
-    {
-        try
-        {
-            var state = await AuthState.GetAuthenticationStateAsync();
-            if (state.User.Identity?.IsAuthenticated == true)
-            {
-                _identity = state.User.FindFirst("preferred_username")?.Value
-                         ?? state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
-                         ?? state.User.Identity.Name;
-                _isGuest = _identity?.StartsWith("GUEST", StringComparison.OrdinalIgnoreCase) == true
-                        || state.User.IsInRole("Guest");
-            }
-            else
-            {
-                _identity = null;
-                _isGuest = false;
-            }
-        }
-        catch
-        {
-            _identity = null;
-            _isGuest = false;
-        }
-
-        _identityResolved = true;
-    }
-
     private void LoginWithMicrosoft()
         => Nav.NavigateTo($"auth/login/microsoft?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
 
-    private void LoginAsGuestAsync()
+    private void LoginAsGuest()
         => Nav.NavigateTo($"auth/login/fake?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
-
-    private async Task SwitchDevPersonaAsync(string persona)
-    {
-        DevFakeUserHandler.ActiveFakeUser = persona;
-        CloseMenu();
-        Nav.NavigateTo($"auth/login/fake?user={Uri.EscapeDataString(persona)}&returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
-        await Task.CompletedTask;
-    }
-
-    private async Task LogoutAsync()
-    {
-        DevFakeUserHandler.ActiveFakeUser = null;
-        try { await ApiClient.LogoutAsync(); }
-        catch { /* clear UI regardless */ }
-        // Full reload re-evaluates the (now cleared) session and renders the Login view.
-        Nav.NavigateTo("/", forceLoad: true);
-    }
 
     private void OnAuthStateChanged(Task<AuthenticationState> _)
         => InvokeAsync(async () =>
         {
-            await RefreshIdentityAsync();
+            _identity = await AccountMenu.ResolveIdentityAsync(AuthState);
+            _identityResolved = true;
             StateHasChanged();
         });
 
-    public void Dispose()
-    {
-        AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
-        Nav.LocationChanged -= OnLocationChanged;
-    }
+    public void Dispose() => AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
 }

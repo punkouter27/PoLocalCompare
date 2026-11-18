@@ -51,9 +51,6 @@
     <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
-    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PoLocalCompare.Shared\PoLocalCompare.Shared.csproj" />
