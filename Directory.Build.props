@@ -11,25 +11,38 @@
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
-  <!-- Build stamp (Po web standard): vYYMMDD in the lower-right corner of every page, where
-       YYMMDD is the UTC date of the HEAD commit (fallback: the UTC build date). The one
-       generation path for the server and the client alike: both read the BuildVersion
-       assembly metadata this target adds. TZ=UTC makes format-local print the UTC date. -->
-  <Target Name="PoBuildStamp" BeforeTargets="GetAssemblyAttributes">
-    <!-- Exec runs a .cmd file on Windows, where a percent sign must be doubled, and sh elsewhere. -->
-    <PropertyGroup>
-      <_PoPct>%25</_PoPct>
-      <_PoPct Condition="'$(OS)' == 'Windows_NT'">%25%25</_PoPct>
-    </PropertyGroup>
-    <Exec Command="git log -1 --format=$(_PoPct)cd --date=format-local:$(_PoPct)y$(_PoPct)m$(_PoPct)d" EnvironmentVariables="TZ=UTC" ConsoleToMsBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
-      <Output TaskParameter="ConsoleOutput" PropertyName="_PoGitStamp" />
-      <Output TaskParameter="ExitCode" PropertyName="_PoGitExit" />
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <EnableDefaultCompressionFormats>false</EnableDefaultCompressionFormats>
+    <PublishCompressionFormats>brotli</PublishCompressionFormats>
+  </PropertyGroup>
+
+  <!-- Self-contained Po build stamp (vYYMMDD = UTC date of HEAD commit, fallback to UTC build date).
+       Emits BuildVersion (and legacy aliases BuildStamp/BuildDate) so client corner badge and /api/diag match. -->
+  <Target Name="PoBuildStamp" BeforeTargets="GetAssemblyAttributes;CoreCompile">
+    <Exec Condition="'$(PoStamp)' == ''" Command="git rev-list -1 --timestamp HEAD" WorkingDirectory="$(MSBuildThisFileDirectory)"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_PoHeadCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="_PoHeadCommitExit" />
     </Exec>
-    <!-- Only a clean six-digit answer counts; anything else (no git, no history) is the fallback. -->
     <PropertyGroup>
-      <PoStamp Condition="'$(_PoGitExit)' == '0' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(_PoGitStamp)', '^\d{6}$'))">$(_PoGitStamp)</PoStamp>
+      <PoStamp Condition="'$(PoStamp)' == '' and '$(_PoHeadCommitExit)' == '0' and '$(_PoHeadCommit)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_PoHeadCommit.Split(` `)[0])', '^\d+$'))">$([System.DateTime]::UnixEpoch.AddSeconds($(_PoHeadCommit.Split(' ')[0])).ToString('yyMMdd'))</PoStamp>
+      <PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp>
     </PropertyGroup>
-    <PropertyGroup><PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp></PropertyGroup>
-    <ItemGroup><AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute"><_Parameter1>BuildVersion</_Parameter1><_Parameter2>$(PoStamp)</_Parameter2></AssemblyAttribute></ItemGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildVersion</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildStamp</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildDate</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
   </Target>
 </Project>

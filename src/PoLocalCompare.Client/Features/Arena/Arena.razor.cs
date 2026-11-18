@@ -349,7 +349,7 @@ public partial class Arena
             if (_duel?.Verdict == DuelVerdict.Pending && !_verdictRecorded && !_retrying
                 && _duel.AutoJudgeDelaySeconds <= 0 && _tournamentId is null)
             {
-                var confirmed = await JS.InvokeAsync<bool>("confirm", "You haven't picked a winner yet. Leave without voting?");
+                var confirmed = await DialogService.Confirm("You haven't picked a winner yet. Leave without voting?", "Leave duel?", new Radzen.ConfirmOptions { OkButtonText = "Leave", CancelButtonText = "Stay" }) == true;
                 if (!confirmed) ctx.PreventNavigation();
             }
         });
