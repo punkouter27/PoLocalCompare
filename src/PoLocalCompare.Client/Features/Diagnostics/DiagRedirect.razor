@@ -1,0 +1,11 @@
+@page "/diag"
+@attribute [AllowAnonymous]
+@inject NavigationManager Nav
+
+@* /diag is a server Razor Page (PoLocalCompare.Api/Pages/Diag.cshtml) so it works even if the
+   WASM bundle fails. If the Blazor router intercepts an in-app navigation to /diag, force a
+   full document load so the server page answers instead of NotFound. *@
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("/diag", forceLoad: true, replace: true);
+}
