@@ -39,7 +39,6 @@ namespace PoLocalCompare.Client.Services;
 [JsonSerializable(typeof(DuelApiClient.ProblemDetailsLite))]
 [JsonSerializable(typeof(DuelApiClient.SmokeSnapshotDto))]
 [JsonSerializable(typeof(BffAuthenticationStateProvider.AuthMe))]
-[JsonSerializable(typeof(DiagReportDto))]
 internal sealed partial class ClientJson : JsonSerializerContext;
 
 /// <summary><c>POST /api/duels</c>.</summary>
