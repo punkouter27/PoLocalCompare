@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 namespace PoLocalCompare.Client.Layout;
 
 /// <summary>
-/// The signed-in identity as the header and /settings show it, and the dev personas /settings
+/// The signed-in identity as the header shows it, and the dev personas its account menu
 /// can switch between outside Production.
 /// </summary>
 internal static class AccountMenu

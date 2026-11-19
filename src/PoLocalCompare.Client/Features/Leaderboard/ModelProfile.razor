@@ -375,7 +375,7 @@
             _profile = await ApiClient.GetModelProfileAsync(ModelId.From(ModelIdText));
             BuildChart();
             // Not awaited: the profile is the page, and writing a report can take seconds.
-            // Not asked for at all unless Settings → AI helpers is on: a new report is a paid call.
+            // Not asked for at all unless prefs.js turns assistants on: a new report is a paid call.
             if (_profile is not null && Prefs.IsOn(Preference.Assistants)) _ = LoadScoutAsync(_profile.ModelId);
         }
         catch (Exception ex)

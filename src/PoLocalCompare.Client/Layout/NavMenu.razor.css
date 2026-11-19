@@ -113,3 +113,49 @@
         display: none;
     }
 }
+
+/* ── Account menu ──
+   The email (po-header__email from po-tokens.css) is the toggle; the menu holds Sign out and,
+   outside Production, the dev personas. A native <details>, so no outside-click script. */
+.navmenu__account {
+    position: relative;
+    min-width: 0;
+}
+
+.navmenu__account-toggle {
+    display: block;
+    cursor: pointer;
+    list-style: none;
+    padding: var(--space-2xs) var(--space-sm);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+}
+
+.navmenu__account-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.navmenu__account-toggle:hover,
+.navmenu__account[open] > .navmenu__account-toggle {
+    border-color: var(--po-border);
+    color: var(--po-text);
+}
+
+.navmenu__account-menu {
+    position: absolute;
+    inset-inline-end: 0;
+    top: calc(100% + var(--space-xs));
+    display: grid;
+    gap: var(--space-xs);
+    min-inline-size: max-content;
+    padding: var(--space-sm);
+    background: var(--po-surface);
+    border: 1px solid var(--po-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--po-shadow);
+}
+
+.navmenu__account-label {
+    font-size: var(--text-xs);
+    color: var(--po-text-muted);
+}

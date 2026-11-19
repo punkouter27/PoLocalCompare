@@ -19,9 +19,8 @@
 
 let ctx = null;
 let master = null;
-// Sound is one of the Settings extras: prefs.js owns it, off until switched on, and announces
-// every change so the bus follows a toggle without a reload.
-let muted = !window.poPrefs?.get('sound');
+// Sound is one of the fixed feature switches in prefs.js; it cannot change while the page runs.
+const muted = !window.poPrefs?.get('sound');
 
 /** Ceiling on the master bus. Cues are mixed well below unity so two overlapping never clip. */
 const MASTER_GAIN = 0.28;
@@ -58,12 +57,6 @@ function ensureCtx() {
     }
     return ctx;
 }
-
-window.addEventListener('po-pref', e => {
-    if (e.detail.key !== 'sound') return;
-    muted = !e.detail.on;
-    if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : MASTER_GAIN, ctx.currentTime, 0.01);
-});
 
 // ── Building blocks ──────────────────────────────────────────────────────────
 

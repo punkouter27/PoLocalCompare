@@ -307,7 +307,7 @@ public partial class Arena
     // The race's words and marker positions are RaceCommentary (Shared/Presentation), where the
     // Unit tier can reach them; these only hand it this page's state.
     /// <summary>
-    /// Settings → Arena telemetry. Off, the panels get no live inputs, so the streaming render
+    /// prefs.js arena-details (on). Off, the panels get no live inputs, so the streaming render
     /// path skips the progress math for a HUD that is not on screen.
     /// </summary>
     private bool TelemetryOn => Prefs.IsOn(Preference.ArenaDetails);

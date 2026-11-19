@@ -99,10 +99,10 @@ UI tests run **headed Chrome by default** across a mobile and a desktop viewport
 to suppress windows and `BASE_URL` to point elsewhere. Browsers install via
 `pwsh tests/PoLocalCompare.E2EUI/bin/Debug/net10.0/playwright.ps1 install chromium`.
 
-**Tests run locally; CI does not run them.** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
+**CI runs the format check and the Unit tier; every other tier runs locally.** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
 is identical in every Po .NET web repo and each repo owns its copy (never change one copy alone).
-Since 2026-11-18 it only builds, publishes, deploys and waits for `/health/live` to report the pushed
-commit: no tests, no infra job, no rollback, no PR runs. Its one hook here is
+Since 2026-11-19 it checks formatting, builds, runs the Unit tier, publishes, deploys and waits for
+`/health/live` to report the pushed commit (a red check stops the deploy): no other tests, no infra job, no rollback, no PR runs. Its one hook here is
 [scripts/ci-package.ps1](scripts/ci-package.ps1), which pulls the Git LFS `web-llm.js` and re-publishes
 so the package never ships the pointer. Before pushing, run Unit and the related tiers, and
 [scripts/ci-checks.ps1](scripts/ci-checks.ps1) (check-clean, the catalog check, Integration, E2EAPI);
@@ -112,8 +112,8 @@ needs real headed Chrome with WebGPU; run it after touching UI markup.
 AGENTS.md §8 fixes a **ratio contract of 100 / 50 / 25 / 25** — integration ≈ half of unit, each E2E
 tier ≈ a quarter. Counts are test *cases*, so a `[Theory]` contributes one per `InlineData` and each
 UI method counts twice (two viewports). Keep new tests inside those proportions rather than piling
-onto whichever tier is easiest to write. **Unit and E2EUI sit exactly at the cap; E2EAPI has three
-cases spare** (100/50/22/25 as of 2026-11-17; the /api/diag and download-status no-leak cases took integration from 47 to its cap) and `scripts/check-clean.ps1` fails when a tier
+onto whichever tier is easiest to write. **Unit sits exactly at the cap; E2EAPI has three
+cases spare and E2EUI four** (100/50/22/21 as of 2026-11-19, when the two Settings UI cases went with the page; the /api/diag and download-status no-leak cases took integration from 47 to its cap) and `scripts/check-clean.ps1` fails when a tier
 exceeds its budget, so the contract is enforced rather than remembered. A new Unit test has to
 displace a weaker one — that is how `ArenaPhaseResolverTests` got in on 2026-09-26 (six trivial
 id/label cases made way), and how the judge-shape, cost and matchup tests got in on 2026-10-26
@@ -290,9 +290,11 @@ protects. A rule with no obvious reason usually has an expensive one.
 - **The Arena's status band is one region driven by one enum** (`ArenaPhaseResolver` →
   `ArenaStatusBand`). `.arena-band__box--verdict` is sticky; do not restate `position` on the base.
 - **The header is the Po shell** (`NavMenu.razor`, `po-header` from `po-tokens.css`, 2026-11-18):
-  the name upper-left; the email (`po-header__email`) or Sign in, then the one settings gear
-  (`po-header__settings` to `/settings`) upper-right, signed in and out. There is no account menu:
-  `/settings` holds the email, Sign out, Catalog and the dev personas. One `po-version` stamp
+  the name upper-left; the email (`po-header__email`) or Sign in upper-right, signed in and out.
+  **No settings gear and no `/settings` page** (removed 2026-11-19 at the owner's request, an
+  approved exception to the fleet's gear rule). The email is the account menu (`navmenu__account`,
+  a native `<details>`): Sign out, plus the dev personas outside Production. Catalog is linked from
+  Compare. One `po-version` stamp
   (`BuildVersion.razor`, `vYYMMDD`, the UTC commit date from `Directory.Build.props`) on every
   page, /diag included. Tab with nothing focused opens `/po-dev.html` (`js/po-devwindow.js`),
   which is why `FocusOnNavigate` only runs after the first in-app navigation.
@@ -302,13 +304,15 @@ protects. A rule with no obvious reason usually has an expensive one.
   and the catalog rename (`AddDiscoveredModelRequestValidator`). Errors render inline under the
   field (`PromptError` + `PromptCheck` over the `FluentValidationValidator` EditContext bridge),
   never as a toast, and the start buttons stay disabled while a request is in flight.
-- **Optional features are off until /settings turns them on** — decoration and paid extras only:
-  visual effects, sound, Arena telemetry, the leaderboard chart, and the paid AI helpers (Sharpen
-  prompt, scouting report). What makes ratings converge (the ±, Suggest matchup, tournaments) is
-  never optional — the app is a benchmark. `prefs.js` reads a missing key as off and stamps `<html data-fx="on">`;
-  `fx.js`, `gpu-fx.js` and `wow.js` ask `poPrefs.motionAllowed()` (one gate, not three copies),
-  `audio.js` reads `sound` and follows the `po-pref` event; Blazor asks `PreferencesService.IsOn`. A new extra is one
-  entry in `Preferences.All` (Shared) and an `IsOn` check where it renders — never on by default.
+- **Optional features are fixed switches in `prefs.js`'s `ON` table, not user choices**
+  (2026-11-19, when /settings was removed): visual effects, sound, Arena telemetry and the
+  leaderboard chart are **on**; the paid AI helpers (Sharpen prompt, scouting report) are **off**.
+  Only decoration and paid extras are switchable; what makes ratings converge (the ±, Suggest
+  matchup, tournaments) never is. `prefs.js` stamps `<html data-fx="on">` and clears any
+  `polocalcompare:pref-*` keys the old page saved; `fx.js`, `gpu-fx.js` and `wow.js` ask
+  `poPrefs.motionAllowed()` (one gate, not three copies), `audio.js` reads `sound` once; Blazor asks
+  `PreferencesService.IsOn`. A new extra is a key in `ON`, a case in `Preferences.StorageKey`
+  (Shared) and an `IsOn` check where it renders.
 - **Every surface owns exactly one BEM block, named after its file.**
 - **Scoped CSS is per-`.razor`-file, and nothing warns when it isn't.** Moving markup into a child
   component means moving its rules too. `check-clean.ps1` cannot catch this.
@@ -352,7 +356,7 @@ protects. A rule with no obvious reason usually has an expensive one.
   logging a console error on every page. No third-party font origin.
 - **Motion is compositor-only, with exactly two shader exceptions in `gpu-fx.js`** (asked for on
   2026-10-26): the verdict nebula (WebGPU, WebGL2 fallback, 1.9 s) and the champion storm (WebGPU
-  compute, 100k particles, 7.2 s). Both start only with Settings → Visual effects on and the GPU lease free, tear down mid-frame
+  compute, 100k particles, 7.2 s). Both start only with the effects switch on (prefs.js) and the GPU lease free, tear down mid-frame
   the moment a worker takes it, and destroy their device afterwards. No other render loop, no
   Three.js, PixiJS or Rapier, no backdrop — a WebGL backdrop has been added and removed twice.
   The winning panel's travelling rim light is a term **inside** the nebula's fragment shader (a

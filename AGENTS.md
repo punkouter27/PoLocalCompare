@@ -116,7 +116,7 @@ PoLocalCompare.slnx
 │   │                                     out of Client/ so the Unit tier can reach them at all.
 │   └── PoLocalCompare.Client/          ← Blazor WASM (hosted by Api)
 │       ├── Pages/                      ← Home, Arena, Leaderboard, Archive, Catalog, Tournament,
-│       │                                 ModelProfile, Settings, Login, NotFound
+│       │                                 ModelProfile, Login, NotFound (Settings removed 2026-11-19)
 │       │                                 (model health moved to the /diag Razor Page 2026-08-23)
 │       │                                 (Arena both streams a running duel and judges it)
 │       ├── Components/                 ← incl. PromptPicker, SandboxedViewport, ModelCard,
@@ -335,7 +335,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-11-17): **100 unit / 50 integration / 22 E2E-API / 25 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-11-19): **100 unit / 50 integration / 22 E2E-API / 21 E2E-UI**,
 all passing, and `scripts/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 
@@ -518,7 +518,7 @@ When asked to make changes to this codebase:
 
 ## CI/CD and Azure (same section in every Po repo)
 
-- A push to `master` builds and deploys, then waits for `/health/live` to report the pushed commit (`.github/workflows/deploy.yml`). Tests run locally before the push. Nothing is deployed by hand.
+- A push to `master` checks formatting (`dotnet format --verify-no-changes`), builds, runs the Unit tier, then deploys (`.github/workflows/deploy.yml`, identical in every Po web repo; each repo owns its copy) and waits for `/health/live` to report the pushed commit in `X-Commit`. A red check stops the deploy and the live site keeps its last good build. Integration, E2E, Bicep and other checks run locally; there is no infra job, rollback or PR build. Nothing is deployed by hand.
 - Azure sign-in is GitHub OIDC (the `gh-<repo>-deploy` app). Its IDs are repo **variables** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`, and the App Service name is `AZURE_WEBAPP_NAME`. Never move them to secrets or write resource names into workflows.
 - Every permission the app and CI need lives in `scripts/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
 - The app answers `/health/live` (process up, no dependencies) and `/health` (dependencies reachable). The deploy's health gate checks both.

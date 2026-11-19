@@ -25,8 +25,8 @@ public sealed class NavigationUiTests : UiTestBase
         // catch it.
         var page = await SignedInPageAsync(width, height);
 
-        // The Po shell (po-tokens.css): the app name upper-left, the signed-in identity and the
-        // settings gear upper-right, at every width.
+        // The Po shell (po-tokens.css): the app name upper-left, the signed-in identity
+        // upper-right, at every width. No settings gear since /settings was removed (2026-11-19).
         var title = await page.Locator(".po-header__title").BoundingBoxAsync();
         var actions = await page.Locator(".po-header__actions").BoundingBoxAsync();
         Assert.NotNull(title);
@@ -34,13 +34,18 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.True(title!.X < actions!.X, "The app name should sit left of the session controls.");
         await Assertions.Expect(page.Locator(".po-header__title")).ToContainTextAsync("PoLocalCompare");
 
-        await Assertions.Expect(page.Locator(".po-header__email")).ToBeVisibleAsync();
-        var gear = page.Locator(".po-header__actions .po-header__settings");
-        await Assertions.Expect(gear).ToBeVisibleAsync();
-        var gearBox = await gear.BoundingBoxAsync();
-        var emailBox = await page.Locator(".po-header__email").BoundingBoxAsync();
-        Assert.True(emailBox!.X + emailBox.Width <= gearBox!.X + 1, "The settings gear should sit right of the email.");
-        Assert.True(gearBox.Width >= 24 && gearBox.Height >= 24, $"Gear was {gearBox.Width}×{gearBox.Height}.");
+        var email = page.Locator(".po-header__email");
+        await Assertions.Expect(email).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".po-header__settings")).ToHaveCountAsync(0);
+
+        // The email is the account menu: opening it shows Sign out, inside the viewport.
+        var signOut = page.Locator(".navmenu__account-menu").GetByRole(AriaRole.Button, new() { Name = "Sign out" });
+        await Assertions.Expect(signOut).ToBeHiddenAsync();
+        await email.ClickAsync();
+        await Assertions.Expect(signOut).ToBeVisibleAsync();
+        var signOutBox = await signOut.BoundingBoxAsync();
+        Assert.True(signOutBox!.X >= 0 && signOutBox.X + signOutBox.Width <= width + 1, "Sign out should open inside the viewport.");
+        await email.ClickAsync();
 
         // One build stamp, vYYMMDD.
         await Assertions.Expect(page.Locator(".po-version")).ToHaveCountAsync(1);
@@ -49,7 +54,7 @@ public sealed class NavigationUiTests : UiTestBase
         var problems = await page.EvaluateAsync<string[]>(
             """
             () => {
-                const sel = '.po-header__title, .navmenu__mock-chip, .navmenu__link, .po-header__email, .po-header__settings';
+                const sel = '.po-header__title, .navmenu__mock-chip, .navmenu__link, .po-header__email';
                 const els = [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null);
                 const label = e => (e.textContent || e.className).trim().slice(0, 24);
                 const bad = [];

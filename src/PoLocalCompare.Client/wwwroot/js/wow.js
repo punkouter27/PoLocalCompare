@@ -14,7 +14,7 @@
  * Everything respects prefers-reduced-motion by not animating at all.
  */
 window.poWow = (() => {
-    // Off unless Settings → Visual effects is on and the OS is not asking for reduced motion
+    // Off unless prefs.js turns effects on and the OS is not asking for reduced motion
     // (prefs.js owns that rule).
     const motionOff = () => !window.poPrefs?.motionAllowed();
 

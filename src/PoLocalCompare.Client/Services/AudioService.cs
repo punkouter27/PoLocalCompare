@@ -34,7 +34,7 @@ namespace PoLocalCompare.Client.Services;
 /// </remarks>
 public sealed class AudioService(IJSRuntime js) : IAsyncDisposable
 {
-    private const string ModulePath = "/js/audio.js?v=13";
+    private const string ModulePath = "/js/audio.js?v=14";
 
     private Task<IJSObjectReference>? _module;
 

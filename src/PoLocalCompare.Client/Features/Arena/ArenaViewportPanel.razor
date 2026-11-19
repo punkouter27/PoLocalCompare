@@ -47,7 +47,7 @@
             EloRolled="@EloRolled"
             />
 
-        @* Off unless Settings → Arena telemetry is on. *@
+        @* Off unless prefs.js turns arena-details on (it does). *@
         @if (Prefs.IsOn(Preference.ArenaDetails))
         {
             <div class="arena-panel__hud">

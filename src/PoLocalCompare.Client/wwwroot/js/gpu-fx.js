@@ -36,7 +36,7 @@ function gpuBusy() {
     }
 }
 
-// Off unless Settings → Visual effects is on and the OS is not asking for reduced motion
+// Off unless prefs.js turns effects on and the OS is not asking for reduced motion
 // (prefs.js owns that rule).
 function motionOff() {
     return !window.poPrefs?.motionAllowed();
