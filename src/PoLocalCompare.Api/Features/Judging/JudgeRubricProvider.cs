@@ -40,7 +40,9 @@ public sealed class JudgeRubricProvider(
         "The page is one self-contained HTML file in a fixed 320x180 frame with no network, judged on how it " +
         "looks, moves and responds. List 3 to 8 requirements, each one short sentence that can be checked by " +
         "looking at or interacting with the page: what must be visible, what must move and how, what a control " +
-        "must do, counts or colours where the request implies them. Include what the request clearly implies " +
+        "must do, counts or colours where the request implies them. Name the detail that makes an item done, " +
+        "not just its presence (\"both charts have labelled axis ticks\", \"hovering a data point shows its " +
+        "value\"), so a bare-minimum version can be told apart from a working one. Include what the request clearly implies " +
         "(\"a spinning cube\" means a cube that visibly rotates without being clicked). For 3D, visual, or " +
         "animated pages, require genuine 3D depth/geometry (not a flattened 2D shape) and continuous visible motion. " +
         "Add nothing the request " +
@@ -77,7 +79,7 @@ public sealed class JudgeRubricProvider(
         try
         {
             var requirements = await cache.GetOrCreateAsync(
-                $"judge-rubric:v2:{deployment}:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(promptFull)))[..32]}",
+                $"judge-rubric:v3:{deployment}:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(promptFull)))[..32]}",
                 async token =>
                 {
                     var (items, spent) = await GenerateAsync(deployment, promptFull, token)
