@@ -25,13 +25,6 @@ public class ModelDisplayNameTests
     }
 
     [Fact]
-    public void Resolve_TrimsWhitespaceAroundNames()
-    {
-        Assert.Equal("Phi-4", ModelDisplayName.Resolve("  Phi-4 ", null, Id));
-        Assert.Equal("Phi-4", ModelDisplayName.Resolve(null, " Phi-4  ", Id));
-    }
-
-    [Fact]
     public void IsUnresolved_TrueWhenTheNameIsTheIdOrBlank()
     {
         // The id itself, the id with different casing and surrounding space, and a blank name
@@ -48,6 +41,8 @@ public class ModelDisplayNameTests
         // is the same rule read the other way — a real name is passed through, trimmed.
         Assert.Equal(ModelDisplayName.RetiredPlaceholder, ModelDisplayName.ResolveForDisplay(null, null, Id));
         Assert.Equal("Phi-4", ModelDisplayName.ResolveForDisplay("  Phi-4  ", null, Id));
+        Assert.Equal("Phi-4", ModelDisplayName.Resolve("  Phi-4 ", null, Id));
+        Assert.Equal("Phi-4", ModelDisplayName.Resolve(null, " Phi-4  ", Id));
         Assert.False(ModelDisplayName.IsUnresolved("Phi-4", Id.Value));
     }
 }

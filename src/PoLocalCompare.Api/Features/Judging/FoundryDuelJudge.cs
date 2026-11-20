@@ -85,6 +85,22 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
         "interactivity than source code that merely claims to implement it.";
 
     /// <summary>
+    /// Appended when judging source-only without screenshots, so the judge traces CSS/JS runtime
+    /// geometry instead of ticking off keywords on a page that collapses to 2D or stalls.
+    /// </summary>
+    private const string SourceOnlyPromptSuffix =
+        "\n\nNo screenshots are attached, so you are judging from source code alone. Do not take " +
+        "class names, labels, or surface tags at face value — trace what actually renders in a " +
+        "320x180 viewport with no network access. For 3D or CSS 3D requests, verify the actual " +
+        "geometry end-to-end: CSS 3D requires 'transform-style: preserve-3d' on the 3D container " +
+        "(and no flattening grouping property such as overflow:hidden, filter, clip-path, or " +
+        "opacity<1 on that same element), distinct face rotations and translateZ offsets forming a " +
+        "closed 3D volume, perspective, and active multi-axis rotation. A CSS 3D document missing " +
+        "'preserve-3d' or face depth flattens into a single 2D parallelogram — treat that as a " +
+        "material miss, never equivalent to a working 3D scene. Treat any STATIC CHECK WARNING " +
+        "preceding a document as verified runtime evidence.";
+
+    /// <summary>
     /// <c>analysis</c> is declared before <c>winner</c> on purpose. Under a strict schema the model
     /// emits properties in schema order, so with <c>winner</c> first it committed to a verdict
     /// before writing a word of justification and the reason was rationalised afterwards. With
@@ -296,14 +312,24 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
             decision = decision with { Model = string.Join(" + ", opinions.Select(o => o?.Model).OfType<string>().Distinct()) };
 
         // The ladder. Calibration skips it for the same reason it skips the cross-check.
-        if (IsSplit(opinions[0], opinions[1]) && !calibrating)
+        // A source-only mutual Tie also climbs straight to TiebreakDeployment (medium effort) so
+        // floor-effort judges cannot rubber-stamp a Tie when one side has a runtime/3D defect.
+        var isSplit = IsSplit(opinions[0], opinions[1]);
+        var isSourceOnlyMutualTie = IsSourceOnlyMutualTie(useVision, opinions[0], opinions[1]);
+        if ((isSplit || isSourceOnlyMutualTie) && !calibrating)
         {
-            foreach (var (rung, tiebreak) in new[] { (_options.EscalationDeployment, false), (_options.TiebreakDeployment, true) })
+            var rungs = isSplit
+                ? new[] { (_options.EscalationDeployment, false), (_options.TiebreakDeployment, true) }
+                : new[] { (_options.TiebreakDeployment, true) };
+            foreach (var (rung, tiebreak) in rungs)
             {
                 // Re-asking the very judge that just split, at the same effort, buys nothing.
                 if (Seat(rung) is not { } seat || (!tiebreak && seat == primary && second == primary)) continue;
 
-                _logger.LogInformation("Judge split; asking {Deployment} for a closer look.", seat.Deployment);
+                _logger.LogInformation(
+                    "Judge {Outcome}; asking {Deployment} for a closer look.",
+                    isSplit ? "split" : "tied",
+                    seat.Deployment);
                 // Thinking at a higher effort takes longer than the floor the main timeout is sized for.
                 var again = await AskBothOrdersAsync(call, seat, seat, tiebreak,
                     tiebreak ? _options.TimeoutSeconds * 2 : _options.TimeoutSeconds, cancellationToken);
@@ -363,6 +389,12 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     /// <summary>Both orderings answered, and they answered differently.</summary>
     private static bool IsSplit(JudgeDecision? leftFirst, JudgeDecision? rightFirst) =>
         leftFirst is not null && rightFirst is not null && leftFirst.Verdict != rightFirst.Verdict;
+
+    /// <summary>Both source-only orderings returned Tie, so a medium-effort tie-breaker should double-check for subtle runtime defects.</summary>
+    internal static bool IsSourceOnlyMutualTie(bool useVision, JudgeDecision? leftFirst, JudgeDecision? rightFirst) =>
+        !useVision
+        && leftFirst?.Verdict == DuelVerdict.Tie
+        && rightFirst?.Verdict == DuelVerdict.Tie;
 
     private sealed record JudgeCall(
         string PromptFull,
@@ -426,10 +458,12 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
                 userContent.Append(i + 1).Append(". ").Append(call.Rubric[i]).Append('\n');
             userContent.Append('\n');
         }
-        userContent.Append(DocumentBlock(a, "A", aEvidence, call.Delimiter)).Append("\n\n")
-            .Append(DocumentBlock(b, "B", bEvidence, call.Delimiter));
+        userContent.Append(DocumentBlock(a, "A", aEvidence, call.PromptFull, call.Delimiter)).Append("\n\n")
+            .Append(DocumentBlock(b, "B", bEvidence, call.PromptFull, call.Delimiter));
 
-        var systemPrompt = SystemPrompt + (withVision ? VisionPromptSuffix : "") + (withRubric ? RubricPromptSuffix : "");
+        var systemPrompt = SystemPrompt
+            + (withVision ? VisionPromptSuffix : SourceOnlyPromptSuffix)
+            + (withRubric ? RubricPromptSuffix : "");
         object[] messages;
         if (withVision)
         {
@@ -520,11 +554,17 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     /// ~500 ms of prefill and most of the judge's input bill, and the picture already carries
     /// the rendered page. Never both — see DescribeForVision.
     /// </remarks>
-    private string DocumentBlock(JudgedPage page, string slot, HtmlRenderEvidence? evidence, string delimiter)
+    internal string DocumentBlock(JudgedPage page, string slot, HtmlRenderEvidence? evidence, string promptFull, string delimiter)
     {
         var note = page.WasTruncated
             ? $"NOTE: Document {slot} hit the model's output-token limit and stops mid-document, so anything after the cut is missing from the page.\n"
             : "";
+        if (evidence is null)
+        {
+            var diagnostics = HtmlSourceDiagnostics.Inspect(page.Html, promptFull);
+            if (diagnostics.Count > 0)
+                note += string.Join('\n', diagnostics.Select(d => $"NOTE (Document {slot}): {d}")) + "\n";
+        }
         return note + (evidence is not null
             ? DescribeForVision(page.Html, slot, evidence)
             : FullSourceBlock(page.Html, slot, delimiter, _options.MaxOutputChars));

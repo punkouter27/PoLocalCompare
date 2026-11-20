@@ -12,23 +12,12 @@ public class EloCalculatorTests
         var (winA, loseB) = EloCalculator.Calculate(1200, 1200, k: 32, outcomeA: 1.0);
         Assert.True(winA > 1200, "Winner ELO should increase.");
         Assert.True(loseB < 1200, "Loser ELO should decrease.");
+        Assert.Equal(16.0, Math.Round(winA - 1200, 1));
+        Assert.Equal(-16.0, Math.Round(loseB - 1200, 1));
 
         var (loseA, winB) = EloCalculator.Calculate(1200, 1200, k: 32, outcomeA: 0.0);
         Assert.True(loseA < 1200, "Loser ELO should decrease.");
         Assert.True(winB > 1200, "Winner ELO should increase.");
-    }
-
-    // ── Equal ratings: expected score = 0.5 → shift = K * 0.5 ────────────
-
-    [Theory]
-    [InlineData(32)]
-    public void Calculate_EqualRatings_ShiftIsHalfK(double k)
-    {
-        var (newA, newB) = EloCalculator.Calculate(1200, 1200, k, outcomeA: 1.0);
-
-        var expectedShift = Math.Round(k * 0.5, 1);
-        Assert.Equal(expectedShift, Math.Round(newA - 1200, 1));
-        Assert.Equal(-expectedShift, Math.Round(newB - 1200, 1));
     }
 
     // ── Expectation weighting: a heavy favourite gains little, an upset moves hard ──
