@@ -5,9 +5,9 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    @* AuthorizeRouteView already wraps this content in DefaultLayout (MainLayout).
-                       Do NOT add another LayoutView here — it double-nests the nav bar. *@
-                    <Login />
+                    @* Signed out on a page that needs a session: off to /login (Features/Auth/Login.razor),
+                       which comes back here afterwards. *@
+                    <RedirectToLogin />
                 </NotAuthorized>
                 <Authorizing>
                     <p class="visually-hidden">Loading&hellip;</p>

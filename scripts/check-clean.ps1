@@ -78,12 +78,12 @@ if (-not $SkipTests) {
         $facts = 0; $inline = 0; $viewportData = 0
         foreach ($file in $files) {
             $text = Get-Content $file.FullName -Raw
-            $facts += ([regex]::Matches($text, '\[Fact\]')).Count
+            $facts += ([regex]::Matches($text, '\[(Docker|Ui)?Fact\]')).Count
             $inline += ([regex]::Matches($text, '\[InlineData')).Count
             $viewportData += ([regex]::Matches($text, '\[MemberData\(nameof\(Viewports\)\)\]')).Count
         }
 
-        # A [Fact] is 1 case; a [Theory] contributes one per [InlineData]; an E2EUI
+        # A [Fact] (or [DockerFact] / [UiFact]) is 1 case; a theory contributes one per [InlineData]; an E2EUI
         # [MemberData(nameof(Viewports))] theory runs once per viewport (two).
         $cases = $facts + $inline + ($viewportData * 2)
         $budget = $budgets[$tier]
@@ -159,8 +159,8 @@ $usage = ($usageFiles | ForEach-Object { Get-Content $_.FullName -Raw }) -join "
 $frameworkClasses = @('active', 'valid', 'invalid', 'modified', 'validation-message')
 
 $unused = [System.Collections.Specialized.OrderedDictionary]::new()
-# po-tokens.css is the same file in every Po app (the Po web standard): it offers shell classes
-# an app may not use (.po-display), and it is never edited in one repo, so it is not checked here.
+# po-tokens.css holds the Po shell classes (the Po web standard in AGENTS.md): it offers shell
+# classes this app may not use (.po-display, .po-link-btn.outlined), so it is not checked here.
 foreach ($file in ($cssFiles | Where-Object { $_.Name -ne 'po-tokens.css' })) {
     # Comments mention file names (`app.css`, `wow.js`) and url(...) contains file extensions (.woff2).
     $css = [regex]::Replace((Get-Content $file.FullName -Raw), '(?s)/\*.*?\*/', '')

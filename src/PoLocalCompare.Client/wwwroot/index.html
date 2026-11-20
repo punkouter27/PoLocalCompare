@@ -11,16 +11,16 @@
          simply does not appear — which is how the box-sizing fix was initially verified
          against a stale sheet. Bump the number on every CSS edit. (The service worker is a
          pass-through no-op that WebLLM registers; the stale copy comes from the HTTP cache.) -->
-    <!-- po-tokens.css first (Po web standard): the estate's tokens, the self-hosted Inter and
-         Space Grotesk faces, and the shell (header, stamp, /diag cards). Everything after it
+    <!-- po-tokens.css first (Po web standard): the design tokens, the self-hosted Inter and
+         Space Grotesk faces, and the shell (header, Sign in button, stamp, /diag cards). Everything after it
          aliases those tokens. Inter is preloaded because the first paint needs it. -->
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="css/po-tokens.css?v=2" />
+    <link rel="stylesheet" href="css/po-tokens.css?v=3" />
     <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css?v=12.1.12" />
     <link rel="stylesheet" href="css/po-motion.css?v=1" />
-    <link rel="stylesheet" href="css/app.css?v=32" />
+    <link rel="stylesheet" href="css/app.css?v=34" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="PoLocalCompare.Client.styles.css?v=51" rel="stylesheet" />
+    <link href="PoLocalCompare.Client.styles.css?v=52" rel="stylesheet" />
     <!-- Loaded in <head>, before first paint: the optional extras stamp <html data-fx>. -->
     <script src="js/prefs.js?v=7"></script>
     <!-- Tab with nothing focused opens /po-dev.html, the developer window (Po web standard). -->
@@ -52,10 +52,10 @@
     <div id="boot-timeout-ui" hidden>
         <h2>Client startup is taking longer than expected</h2>
         <p id="boot-timeout-message">
-            The app is still loading. If this persists, check the diagnostics page and refresh.
+            The app is still loading. If this persists, check the server's status report and refresh.
         </p>
         <p>
-            <a href="/diag">Open diagnostics</a>
+            <a href="/api/diag">Open the status report</a>
             <span class="boot-timeout__sep"> · </span>
             <a href="/">Retry</a>
         </p>

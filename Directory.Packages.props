@@ -15,8 +15,6 @@
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
     <!-- ULID generation -->
     <PackageVersion Include="NUlid" Version="1.7.3" />
-    <!-- Git tag-driven semantic versioning (PackageReference lives in Directory.Build.props) -->
-    <PackageVersion Include="MinVer" Version="6.1.0" />
     <!-- API / SignalR -->
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />

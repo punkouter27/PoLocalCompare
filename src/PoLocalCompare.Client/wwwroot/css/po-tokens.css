@@ -1,9 +1,9 @@
-/* po-tokens.css — SAME FILE IN EVERY PO WEB APP. Do not edit one copy: change all ten together.
-   One look for the estate: light and dark follow the device, one indigo accent, Inter for text,
-   Space Grotesk for titles, one spacing ladder, one shell (header, version stamp, settings gear).
-   Fonts are self-hosted (wwwroot/fonts/, variable woff2, latin subset): no external host, so no
-   CSP change and no third-party request. App stylesheets alias their own variables to these
-   tokens instead of defining new colours. */
+/* po-tokens.css — this app's design tokens and the Po page shell (header, Sign in button, version badge, /diag).
+   It follows the Po web standard in AGENTS.md; this repo owns the file and may change it freely.
+   Light and dark follow the device, one indigo accent, Inter for text, Space Grotesk for titles, one spacing
+   ladder. Fonts are self-hosted (wwwroot/fonts/, variable woff2, latin subset): no external host, so no CSP
+   change and no third-party request. App stylesheets alias their own variables to these tokens instead of
+   defining new colours. */
 
 @font-face {
   font-family: "Inter";
@@ -39,6 +39,11 @@
   --po-danger: #c0262d;
   --po-info: #1d5fbf;
   --po-focus: #4f46e5;
+  /* status backgrounds: text on them is always --po-text (never warning-on-peach) */
+  --po-success-soft: #e3f4e9;
+  --po-warning-soft: #fdf0d5;
+  --po-danger-soft: #fde4e4;
+  --po-info-soft: #e1ecfb;
 
   /* type */
   --po-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -99,6 +104,10 @@
     --po-danger: #ff7b7b;
     --po-info: #79a8ff;
     --po-focus: #a29dff;
+    --po-success-soft: #163323;
+    --po-warning-soft: #3a2c10;
+    --po-danger-soft: #3f1c1f;
+    --po-info-soft: #172a47;
     --po-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
   }
 }
@@ -208,7 +217,85 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
   border: 1px solid var(--po-border);
   border-radius: var(--po-radius);
 }
-.po-badge { display: inline-block; padding: 2px 10px; border-radius: var(--po-radius-pill); font-size: var(--po-text-xs); font-weight: 600; }
-.po-badge--ok { color: var(--po-success); background: color-mix(in srgb, var(--po-success) 14%, transparent); }
-.po-badge--warn { color: var(--po-warning); background: color-mix(in srgb, var(--po-warning) 16%, transparent); }
-.po-badge--bad { color: var(--po-danger); background: color-mix(in srgb, var(--po-danger) 14%, transparent); }
+/* ── Shell: main never runs under the version badge (or under a phone bottom nav, via --po-stamp-lift) ── */
+main {
+  padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 768px) {
+  main { padding-bottom: calc(var(--po-space-6) + var(--po-stamp-lift, 0px) + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Shell: the one Sign in button (and any link that looks like a button), same on every page ── */
+.po-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--po-accent);
+  border-radius: 4px;
+  font-family: var(--po-font);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 120ms;
+}
+.po-link-btn.filled { background: var(--po-accent); color: var(--po-on-accent); }
+.po-link-btn.outlined { background: transparent; color: var(--po-accent); }
+.po-link-btn.small { min-height: 2rem; padding: 0 0.75rem; font-size: 0.8rem; }
+.po-link-btn:hover { filter: brightness(1.08); }
+.po-link-btn:focus-visible { outline: 2px solid var(--po-focus); outline-offset: 2px; }
+.po-link-btn[disabled] { opacity: 0.6; cursor: default; }
+
+/* ── Status pills: --po-text on a soft background, so every pill reads at ≥ 4.5:1 in light and dark ── */
+.po-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--po-radius-pill);
+  border: 1px solid var(--po-border);
+  color: var(--po-text);
+  background: var(--po-surface-2);
+  font-size: var(--po-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.po-badge--ok { background: var(--po-success-soft); border-color: var(--po-success); }
+.po-badge--warn { background: var(--po-warning-soft); border-color: var(--po-warning); }
+.po-badge--bad { background: var(--po-danger-soft); border-color: var(--po-danger); }
+
+/* ── /diag: "System status" — banner, then API, Data, Services; one card per check ── */
+.po-diag__head { display: flex; align-items: center; justify-content: space-between; gap: var(--po-space-3); flex-wrap: wrap; }
+.po-diag__head h1 { margin: 0; font-size: var(--po-text-2xl); color: var(--po-text); }
+.po-diag__banner {
+  display: grid;
+  gap: var(--po-space-1);
+  padding: var(--po-space-3) var(--po-space-4);
+  border-radius: var(--po-radius);
+  border: 1px solid var(--po-border);
+  border-left-width: 4px;
+  background: var(--po-surface-2);
+  color: var(--po-text);
+}
+.po-diag__banner strong { font-family: var(--po-font-display); font-size: var(--po-text-lg); }
+.po-diag__banner--ok { background: var(--po-success-soft); border-color: var(--po-success); }
+.po-diag__banner--warn { background: var(--po-warning-soft); border-color: var(--po-warning); }
+.po-diag__banner--bad { background: var(--po-danger-soft); border-color: var(--po-danger); }
+.po-diag__group h2 { margin: var(--po-space-3) 0 0; font-size: var(--po-text-lg); color: var(--po-text); }
+.po-diag__what { display: grid; gap: 2px; min-width: 0; }
+.po-diag__label { font-weight: 600; color: var(--po-text); }
+.po-diag__purpose,
+.po-diag__meta { font-size: var(--po-text-sm); color: var(--po-text-muted); }
+.po-diag__facts { display: inline-flex; align-items: center; gap: var(--po-space-2); justify-self: end; }
+.po-diag__latency { font-family: var(--po-font-mono); font-size: var(--po-text-xs); color: var(--po-text-muted); white-space: nowrap; }
+.po-diag__detail { grid-column: 1 / -1; font-size: var(--po-text-sm); color: var(--po-text); overflow-wrap: anywhere; }
+.po-diag__problem { grid-column: 1 / -1; font-size: var(--po-text-sm); color: var(--po-text); overflow-wrap: anywhere; }
+.po-diag__problem::before { content: "Problem: "; font-weight: 600; }
+@media (max-width: 480px) {
+  .po-diag__card { grid-template-columns: minmax(0, 1fr); }
+  .po-diag__facts { justify-self: start; }
+}

@@ -1,4 +1,7 @@
-import json, os, re, sys
+import json
+import os
+import re
+import sys
 
 SEEDER = "src/PoLocalCompare.Api/Features/Models/ModelSeeder.cs"
 WEBLLM = "src/PoLocalCompare.Client/wwwroot/js/web-llm.js"
@@ -18,7 +21,7 @@ prefix = re.search(r'const modelLibURLPrefix = "([^"]+)"', src).group(1).rstrip(
 
 entries, missing = [], []
 for mid in ids:
-    hits = [i for i, l in enumerate(lines) if f'model_id: "{mid}"' in l]
+    hits = [i for i, line in enumerate(lines) if f'model_id: "{mid}"' in line]
     if not hits:
         missing.append(mid)
         continue

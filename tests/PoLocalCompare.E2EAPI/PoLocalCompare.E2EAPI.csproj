@@ -21,6 +21,7 @@
     <Using Include="Xunit" />
     <Using Include="PoLocalCompare.TestSupport" />
     <Compile Include="..\Shared\TestModels.cs" Link="TestModels.cs" />
+    <Compile Include="..\Shared\DockerFact.cs" Link="DockerFact.cs" />
   </ItemGroup>
 
   <ItemGroup>

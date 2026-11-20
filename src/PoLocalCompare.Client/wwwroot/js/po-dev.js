@@ -1,8 +1,8 @@
-// po-dev.js — SAME FILE IN EVERY PO WEB APP (wwwroot/js/po-dev.js). Drives po-dev.html.
+// po-dev.js — this app's developer window script (wwwroot/js/po-dev.js); this repo owns it. Drives po-dev.html.
 // Polls the server every 2 s and reads the opener page's live stats (window.__poStats).
-// A separate file because some Po apps forbid inline script in their CSP.
+// A separate file so the page works under a CSP that forbids inline script.
 (function () {
-  var DIAG_CANDIDATES = ['/api/diag/status', '/api/diag', '/health/json', '/health'];
+  var DIAG_CANDIDATES = ['/api/diag', '/health'];
   var diagUrl = null;
   var $ = function (id) { return document.getElementById(id); };
 

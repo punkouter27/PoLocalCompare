@@ -15,7 +15,7 @@ namespace PoLocalCompare.E2EUI;
 [Trait("Category", "UI")]
 public sealed class NavigationUiTests : UiTestBase
 {
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Header_LaysOutWithoutOverlappingOrLeavingTheViewport(int width, int height)
     {
@@ -77,7 +77,7 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.True(problems.Length == 0, string.Join(" | ", problems));
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Tab_OpensTheDeveloperWindow_AndTheSkipLinkMovesFocusToMain(int width, int height)
     {
@@ -103,7 +103,7 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.Equal("main-content", focusedId);
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task CoreRoutes_RenderTheirHeadingAndDoNotScrollHorizontally(int width, int height)
     {
@@ -147,33 +147,35 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.True(errors.Count == 0, "Console errors: " + string.Join(" | ", errors));
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
-    public async Task DiagPage_RendersServerSideButIsNotLinkedFromTheApp(int width, int height)
+    public async Task DiagPage_ShowsSystemStatusButIsNotLinkedFromTheApp(int width, int height)
     {
-        // Two halves of one contract. /diag is server-rendered on purpose — it is the page you
-        // open when the client is the thing that is broken, and index.html's boot fallback links
-        // to it — but standards also say /health and /diag carry no UI link.
-        // Signed out on purpose — /diag must work before (and without) a session — and the base
-        // class fails the case on any console error or failed request, at both widths.
+        // Two halves of one contract. /diag is the standard "System status" page (Po web standard):
+        // anonymous, so it works without a session — but /health and /diag carry no UI link.
+        // Signed out on purpose, and the base class fails the case on any console error or failed
+        // request (a 401 included), at both widths.
         var page = await NewPageAsync(width, height);
         await page.GotoAsync("/diag");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
 
-        await Assertions.Expect(page.Locator("h1")).ToContainTextAsync("Diagnostics");
+        await Assertions.Expect(page.Locator("h1")).ToHaveTextAsync("System status", new() { Timeout = 30_000 });
+        await Assertions.Expect(page).ToHaveTitleAsync("System status");
 
-        // The diagnostics standard: overall banner, one status card per dependency in the API /
-        // Data / Services groups, the build stamp and environment, all filled from /api/diag, and
-        // a Refresh that re-enables. The page wears the app's header like every other page.
-        await Assertions.Expect(page.Locator("#diag-banner")).Not.ToHaveTextAsync("Checking…", new() { Timeout = 30_000 });
-        await Assertions.Expect(page.Locator("#diag-api-cards .po-diag__card")).ToContainTextAsync("ms");
-        await Assertions.Expect(page.Locator("#diag-store-cards .po-diag__card")).ToContainTextAsync("Table Storage");
-        await Assertions.Expect(page.Locator("#diag-service-cards")).ToContainTextAsync("Azure AI Foundry");
+        // Overall banner in plain words, then API, Data and Services, one card per check, all from
+        // /api/diag, and a Check again that re-enables. The page wears the app's header and stamp.
+        var banner = page.Locator("[data-testid=diag-banner]");
+        await Assertions.Expect(banner).Not.ToContainTextAsync("Checking…", new() { Timeout = 30_000 });
+        await Assertions.Expect(banner).ToContainTextAsync(new System.Text.RegularExpressions.Regex("^(Everything is working|Working, with [0-9]+ things? degraded|Not working)"));
+        await Assertions.Expect(page.Locator("[data-group=api] .po-diag__card")).ToContainTextAsync("ms");
+        await Assertions.Expect(page.Locator("[data-group=data] .po-diag__card")).ToContainTextAsync("Table Storage");
+        await Assertions.Expect(page.Locator("[data-group=service]")).ToContainTextAsync("Azure AI Foundry");
         await Assertions.Expect(page.Locator(".po-header__title")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".po-header .po-link-btn.filled.small")).ToHaveTextAsync("Sign in");
         await Assertions.Expect(page.Locator(".po-version")).ToHaveTextAsync(new System.Text.RegularExpressions.Regex("^v[0-9]{6}$"));
-        await Assertions.Expect(page.Locator("#diag-environment")).Not.ToHaveTextAsync("…");
-        await page.Locator("#diag-refresh").ClickAsync();
-        await Assertions.Expect(page.Locator("#diag-refresh")).ToBeEnabledAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("[data-group=models]")).ToHaveCountAsync(0);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Check again" }).ClickAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Check again" })).ToBeEnabledAsync(new() { Timeout = 30_000 });
 
         var overflows = await page.EvaluateAsync<bool>(
             "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1");
@@ -186,7 +188,7 @@ public sealed class NavigationUiTests : UiTestBase
         Assert.Equal(0, diagLinks);
     }
 
-    [Fact]
+    [UiFact]
     public async Task UnknownRoute_RendersTheNotFoundPage()
     {
         // Viewport-independent: this is Router.NotFoundPage resolving at all, which is also the

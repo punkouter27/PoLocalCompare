@@ -11,6 +11,9 @@ namespace PoLocalCompare.Integration;
 [Collection("Integration")]
 public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLifetime
 {
+    private static readonly string[] Statuses = ["Healthy", "Degraded", "Unhealthy"];
+    private static readonly string[] Groups = ["api", "data", "service"];
+
     private IntegrationHost _host = null!;
     private HttpClient Client => _host.Client;
 
@@ -22,7 +25,7 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
 
-    [Theory]
+    [DockerTheory]
     [InlineData("/health")]
     [InlineData("/api/diag")]
     [InlineData("/api/diag/smoke")]
@@ -38,7 +41,7 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         Assert.NotEqual(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Health_WithAzuriteUp_Returns200AndReportsKeyVaultAsNotConfigured()
     {
         // Combined: the platform probe must return 200 with Azurite up, AND the keyVault
@@ -55,22 +58,33 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         Assert.Equal("NotConfigured", checks.GetProperty("keyVault").GetProperty("status").GetString());
     }
 
-    [Fact]
-    public async Task DiagPage_RendersWithoutAnyConfiguredEndpoint()
+    [DockerFact]
+    public async Task DiagJson_FollowsTheStandardShape()
     {
+        // The Po /diag contract: DiagReportDto with an "api" check first, then one check per
+        // dependency grouped "data" or "service", statuses Healthy|Degraded|Unhealthy.
         using var anonymous = _host.CreateAnonymousClient();
 
-        var response = await anonymous.GetAsync("/diag");
-        var html = await response.Content.ReadAsStringAsync();
+        var body = await anonymous.GetFromJsonAsync<JsonElement>("/api/diag");
 
-        Assert.True(response.IsSuccessStatusCode);
-        Assert.Contains("Diagnostics", html);
-        // Not even a masked form any more (2026-11-17): the page renders no configured URI.
-        Assert.DoesNotContain("BlobEndpoint=", html);
-        Assert.DoesNotContain("****", html);
+        Assert.Contains(body.GetProperty("status").GetString(), Statuses);
+        Assert.True(body.GetProperty("checkedMs").GetDouble() >= 0);
+        var checks = body.GetProperty("checks").EnumerateArray().ToList();
+        Assert.Equal("api", checks[0].GetProperty("group").GetString());
+        Assert.All(checks, c =>
+        {
+            Assert.Contains(c.GetProperty("group").GetString(), Groups);
+            Assert.Contains(c.GetProperty("status").GetString(), Statuses);
+            Assert.False(string.IsNullOrWhiteSpace(c.GetProperty("label").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(c.GetProperty("purpose").GetString()));
+        });
+        var table = checks.Single(c => c.GetProperty("label").GetString() == "Table Storage");
+        Assert.Equal("data", table.GetProperty("group").GetString());
+        Assert.Equal("Healthy", table.GetProperty("status").GetString());
+        Assert.Equal("service", checks.Single(c => c.GetProperty("label").GetString() == "Azure Key Vault").GetProperty("group").GetString());
     }
 
-    [Fact]
+    [DockerFact]
     public async Task DiagJson_NeverExposesSecretsOrInternals()
     {
         // A host given secret-shaped config, with a Foundry endpoint that cannot resolve so
@@ -91,8 +105,10 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         var body = JsonDocument.Parse(json).RootElement;
         Assert.Matches("^[0-9]{6}$", body.GetProperty("version").GetString());
         Assert.Equal("Development", body.GetProperty("environment").GetString());
-        Assert.Contains(body.GetProperty("stores").EnumerateArray(), s => s.GetProperty("name").GetString() == "Table Storage");
-        var foundry = body.GetProperty("services").EnumerateArray().Single(s => s.GetProperty("name").GetString() == "Azure AI Foundry");
+        var checks = body.GetProperty("checks").EnumerateArray().ToList();
+        Assert.Contains(checks, c => c.GetProperty("label").GetString() == "Table Storage" && c.GetProperty("group").GetString() == "data");
+        var foundry = checks.Single(c => c.GetProperty("label").GetString() == "Azure AI Foundry");
+        Assert.Equal("service", foundry.GetProperty("group").GetString());
         Assert.Equal("Unhealthy", foundry.GetProperty("status").GetString());
 
         string[] forbidden =

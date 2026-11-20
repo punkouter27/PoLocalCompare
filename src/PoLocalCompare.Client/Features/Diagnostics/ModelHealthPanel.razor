@@ -1,0 +1,74 @@
+@* Model health, this app's extra on /diag (after the standard API / Data / Services sections):
+   one short prompt through every registered model. Remote models are checked by the server,
+   Ollama models on the local daemon, browser models on this tab's GPU. The table is driven by
+   wwwroot/js/diag-models.js (window.poModelHealth.start), over the probes in diag-interop.js;
+   Blazor renders this markup once and never re-renders it, so the script owns the rows. *@
+@inject IJSRuntime JS
+
+<section class="po-diag__group" aria-labelledby="diag-models" data-group="models">
+    <h2 id="diag-models">Model health</h2>
+    <p class="mh-note">
+        Runs one short prompt through every registered model and reports what came back.
+        Remote models are checked by the server, Ollama models on the local daemon, and
+        browser models on this tab's GPU, so leave the page open while they run.
+    </p>
+
+    <div class="mh-env" id="mh-env">
+        <span class="mh-env__item">Checking this device…</span>
+    </div>
+
+    <div class="mh-actions">
+        <button type="button" class="po-link-btn filled small" id="mh-run">Test all models</button>
+        <button type="button" class="po-link-btn outlined small" id="mh-cancel" disabled>Cancel</button>
+        <button type="button" class="po-link-btn outlined small" id="mh-refresh">Reload list</button>
+        <input class="mh-prompt" id="mh-prompt" aria-label="Test prompt"
+               value="In one sentence, explain what an API is." />
+    </div>
+
+    <div class="mh-table-wrap" tabindex="0" role="region" aria-labelledby="diag-models">
+        <table class="mh-table">
+            <thead>
+                <tr>
+                    <th scope="col">Model</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Load</th>
+                    <th scope="col">Tok/s</th>
+                    <th scope="col">Note</th>
+                </tr>
+            </thead>
+            <tbody id="mh-rows">
+                <tr><td colspan="6">Loading the model list…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="mh-note" id="mh-summary" role="status"></p>
+</section>
+
+@code {
+    protected override bool ShouldRender() => false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            // Classic scripts that assign window globals; importing them defines the globals.
+            // The ?v= on diag-interop.js must match WebGpuCapability's import — bump both together.
+            await JS.InvokeAsync<IJSObjectReference>("import", "/js/diag-interop.js?v=8");
+            await JS.InvokeAsync<IJSObjectReference>("import", "/js/diag-models.js?v=4");
+            await JS.InvokeVoidAsync("poModelHealth.start");
+        }
+        catch (JSException)
+        {
+            // The status sections above still work; the table keeps its "Loading" row.
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

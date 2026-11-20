@@ -1,0 +1,11 @@
+@inject NavigationManager Nav
+@* Shown by App's AuthorizeRouteView for a signed-out visitor on any page that needs a session: it
+   sends them to /login (the one sign-in page), coming back here afterwards. *@
+
+@code {
+    protected override void OnInitialized()
+    {
+        var here = new Uri(Nav.Uri).PathAndQuery;
+        Nav.NavigateTo($"login?returnUrl={Uri.EscapeDataString(here)}", replace: true);
+    }
+}

@@ -28,7 +28,7 @@ resource appRg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   location: location
 }
 
-module shared 'shared.bicep' = {
+module shared 'modules/shared.bicep' = {
   name: 'poshared'
   scope: sharedRg
   params: {
@@ -38,7 +38,7 @@ module shared 'shared.bicep' = {
   }
 }
 
-module app 'app.bicep' = {
+module app 'modules/app.bicep' = {
   name: 'polocalcompare-app'
   scope: appRg
   params: {
@@ -51,7 +51,7 @@ module app 'app.bicep' = {
   }
 }
 
-module keyVaultAccess 'keyvault-access.bicep' = {
+module keyVaultAccess 'modules/keyvault-access.bicep' = {
   name: 'polocalcompare-kv-access'
   scope: sharedRg
   params: {

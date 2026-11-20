@@ -23,7 +23,7 @@ namespace PoLocalCompare.Shared.Presentation;
 /// cannot see; an enum is both.
 /// </para>
 /// <para>
-/// It lives in Shared rather than beside the page for the reason CLAUDE.md gives: the Unit
+/// It lives in Shared rather than beside the page for the reason AGENTS.md gives: the Unit
 /// tier references only the Api project, so anything pure under <c>PoLocalCompare.Client/</c>
 /// is reachable by no suite except E2E-UI, which CI never runs. A resolver that is a pure
 /// function of thirteen inputs is exactly the shape that wants a table test.

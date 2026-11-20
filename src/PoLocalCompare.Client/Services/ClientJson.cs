@@ -38,6 +38,7 @@ namespace PoLocalCompare.Client.Services;
 [JsonSerializable(typeof(ModelDiscoveryDto))]
 [JsonSerializable(typeof(DuelApiClient.ProblemDetailsLite))]
 [JsonSerializable(typeof(DuelApiClient.SmokeSnapshotDto))]
+[JsonSerializable(typeof(PoLocalCompare.Shared.Diagnostics.DiagReportDto))]
 [JsonSerializable(typeof(BffAuthenticationStateProvider.AuthMe))]
 internal sealed partial class ClientJson : JsonSerializerContext;
 

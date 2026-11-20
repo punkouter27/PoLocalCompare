@@ -44,7 +44,7 @@ public sealed class LeaderboardTests : IAsyncLifetime
 
     // ── GET /api/leaderboard returns correct ELO ranking ─────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task GetLeaderboard_AfterMultipleDuels_RankedByEloDescending()
     {
         var modelA = await RegisterRemoteModelAsync("Model Alpha");
@@ -79,7 +79,7 @@ public sealed class LeaderboardTests : IAsyncLifetime
 
     // ── An unknown sort key falls back to ELO rather than erroring ────────
 
-    [Fact]
+    [DockerFact]
     public async Task GetLeaderboard_UnknownSortKey_FallsBackToEloOrdering()
     {
         // GreenScore used to be a supported key. A stale bookmark must not 500 — the handler
@@ -113,7 +113,7 @@ public sealed class LeaderboardTests : IAsyncLifetime
     /// model with only human-decided duels has nothing to report (204, which the profile renders
     /// as no section), and an unknown id is a 404. Neither path makes a model call.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task GetScoutingReport_WithoutAiJudgedDuels_IsNoContent_AndUnknownModelIs404()
     {
         var scouted = await RegisterRemoteModelAsync("Scouted");

@@ -2,13 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <MinVerTagPrefix>v</MinVerTagPrefix>
-    <MinVerDefaultPreReleaseIdentifiers>preview.0</MinVerDefaultPreReleaseIdentifiers>
     <!-- The vision judge's Playwright driver is a ~77 MB Node binary. Vision judging is off in
          Production (AiJudge:VisionEnabled), so a Release publish ships no driver at all; the
          renderer degrades to source-only judging if it is ever asked. -->
     <PlaywrightPlatform Condition="'$(Configuration)' == 'Release'">none</PlaywrightPlatform>
-    </PropertyGroup>
+  </PropertyGroup>
 
 
   <ItemGroup>
@@ -25,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MinVer" PrivateAssets="all" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="NUlid" />

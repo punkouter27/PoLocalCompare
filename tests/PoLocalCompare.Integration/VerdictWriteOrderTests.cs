@@ -42,7 +42,7 @@ public sealed class VerdictWriteOrderTests(AzuriteFixture azurite) : IAsyncLifet
     private Task RunDuelAsync(string a, string b, string side) =>
         DuelTestFlow.RunDuelAsync(_client, a, b, side);
 
-    [Fact]
+    [DockerFact]
     public async Task AggregatesMatchHistory_WhenAnotherHostHasAlreadyWritten()
     {
         // An earlier test class's worth of traffic against the same storage.

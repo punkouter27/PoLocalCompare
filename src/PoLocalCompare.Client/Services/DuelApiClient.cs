@@ -334,10 +334,9 @@ public sealed class DuelApiClient
     }
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
-    // Ollama's two probes are deliberately absent here. /diag drives them straight from
-    // diag-models.js (fetch), because that page has to work when the WASM client is the broken
-    // thing — see CLAUDE.md. Client-side wrappers for them had no caller and were removed
-    // 2026-09-10.
+    // Ollama's two probes are deliberately absent here. /diag's Model health panel drives them
+    // straight from diag-models.js (fetch). Client-side wrappers for them had no caller and were
+    // removed 2026-09-10.
 
     public async Task<SmokeSnapshotDto?> GetSmokeSnapshotAsync()
     {

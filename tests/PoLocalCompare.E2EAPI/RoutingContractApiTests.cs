@@ -20,7 +20,6 @@ public sealed class RoutingContractApiTests(ApiAppFixture app)
     // writes that Development opens with Features:AllowAnonymousWrites (false in Production).
     private static readonly string[] AnonymousAllowList =
     [
-        "/Diag",
         "/api/diag",
         "/api/diag/smoke",
         "/api/duels/",
@@ -44,7 +43,7 @@ public sealed class RoutingContractApiTests(ApiAppFixture app)
         "/{*path:nonfile}",
     ];
 
-    [Fact]
+    [DockerFact]
     public void Anonymous_surface_is_exactly_the_allow_list()
     {
         var anonymous = app.Services.GetRequiredService<EndpointDataSource>().Endpoints
@@ -58,7 +57,7 @@ public sealed class RoutingContractApiTests(ApiAppFixture app)
         Assert.Equal(AnonymousAllowList, anonymous);
     }
 
-    [Fact]
+    [DockerFact]
     public void Every_other_endpoint_requires_a_signed_in_user()
     {
         var policy = app.Services.GetRequiredService<IOptions<AuthorizationOptions>>().Value.FallbackPolicy;

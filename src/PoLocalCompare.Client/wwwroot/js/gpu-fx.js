@@ -8,7 +8,7 @@
  *                   the bracket's match cards. No fallback here — the caller fires the Canvas2D
  *                   cannons instead when this returns false.
  *
- * Why these exist despite the rule against WebGL/WebGPU render loops (CLAUDE.md, "Motion is
+ * Why these exist despite the rule against WebGL/WebGPU render loops (AGENTS.md, "Motion is
  * compositor-only"): they were asked for on 2026-10-26, and they are built so that the reason
  * for that rule still holds. Browser models run WebLLM over WebGPU in this tab and the tok/s
  * the race reports is measured while they do; a loop competing for the GPU would make that

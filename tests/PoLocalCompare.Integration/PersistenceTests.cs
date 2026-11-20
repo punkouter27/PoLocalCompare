@@ -47,7 +47,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
 
     // ── Duels ──────────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_RoundTripsThroughTableStorage()
     {
         var duel = NewDuel(out var left, out var right);
@@ -62,7 +62,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal("Prompt text", loaded.PromptText);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_SaveIsIdempotent()
     {
         // Standards §5.5: a repeated create must swallow the 409 rather than surface it.
@@ -79,7 +79,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Null(loaded.WinnerModelId);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_UpdatePersistsTheVerdictAndItsSource()
     {
         var duel = NewDuel(out _, out _);
@@ -94,7 +94,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(VerdictSource.Ai, loaded.VerdictSource);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_WrittenBeforeVerdictSourceExisted_ReadsBackAsHuman()
     {
         // Rows written before the auto-judge existed have no VerdictSource — they were all
@@ -106,7 +106,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(VerdictSource.Human, loaded!.VerdictSource);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_ListReturnsSavedDuelsNewestFirst()
     {
         var first = NewDuel(out _, out _);
@@ -121,7 +121,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Contains(list, d => d.DuelId == second.DuelId);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Duel_ListFromCursor_ReturnsOnlyStrictlyOlderDuels()
     {
         // The Archive's Load More passes the oldest duel id it holds. The cursor used to be that
@@ -156,7 +156,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.All(secondPage, id => Assert.True(id < middle.DuelId, $"{id} is not older than the cursor."));
     }
 
-    [Fact]
+    [DockerFact]
     public async Task DuelResult_FailureDetailsPersist()
     {
         var duel = NewDuel(out var left, out _);
@@ -174,7 +174,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal("rate-limited", loaded.FailureReason);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Model_UpdatePersistsEloAndCounters()
     {
         var model = new Model(ModelId.New(), "Test", ModelType.Remote, tdpWatts: 100.0, webLlmModelId: null, apiEndpointRef: "deployment-x");
@@ -191,7 +191,7 @@ public sealed class PersistenceTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(3, loaded.WinCount);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task EloHistory_IsPartitionedPerModel()
     {
         var modelA = ModelId.New();

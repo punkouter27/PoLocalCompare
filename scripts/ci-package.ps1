@@ -3,15 +3,14 @@
     Deploy hook: makes sure the package ships the real web-llm.js, not its Git LFS pointer.
 
 .DESCRIPTION
-    Called by the shared deploy.yml after `dotnet publish` (step "Package extras"), from the repo
+    Called by deploy.yml after `dotnet publish` (step "Package extras"), from the repo
     root on ubuntu-latest. src/PoLocalCompare.Client/wwwroot/js/web-llm.js is a Git LFS object and
-    the shared checkout does not fetch LFS, so the build and the publish both saw the ~130-byte
+    the checkout does not fetch LFS, so the build and the publish both saw the ~130-byte
     pointer; every browser model would then fail at import time. When that is the case this pulls
     the LFS objects and publishes again into the same folder, so the static-asset manifest,
     compressed copies and fingerprints are all rebuilt from the real file.
 
-    This replaces the LFS step of scripts/ci-checks.ps1, which the deploy no longer calls (the
-    workflow builds and deploys only; tests and checks run locally).
+    scripts/ci-checks.ps1 has the same LFS step for local runs.
 
 .EXAMPLE
     pwsh ./scripts/ci-package.ps1 -PublishDir publish

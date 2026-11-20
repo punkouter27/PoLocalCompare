@@ -34,7 +34,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
         (await (await _client.GetAsync($"/api/leaderboard/{modelId}/profile"))
             .Content.ReadFromJsonAsync<JsonElement>())!;
 
-    [Fact]
+    [DockerFact]
     public async Task Profile_Anonymous_Returns401()
     {
         using var client = _host.CreateAnonymousClient();
@@ -48,7 +48,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
     /// Unlike the kill list — which degrades to "no history" for a retired id — the profile is
     /// about a model, so an id naming no model is genuinely not found rather than an empty page.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Profile_UnknownModel_Returns404()
     {
         var response = await _client.GetAsync("/api/leaderboard/01NOSUCHMODELIDXXXXXXXXXXX/profile");
@@ -56,7 +56,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Profile_ReportsTheRecordFromRealDuels()
     {
         var a = await RegisterRemoteModelAsync("MP Record A");
@@ -79,7 +79,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
     /// have played, in the board's order. The loser is the case that matters — at 1185 it sits
     /// under every unplayed 1200, and counting those put it at #25 beside a board row saying #2.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Profile_RankAgreesWithTheLeaderboard()
     {
         var a = await RegisterRemoteModelAsync("MP Rank A");
@@ -100,7 +100,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Profile_EloHistoryChronologicallyListsEachWinAgainstItsOpponent()
     {
         var a = await RegisterRemoteModelAsync("MP Elo A");
@@ -130,7 +130,7 @@ public sealed class ModelProfileTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(b, last.GetProperty("opponentModelId").GetString());
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Profile_AModelWithNoDuels_IsUnrankedRatherThanMissing()
     {
         var lonely = await RegisterRemoteModelAsync("MP Lonely");

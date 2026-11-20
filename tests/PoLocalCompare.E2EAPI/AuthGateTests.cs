@@ -12,7 +12,7 @@ namespace PoLocalCompare.E2EAPI;
 [Collection("E2EAPI")]
 public sealed class AuthGateTests(ApiAppFixture app)
 {
-    [Fact]
+    [DockerFact]
     public async Task Leaderboard_Authenticated_Returns200()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -20,7 +20,7 @@ public sealed class AuthGateTests(ApiAppFixture app)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task AuthMe_FakeUser_ReportsAuthenticatedIdentity()
     {
         using var client = app.CreateAuthenticatedClient(user: "alice", roles: "User");

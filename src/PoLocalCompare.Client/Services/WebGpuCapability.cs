@@ -33,7 +33,7 @@ public sealed class WebGpuCapability
             // Loaded on demand rather than by a <script> tag on every page: Home is its only
             // Blazor caller. It is a classic script that assigns window globals, which is also
             // valid as a module, so importing it defines checkWebGpu exactly as the tag did.
-            // The ?v= must match /diag's tag in Diag.cshtml — bump both together.
+            // The ?v= must match ModelHealthPanel's import (/diag) — bump both together.
             await _js.InvokeAsync<IJSObjectReference>("import", "/js/diag-interop.js?v=8");
             return await _js.InvokeAsync<WebGpuInfo>("checkWebGpu");
         }

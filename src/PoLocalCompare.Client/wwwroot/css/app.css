@@ -28,8 +28,8 @@
 }
 
 /* ── Design tokens ───────────────────────────────────────────────────────────
-   Every colour, font and radius here is an alias of a --po-* token from po-tokens.css (the
-   same file in every Po app, loaded first): light and dark follow the device's
+   Every colour, font and radius here is an alias of a --po-* token from po-tokens.css (this
+   app's Po shell tokens, loaded first): light and dark follow the device's
    prefers-color-scheme and nothing else, and the accent is the estate's one indigo. There is
    no theme toggle and no [data-theme] override any more (Po web standard, 2026-11-18). The
    app keeps its own names so the scoped stylesheets did not have to change; what they point
@@ -1004,10 +1004,11 @@ p a, li a, td a {
    block, no bespoke card markup. Those were the implementations this replaced, and they
    disagreed with each other about both the breakpoint and what a phone should see.
    Every table in the app, the Archive and Catalog included, uses it. */
-/* The stamp (po-tokens.css .po-version) sits above BottomNav where BottomNav shows, and above
-   Home's Compare bar, which is pinned along the bottom below 1080px. */
+/* The stamp (po-tokens.css .po-version) sits above BottomNav where BottomNav shows (signed in), and above
+   Home's Compare bar, which is pinned along the bottom below 1080px. po-tokens.css also pads
+   <main> by the same lift, so the last row of a page clears both. */
 @media (max-width: 640px) {
-    :root {
+    :root:has(.bottom-nav) {
         --po-stamp-lift: calc(3.5rem + env(safe-area-inset-bottom, 0px));
     }
 }

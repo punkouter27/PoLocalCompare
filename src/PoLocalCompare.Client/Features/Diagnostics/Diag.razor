@@ -1,0 +1,157 @@
+@page "/diag"
+@attribute [AllowAnonymous]
+@* System status (Po web standard, AGENTS.md): the only diagnostics page. Everything comes from the anonymous
+   GET /api/diag (DiagReportDto), in plain words: an overall banner, then API, Data and Services, one row per check.
+   Styled only by the .po-diag* / .po-badge* rules in wwwroot/css/po-tokens.css. *@
+@using System.Globalization
+@using PoLocalCompare.Shared.Diagnostics
+@inject HttpClient Http
+
+<PageTitle>System status</PageTitle>
+
+<div class="po-diag" data-testid="diag">
+    <div class="po-diag__head">
+        <h1>System status</h1>
+        <button type="button" class="po-link-btn outlined small" disabled="@_loading" @onclick="LoadAsync">@(_loading ? "Checking…" : "Check again")</button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="po-diag__banner po-diag__banner--bad" role="alert" data-testid="diag-banner">
+            <strong>Not working: the API did not answer</strong>
+            <span>@_error</span>
+        </div>
+    }
+    else if (_report is null)
+    {
+        <div class="po-diag__banner" role="status" data-testid="diag-banner"><strong>Checking…</strong></div>
+    }
+    else
+    {
+        <div class="po-diag__banner po-diag__banner--@Tone(_report.Status)" role="status" data-testid="diag-banner">
+            <strong>@Headline(_report)</strong>
+            <span>Version v@(_report.Version) · @_report.Environment · checked at @_report.CheckedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture) in @Ms(_report.CheckedMs)</span>
+        </div>
+
+        @Section("API", "api")
+        @Section("Data", "data")
+        @Section("Services", "service")
+    }
+
+    @* This app's extra, after the standard sections: a one-prompt smoke test of every registered
+       model. Signed in only, because it reads the model list (no 401s for signed-out visitors). *@
+    <AuthorizeView>
+        <Authorized>
+            <ModelHealthPanel />
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private DiagReportDto? _report;
+    private string? _error;
+    private bool _loading;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var report = await Http.GetFromJsonAsync("api/diag", ClientJson.Default.DiagReportDto);
+            var roundTrip = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1);
+            // The API row's latency is the round trip this browser saw, not the server's own time.
+            _report = report is null ? null : report with
+            {
+                Checks = [.. report.Checks.Select(c => c.Group == "api" ? c with { LatencyMs = roundTrip } : c)],
+            };
+            _error = report is null ? "The API sent nothing back." : null;
+        }
+        catch (HttpRequestException)
+        {
+            _report = null;
+            _error = "The API could not be reached. Try again in a minute.";
+        }
+        catch (TaskCanceledException)
+        {
+            _report = null;
+            _error = "The API took too long to answer. Try again in a minute.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            _report = null;
+            _error = "The API's answer could not be read.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private RenderFragment Section(string title, string group) => __builder =>
+    {
+        var rows = _report?.Checks.Where(c => c.Group == group).ToList() ?? [];
+        <section class="po-diag__group" aria-label="@title" data-group="@group">
+            <h2>@title</h2>
+            @if (rows.Count == 0)
+            {
+                <p class="po-diag__meta">Nothing to check here.</p>
+            }
+            @foreach (var c in rows)
+            {
+                <div class="po-diag__card" data-check="@c.Name" data-status="@c.Status">
+                    <div class="po-diag__what">
+                        <span class="po-diag__label">@c.Label</span>
+                        <span class="po-diag__purpose">@c.Purpose</span>
+                    </div>
+                    <div class="po-diag__facts">
+                        <span class="po-badge po-badge--@Tone(c.Status)">@c.Status</span>
+                        <span class="po-diag__latency">@Ms(c.LatencyMs)</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(c.Detail))
+                    {
+                        <span class="po-diag__detail">@c.Detail</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(c.Problem))
+                    {
+                        <span class="po-diag__problem">@c.Problem</span>
+                    }
+                </div>
+            }
+        </section>
+    };
+
+    private static string Tone(string status) => status switch
+    {
+        "Healthy" => "ok",
+        "Degraded" => "warn",
+        _ => "bad",
+    };
+
+    private static string Headline(DiagReportDto report)
+    {
+        var down = report.Checks.Where(c => c.Status == "Unhealthy").Select(c => c.Label).ToList();
+        if (down.Count > 0 || report.Status == "Unhealthy")
+        {
+            return down.Count > 0 ? $"Not working: {string.Join(", ", down)}" : "Not working";
+        }
+
+        var degraded = report.Checks.Count(c => c.Status == "Degraded");
+        return degraded switch
+        {
+            0 => "Everything is working",
+            1 => "Working, with 1 thing degraded",
+            _ => $"Working, with {degraded} things degraded",
+        };
+    }
+
+    private static string Ms(double ms) => ms < 1 ? "<1 ms" : string.Create(CultureInfo.InvariantCulture, $"{ms:N0} ms");
+}

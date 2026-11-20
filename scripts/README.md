@@ -126,10 +126,9 @@ has a ~130-byte pointer file there and this script will not find any models.
 > **A note on the deleted browser-model probers.** This folder used to carry
 > `test-browser-models.ps1` and `test-browser-models.cjs`, which drove a headless browser against a
 > running app to prove WebGPU inference worked per model. They were removed on 2026-09-10: `/diag`'s
-> Model health section already does exactly this in the app's own JavaScript
-> (`js/diag-models.js` over `js/diag-interop.js`), and it works when the WASM client is the broken
-> thing — which is the case the scripts could not cover. Neither half was in CI (no runner has a
-> GPU), so the second implementation only drifted.
+> Model health panel (signed in) already does exactly this in the app's own JavaScript
+> (`js/diag-models.js` over `js/diag-interop.js`). Neither half was in CI (no runner has a GPU), so
+> the second implementation only drifted.
 
 ---
 

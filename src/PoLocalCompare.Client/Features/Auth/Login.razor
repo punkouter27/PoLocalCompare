@@ -1,5 +1,11 @@
+@page "/login"
+@attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Components.WebAssembly.Hosting
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@* The sign-in page. Signed-out visitors to any other page are sent here (RedirectToLogin) with
+   ?returnUrl=, so the header's Sign in button is hidden only on this route and this card is the one
+   sign-in control. Signed in, there is nothing to sign in to: it goes to returnUrl (or Compare). *@
 @inject IConfiguration Config
 @inject IWebAssemblyHostEnvironment HostEnvironment
 
@@ -29,8 +35,18 @@
 @code {
     private bool _allowGuest;
 
-    protected override void OnInitialized()
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Nav.NavigateTo(ReturnPath(), replace: true);
+            return;
+        }
+
         var allowGuestByConfig = string.Equals(Config["Auth:AllowGuest"], "true", StringComparison.OrdinalIgnoreCase);
         var isProduction = string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
         _allowGuest = allowGuestByConfig && !isProduction;
@@ -43,9 +59,10 @@
     private void LoginAsGuest()
         => Nav.NavigateTo($"auth/login/fake?returnUrl={Uri.EscapeDataString(ReturnPath())}", forceLoad: true);
 
-    private string ReturnPath()
-    {
-        var path = new Uri(Nav.Uri).PathAndQuery;
-        return string.IsNullOrEmpty(path) ? "/" : path;
-    }
+    /// <summary>Where to land after signing in: a local path from ?returnUrl=, never another site.</summary>
+    private string ReturnPath() =>
+        ReturnUrl is { Length: > 0 } url && url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal)
+            && !url.StartsWith("/login", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : "/";
 }

@@ -16,7 +16,7 @@ public sealed class TournamentContractTests(ApiAppFixture app)
 
     // ── Deny-by-default ───────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task NewReadEndpoints_AreClosedToAnonymousCallers()
     {
         // FallbackPolicy is RequireAuthenticatedUser, so a new endpoint is closed unless it
@@ -33,7 +33,7 @@ public sealed class TournamentContractTests(ApiAppFixture app)
 
     // ── Entrants ──────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Entrants_Returns200WithAnEntrantShape()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -53,7 +53,7 @@ public sealed class TournamentContractTests(ApiAppFixture app)
 
     // ── Draw ──────────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Draw_Returns201WithTheBracketAlreadyPopulated()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -89,7 +89,7 @@ public sealed class TournamentContractTests(ApiAppFixture app)
 
     // ── Model profile surface ─────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Profile_ReturnsTheExpectedShapeForARealModelAnd404ForAnUnknownId()
     {
         using var client = app.CreateAuthenticatedClient();

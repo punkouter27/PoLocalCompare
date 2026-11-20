@@ -1,12 +1,11 @@
 <#
 .SYNOPSIS
-    Repo checks to run locally before a push. The deploy no longer runs them.
+    Repo checks to run locally before a push (the deploy runs format, build, Unit, Integration and ruff).
 
 .DESCRIPTION
-    Run from the repo root after `dotnet build PoLocalCompare.slnx -c Release`. Until 2026-11-18
-    the shared deploy.yml called this after the unit tests; the Po web standard made the workflow
-    build-and-deploy only, so tests and these checks are a local gate now (and the LFS step the
-    deploy still needs lives in scripts/ci-package.ps1).
+    Run from the repo root after `dotnet build PoLocalCompare.slnx -c Release`. deploy.yml runs
+    formatting, ruff, the build and the Unit and Integration tiers; these checks are the local
+    gate on top (and the LFS step the deploy needs lives in scripts/ci-package.ps1).
 
     0. Git LFS. src/PoLocalCompare.Client/wwwroot/js/web-llm.js is an LFS object; a clone without
        LFS has the ~130-byte pointer. Pull the real file and rebuild the API (which carries the
@@ -14,8 +13,9 @@
     1. Repo hygiene: scripts/check-clean.ps1 (test budgets, dead/unused CSS, cache-busters, motion gate).
     2. Browser-model catalog: scripts/plan-webllm-artifacts.py exits non-zero when ModelSeeder.cs
        and web-llm.js's prebuiltAppConfig disagree. Needs the LFS file from step 0.
-    3. Integration and E2EAPI tiers. Both spin Azurite through Testcontainers, so they need Docker
-       (ubuntu-latest has a daemon). E2EUI stays local: it needs a headed Chrome with WebGPU.
+    3. Python lint: ruff (ruff.toml) over scripts/*.py, through uvx.
+    4. Integration and E2EAPI tiers. Both spin Azurite through Testcontainers, so they need Docker;
+       without it they skip with one message. E2EUI stays local: it needs a running app and Chromium.
 #>
 [CmdletBinding()]
 param()
@@ -55,6 +55,8 @@ else {
     'python'
 }
 Invoke-Step 'Browser-model catalog agrees' { & $python scripts/plan-webllm-artifacts.py }
+
+Invoke-Step 'Python lint (ruff)' { uvx ruff check . }
 
 foreach ($suite in 'Integration', 'E2EAPI') {
     Invoke-Step "$suite tests" { dotnet test "tests/PoLocalCompare.$suite" -c Release --no-build --logger "trx;LogFileName=$suite.trx" }

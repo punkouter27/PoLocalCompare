@@ -39,7 +39,7 @@ public sealed class ArenaUiTests : UiTestBase
         return string.IsNullOrWhiteSpace(id) ? null : id;
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Arena_LoadsTheRequestedDuel_AndTheArchiveOffersTheLabReport(int width, int height)
     {

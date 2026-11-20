@@ -1,3 +1,4 @@
+using PoLocalCompare.TestSupport;
 using Testcontainers.Azurite;
 
 namespace PoLocalCompare.Integration;
@@ -15,6 +16,10 @@ public sealed class AzuriteFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Without Docker every test here is skipped (DockerFact); starting nothing keeps it quiet.
+        if (!DockerAvailability.IsAvailable)
+            return;
+
         await _azurite.StartAsync();
         ConnectionString = _azurite.GetConnectionString();
     }

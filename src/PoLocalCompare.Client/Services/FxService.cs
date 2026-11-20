@@ -23,7 +23,7 @@ namespace PoLocalCompare.Client.Services;
 /// </para>
 /// <para>
 /// <b>gpu-fx.js is a separate module, imported only when a shader effect is first asked for.</b>
-/// It is the one place the app runs a WebGPU/WebGL2 render loop (CLAUDE.md, "Motion"): both
+/// It is the one place the app runs a WebGPU/WebGL2 render loop (AGENTS.md, "Motion"): both
 /// effects check the same lease, and also tear down mid-frame the moment a worker takes it.
 /// </para>
 /// </remarks>

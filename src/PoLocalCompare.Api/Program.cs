@@ -155,12 +155,9 @@ try
     builder.Services.AddOpenApi(options =>
         options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1);
 
-    // ─── Razor pages (for /diag) ─────────────────────────────────────────────
-    builder.Services.AddRazorPages();
-
     // ─── Health checks (standards §3) ────────────────────────────────────────
-    // /health composes these; /diag renders the same report as the human-readable view,
-    // so the two can never disagree about what is up.
+    // /health composes these; /api/diag (the /diag "System status" page) projects the same
+    // report, so the two can never disagree about what is up.
     builder.Services.AddHealthChecks()
         .AddCheck<TableStorageHealthCheck>(
             "azureTableStorage",
@@ -399,13 +396,11 @@ try
     // ─── BFF auth routes (/auth/login/microsoft, /auth/login/fake, /auth/logout, /auth/me) ──
     app.MapAuthEndpoints();
 
-    app.MapRazorPages().AllowAnonymous();
-
     // ─── Health endpoint (T038) ──────────────────────────────────────────────
     app.MapHealthEndpoints();
     app.MapDiagEndpoints();
-    // Uniform cross-app liveness probe (see PoPlatform). Same shape in every Po app, which
-    // is what lets the portfolio dashboard poll them all and render one uptime grid.
+    // Dependency-free liveness probe (see PoPlatform): /health/live, with the X-Commit header
+    // (the deploy confirms that header) and the build version, polled by the portfolio dashboard.
     app.MapPoLiveness();
 
     // ─── SignalR hubs (auth required) ──────────────────────────────────────────

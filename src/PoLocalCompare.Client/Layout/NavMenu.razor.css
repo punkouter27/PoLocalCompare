@@ -1,6 +1,6 @@
 /* ── NavMenu: the Po shell header ────────────────────────────────────────────
    .po-header, .po-header__title, __actions, __email and __settings are styled by
-   po-tokens.css (the same file in every Po app). This sheet only adds what is this app's own:
+   po-tokens.css (the Po shell rules). This sheet only adds what is this app's own:
    the PL glyph, the MOCK chip and the route links between the title and the actions.
    Below 640px the links go (BottomNav carries them); 640–768px they take short labels. */
 
@@ -105,11 +105,9 @@
     }
 }
 
-/* Phones: BottomNav has the routes, and the Login card in the page body has the Guest
-   button, so the header keeps only the name, the session control and the gear. */
+/* Phones: BottomNav has the routes, so the header keeps only the name and the session control. */
 @media (max-width: 640px) {
-    .navmenu__nav,
-    .navmenu__guest {
+    .navmenu__nav {
         display: none;
     }
 }

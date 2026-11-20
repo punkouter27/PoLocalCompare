@@ -1,0 +1,95 @@
+/* Model health table on /diag. The rows are written by diag-models.js, hence ::deep. Colours only
+   from po-tokens.css; status words use --po-text with a coloured marker so they read at >= 4.5:1. */
+.mh-note {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-sm);
+    max-width: 75ch;
+}
+
+.mh-env {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--po-space-1) var(--po-space-3);
+    padding: var(--po-space-2) var(--po-space-3);
+    border: 1px solid var(--po-border);
+    border-radius: var(--po-radius-sm);
+    background: var(--po-surface);
+    color: var(--po-text);
+    font-size: var(--po-text-sm);
+}
+
+.mh-env ::deep .mh-env__item { white-space: nowrap; }
+.mh-env ::deep .mh-env__item--muted { color: var(--po-text-muted); }
+
+.mh-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--po-space-2);
+}
+
+.mh-prompt {
+    flex: 1 1 16rem;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 var(--po-space-3);
+    border-radius: var(--po-radius-sm);
+    border: 1px solid var(--po-border);
+    background: var(--po-surface);
+    color: var(--po-text);
+    font: inherit;
+    font-size: var(--po-text-sm);
+}
+
+/* The table scrolls inside its own box, never the page (tabindex=0 makes it keyboard-operable). */
+.mh-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--po-border);
+    border-radius: var(--po-radius);
+    background: var(--po-surface);
+}
+
+.mh-table {
+    width: 100%;
+    min-width: 36rem;
+    border-collapse: collapse;
+    font-size: var(--po-text-sm);
+    color: var(--po-text);
+}
+
+.mh-table th {
+    text-align: left;
+    padding: var(--po-space-2) var(--po-space-3);
+    color: var(--po-text-muted);
+    font-size: var(--po-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--po-border);
+}
+
+.mh-table ::deep td {
+    padding: var(--po-space-2) var(--po-space-3);
+    border-bottom: 1px solid var(--po-border);
+}
+
+.mh-table ::deep tr:last-child td { border-bottom: none; }
+
+.mh-table ::deep .mh-st--ok::before,
+.mh-table ::deep .mh-st--bad::before,
+.mh-table ::deep .mh-st--run::before {
+    content: "";
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    margin-right: 0.4em;
+    border-radius: 50%;
+}
+
+.mh-table ::deep .mh-st--ok::before { background: var(--po-success); }
+.mh-table ::deep .mh-st--bad::before { background: var(--po-danger); }
+.mh-table ::deep .mh-st--run::before { background: var(--po-warning); }
+.mh-table ::deep .mh-st--idle,
+.mh-table ::deep .mh-st--skip,
+.mh-table ::deep .mh-detail { color: var(--po-text-muted); }
+.mh-table ::deep .mh-num { font-variant-numeric: tabular-nums; }

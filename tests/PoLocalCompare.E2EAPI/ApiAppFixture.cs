@@ -45,6 +45,10 @@ public class ApiAppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Without Docker every test here is skipped (DockerFact); starting nothing keeps it quiet.
+        if (!DockerAvailability.IsAvailable)
+            return;
+
         await _azurite.StartAsync();
         var connectionString = _azurite.GetConnectionString();
 
@@ -132,7 +136,8 @@ public class ApiAppFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _factory.DisposeAsync();
+        if (_factory is not null)
+            await _factory.DisposeAsync();
         await _azurite.DisposeAsync();
     }
 }

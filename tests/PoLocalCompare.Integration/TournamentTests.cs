@@ -68,7 +68,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
 
     // ── Auth ──────────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Entrants_Anonymous_Returns401()
     {
         using var client = _host.CreateAnonymousClient();
@@ -82,7 +82,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// The field is offered strongest-first because that ordering IS the seeding — the form
     /// shows the draw before the user commits to it.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Entrants_AreListedStrongestFirst()
     {
         await RegisterFieldAsync("TE Seed", 3);
@@ -98,7 +98,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// Browser models entered the field on 2026-08-23, reversing PRD §9 item 21. The caveat is
     /// on the page, not in the catalog: the Tournament tab drives WebGPU matches itself.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Entrants_IncludeBrowserModels()
     {
         var browser = await RegisterModelAsync("TE Browser", modelType: "Local");
@@ -108,7 +108,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
 
         Assert.Contains(entrants, e => e.GetProperty("modelId").GetString() == browser);
     }
-    [Theory]
+    [DockerTheory]
     [InlineData(16)]
     public async Task Draw_AcceptsEverySupportedSize(int count)
     {
@@ -119,7 +119,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Draw_RejectsAModelEnteredTwice()
     {
         var field = await RegisterFieldAsync("TE Dupe", 2);
@@ -129,7 +129,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Draw_AcceptsAMixedRemoteAndBrowserField()
     {
         var remote = await RegisterModelAsync("TE Mixed Remote");
@@ -144,7 +144,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// 8 was the bracket until 2026-11-07. Drawn into a 16 it would leave a first-round match
     /// with nobody in it, so a field needs 2, or 9 to 16.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Draw_RejectsAnEightModelField()
     {
         var field = await RegisterFieldAsync("TE Eight", 8);
@@ -158,7 +158,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// A short prompt is a length-validation failure and an unknown model id is a catalog
     /// failure — both pass through the same validation path, so they share the assertion.
     /// </summary>
-    [Theory]
+    [DockerTheory]
     [InlineData("hi", false)]   // prompt under minimum length
     [InlineData(null, true)]    // one of the model ids is unknown to the catalog
     public async Task Draw_RejectsARequestThatFailsBasicValidation(string? badPrompt, bool useUnknownModelId)
@@ -175,7 +175,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     }
     // ── Persistence ───────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Draw_IsReadableBackByItsId()
     {
         var field = await RegisterFieldAsync("TE Persist", 16);
@@ -191,7 +191,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal(Prompt, fetched.GetProperty("promptText").GetString());
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Get_UnknownTournament_Returns404()
     {
         var response = await _client.GetAsync("/api/tournaments/01NOSUCHTOURNAMENTIDXXXXXX");
@@ -206,7 +206,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// decided: the API reads back a 16-model bracket whose four byes are not counted as matches
     /// to play, and whose top four seeds are waiting in round two.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Draw_OfTwelve_IsStoredWithTheTopSeedsThroughOnByes()
     {
         var field = await RegisterFieldAsync($"TE Byes {Guid.NewGuid():N}", 12);
@@ -230,7 +230,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// A retired seed keeps its row (and so its ELO and duels) but leaves the tournament draw
     /// and the model catalog — GPT-4.1 Nano was one model under two names until 2026-11-07.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task RetiredSeed_IsKeptOutOfTheDrawAndTheCatalog()
     {
         var retired = ModelSeeder.RetiredIds.First(id => id.Value.EndsWith('C'));
@@ -254,7 +254,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// the format went is served with its table but reads as Abandoned, so it is never resumed
     /// and never blocks a new bracket through the one-at-a-time gate.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task StoredSwissRun_IsServedReadOnly_AndDoesNotBlockANewBracket()
     {
         var field = await RegisterFieldAsync($"TE SwissRO {Guid.NewGuid():N}", 8);
@@ -303,7 +303,7 @@ public sealed class TournamentTests(AzuriteFixture azurite) : IAsyncLifetime
     /// endpoint surfaces that as a 409 with the running bracket's id, so the page can link the
     /// user to it instead of letting them stare at "Starting the next match…" forever.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task Create_WhileAnotherIsInFlight_Returns409WithTheRunningBracketId()
     {
         var field = await RegisterFieldAsync("TE InFlight", 2);

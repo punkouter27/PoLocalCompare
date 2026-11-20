@@ -1,12 +1,11 @@
 @implements IDisposable
-@* ── The Po shell header (Po web standard) ─────────────────────────────────────
-   One header on every page, signed in and out: the app name upper-left (`po-header__title`),
-   the email or the Sign-in button upper-right (`po-header__actions`). There is no settings
-   gear: /settings was removed on 2026-11-19 and its switches are fixed in prefs.js. The email
-   opens the account menu (Sign out, plus the dev personas outside Production); Catalog is
-   reached from Compare. The layout comes from po-tokens.css, the same file in every Po app;
-   this component's scoped CSS places the route links and the menu. Below 640px the links drop
-   out of the header because BottomNav carries them. *@
+@* ── The Po shell header (Po web standard, AGENTS.md) ──────────────────────────
+   One header on every page, signed in and out, the sign-in page included: the app name upper-left
+   (`po-header__title`), then upper-right the signed-in email (`po-header__email`, which opens the
+   account menu: Sign out, plus the dev personas outside Production) or, signed out, the one Sign in
+   button (`po-link-btn filled small`; not on /login itself, whose card is the sign-in). No settings
+   gear: /settings was removed on 2026-11-19 and its switches are fixed in prefs.js (a deviation listed
+   in AGENTS.md). Below 640px the route links drop out of the header because BottomNav carries them. *@
 <header class="po-header navmenu">
     <div class="navmenu__start">
         <a class="po-header__title" href="/">
@@ -27,38 +26,41 @@
         }
     </div>
 
-    <nav class="navmenu__nav" aria-label="Main">
-        <ul class="navmenu__links">
-            <li>
-                <NavLink class="navmenu__link" href="" Match="NavLinkMatch.All">Compare</NavLink>
-            </li>
-            <li>
-                <NavLink class="navmenu__link" href="tournament">
-                    <span class="navmenu__link-text--long">Tournament</span>
-                    <span class="navmenu__link-text--short">Bracket</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="navmenu__link" href="leaderboard">
-                    <span class="navmenu__link-text--long">Leaderboard</span>
-                    <span class="navmenu__link-text--short">Ranks</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="navmenu__link" href="archive">Archive</NavLink>
-            </li>
-        </ul>
-    </nav>
+    @* Signed out, every route but /login and /diag asks for a session, so the links are not offered. *@
+    @if (_identity is not null)
+    {
+        <nav class="navmenu__nav" aria-label="Main">
+            <ul class="navmenu__links">
+                <li>
+                    <NavLink class="navmenu__link" href="" Match="NavLinkMatch.All">Compare</NavLink>
+                </li>
+                <li>
+                    <NavLink class="navmenu__link" href="tournament">
+                        <span class="navmenu__link-text--long">Tournament</span>
+                        <span class="navmenu__link-text--short">Bracket</span>
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="navmenu__link" href="leaderboard">
+                        <span class="navmenu__link-text--long">Leaderboard</span>
+                        <span class="navmenu__link-text--short">Ranks</span>
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="navmenu__link" href="archive">Archive</NavLink>
+                </li>
+            </ul>
+        </nav>
+    }
 
     @* Nothing session-shaped until /auth/me has answered: the first render ran before it, and a
        signed-in visitor used to see Sign in flash and then swap for their identity. *@
     <div class="po-header__actions">
         @if (_identityResolved && _identity is null)
         {
-            <MicrosoftSignInButton Size="MicrosoftSignInSize.Small" Label="Sign in" OnClick="LoginWithMicrosoft" />
-            @if (_allowGuest)
+            @if (!OnLogin)
             {
-                <button type="button" class="po-btn po-btn--sm po-btn--warn navmenu__guest" @onclick="LoginAsGuest">Guest</button>
+                <a class="po-link-btn filled small" href="@LoginHref">Sign in</a>
             }
         }
         else if (_identity is not null)
@@ -98,16 +100,19 @@
     /// <summary>False until the first /auth/me answer; the session controls render after it.</summary>
     private bool _identityResolved;
     private bool _usingMockData;
-    private bool _allowGuest;
     private bool _isProduction;
+
+    private bool OnLogin => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Equals("login", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The sign-in page, coming back here afterwards.</summary>
+    private string LoginHref => $"login?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}";
 
     protected override async Task OnInitializedAsync()
     {
         AuthState.AuthenticationStateChanged += OnAuthStateChanged;
+        Nav.LocationChanged += OnLocationChanged;
 
-        var allowGuestByConfig = string.Equals(Config["Auth:AllowGuest"], "true", StringComparison.OrdinalIgnoreCase);
         _isProduction = string.Equals(HostEnvironment.Environment, "Production", StringComparison.OrdinalIgnoreCase);
-        _allowGuest = allowGuestByConfig && !_isProduction;
 
         _identity = await AccountMenu.ResolveIdentityAsync(AuthState);
         _identityResolved = true;
@@ -115,12 +120,6 @@
         var useRealAi = Config["Features:UseRealAi"];
         _usingMockData = !bool.TryParse(useRealAi, out var flag) || !flag;
     }
-
-    private void LoginWithMicrosoft()
-        => Nav.NavigateTo($"auth/login/microsoft?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
-
-    private void LoginAsGuest()
-        => Nav.NavigateTo($"auth/login/fake?returnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}", forceLoad: true);
 
     /// <summary>Development only: sign in again as another test user, staying on this page.</summary>
     private void SwitchDevPersona(string persona)
@@ -147,5 +146,12 @@
             StateHasChanged();
         });
 
-    public void Dispose() => AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
+    // The Sign in button's return address and its absence on /login follow the route.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

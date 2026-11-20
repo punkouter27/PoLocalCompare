@@ -42,7 +42,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
 
     // ── POST /api/duels → 202 Accepted ────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task PostDuel_ValidRequest_Returns202WithDuelId()
     {
         var leftId = await SeedRemoteModelAsync(ModelId.From("left-int-1"), "Left Model");
@@ -72,7 +72,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
     /// worker for as long as the tab took, so a second user's server-side duel could not start.
     /// It now leaves the queue as soon as it is dequeued, and wakes when the tab posts.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task BrowserDuel_WaitingForItsTab_DoesNotHoldUpAServerDuel()
     {
         var browser = await TestModels.LocalAsync(_host.Services, $"Tab {Guid.NewGuid():N}");
@@ -114,7 +114,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
         });
     }
 
-    [Fact]
+    [DockerFact]
     public async Task PostDuel_DailySpendCapReached_Returns429ForRemoteModels()
     {
         await using var host = new IntegrationHost(_connectionString,
@@ -138,7 +138,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
     /// and the cap counts them. The cap is set far above anything the rest of this run records
     /// in duel results, so only the ledger row can push today over it.
     /// </summary>
-    [Fact]
+    [DockerFact]
     public async Task PostDuel_LedgerSpendReachesTheCap_Returns429()
     {
         await using var host = new IntegrationHost(_connectionString,
@@ -149,7 +149,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.TooManyRequests, (await StartDuelAsync(host)).StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task PostDuel_OverThePerMinuteLimit_Returns429()
     {
         await using var host = new IntegrationHost(_connectionString,
@@ -161,7 +161,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
 
     // ── POST /api/duels → 400 when PromptText is empty ────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task PostDuel_EmptyPrompt_Returns400()
     {
         var leftId = await SeedRemoteModelAsync(ModelId.From("left-int-2"), "Left Model 2");
@@ -181,7 +181,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
 
     // ── POST /api/duels then POST verdict then GET leaderboard full flow ──
 
-    [Fact]
+    [DockerFact]
     public async Task FullFlow_CommenceDuel_RecordVerdict_LeaderboardReflectsEloChange()
     {
         var leftId = await SeedRemoteModelAsync(ModelId.From("left-flow-1"), "Flow Left");
@@ -233,7 +233,7 @@ public sealed class DuelsEndpointTests : IAsyncLifetime
 
     // ── POST /api/duels/{id}/verdict → 409 on duplicate ──────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task PostVerdict_DuplicateVerdict_Returns409()
     {
         var leftId = await SeedRemoteModelAsync(ModelId.From("left-dup-1"), "Dup Left");

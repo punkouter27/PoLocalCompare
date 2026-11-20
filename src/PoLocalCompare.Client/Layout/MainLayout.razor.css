@@ -44,11 +44,8 @@ article.app-content {
     overflow-x: clip;
 }
 
-@media (max-width: 640px) {
-    article.app-content {
-        padding-bottom: calc(4rem + env(safe-area-inset-bottom));
-    }
-}
+/* No bottom padding here: po-tokens.css pads <main> so nothing runs under the version badge or,
+   on phones, under BottomNav (--po-stamp-lift, set in app.css). */
 
 
 

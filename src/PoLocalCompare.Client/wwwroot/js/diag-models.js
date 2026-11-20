@@ -1,14 +1,12 @@
 /**
- * diag-models.js — the Model health section on /diag.
+ * diag-models.js — the Model health panel on /diag (Features/Diagnostics/ModelHealthPanel.razor),
+ * shown to signed-in visitors after the standard API / Data / Services sections.
  *
- * Replaces the Blazor `ModelHealthPanel` that used to sit on the Home page (removed
- * 2026-08-23). It is plain JS rather than a component because /diag is a server-rendered
- * Razor Page on purpose: it has to work when the WASM client is the thing that is broken,
- * which is what `index.html`'s boot-timeout fallback links here for.
+ * The panel renders the markup; this file is the controller and the table, started by
+ * ModelHealthPanel once the markup exists: `window.poModelHealth.start()`.
  *
  * The probing itself is not reimplemented — `diag-interop.js` already owns `checkWebGpu`,
- * `checkWebNn` and the `runModelDiag` worker runner, and was always framework-free. This
- * file is the controller and the table.
+ * `checkWebNn` and the `runModelDiag` worker runner, and was always framework-free.
  *
  * How each model type is actually tested, because they are genuinely different:
  *   remote  — GET /api/models/availability. That endpoint sends a real 16-token completion
@@ -19,7 +17,7 @@
  *             simplification: they share one GPU, and running two at once is how you get
  *             "Device was lost" instead of a result.
  */
-(() => {
+window.poModelHealth = { start: () => {
     'use strict';
 
     const TYPE_LABEL = { Remote: 'remote', LocalService: 'ollama', Local: 'browser' };
@@ -155,7 +153,7 @@
                 const me = await authRes.json();
                 if (!me || !me.isAuthenticated) {
                     elRows.innerHTML = '<tr><td colspan="6">Not signed in — the model catalog needs a session. '
-                        + '<a href="/auth/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
+                        + '<a href="/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
                     return;
                 }
             }
@@ -164,7 +162,7 @@
                 // /diag is anonymous but /api/models is not, and that asymmetry is deliberate —
                 // say so rather than showing an empty table that reads as "no models".
                 elRows.innerHTML = '<tr><td colspan="6">Not signed in — the model catalog needs a session. '
-                    + '<a href="/auth/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
+                    + '<a href="/login?returnUrl=%2Fdiag">Sign in</a>, then reload this page.</td></tr>';
                 return;
             }
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -364,4 +362,4 @@
         }
         await loadCatalog();
     })();
-})();
+} };

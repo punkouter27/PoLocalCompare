@@ -119,7 +119,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
 
     // ── Commence ───────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Commence_Returns202WithALocationHeader()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -138,7 +138,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
     }
 
     // The empty-prompt 400 is Integration's PostDuel_EmptyPrompt_Returns400 (deduplicated 2026-10-26).
-    [Fact]
+    [DockerFact]
     public async Task Commence_UnknownOpponent_Returns404()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -154,7 +154,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Commence_SameModelBothSides_IsRejected()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -170,7 +170,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.False(response.IsSuccessStatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task Commence_Anonymous_PassesTheOpenGate_ButFailsOnMissingModel()
     {
         // Features:AllowAnonymousWrites opens the gate for un-authenticated callers in dev/test.
@@ -191,7 +191,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
 
     // ── Read ───────────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task ListDuels_ReturnsTheCommencedDuel()
     {
         using var client = app.CreateAuthenticatedClient();
@@ -202,7 +202,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Contains(duels!, d => d.GetProperty("duelId").GetString() == duelId);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task ListDuels_Anonymous_Returns401()
     {
         using var client = app.CreateAnonymousClient();
@@ -214,7 +214,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
 
     // ── Verdict ────────────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Verdict_NamesTheSidesAndIsRecordedAsHuman()
     {
         // Standards invariant: every verdict carries a source, and one submitted over the
@@ -239,7 +239,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
 
     // ── Local (browser) result ingest ──────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_WithoutAModelId_Returns400()
     {
         // Both sides are Remote here, so the duel finishes on its own and this test needs no
@@ -260,7 +260,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_AppearsOnTheDuelAndIsNormalizedBeforeStorage()
     {
         // Browser-inference path: the server never saw the tokens, the client POSTs the
@@ -278,7 +278,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.DoesNotContain("```", result.GetProperty("htmlOutputRaw").GetString());
     }
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_ForAModelThatIsNotThisDuelsBrowserSide_Returns400()
     {
         // The (duelId, modelId) pair is the storage key. Unchecked, a caller picks both and can
@@ -302,7 +302,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         await ReleaseLocalDuelAsync(client, duelId, left);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_PostedTwice_Returns409()
     {
         // The repository upserts with Replace, so a second post used to silently overwrite the
@@ -317,7 +317,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_ForAnUnknownDuel_Returns404()
     {
         // It carried an unconditional AllowAnonymous() and never loaded the duel at all, so any
@@ -330,7 +330,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    [Fact]
+    [DockerFact]
     public async Task LocalResult_FollowsTheSameAnonymousGateAsTheOtherWrites()
     {
         // It used to opt out of authorization entirely, on the premise that the WebLLM worker
@@ -349,7 +349,7 @@ public sealed class DuelContractTests(DuelApiFixture app)
 
     // ── Archive export ─────────────────────────────────────────────────────
 
-    [Fact]
+    [DockerFact]
     public async Task Report_ForAJudgedDuel_ReturnsSelfContainedHtml()
     {
         using var client = app.CreateAuthenticatedClient();

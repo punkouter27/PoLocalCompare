@@ -9,7 +9,7 @@ namespace PoLocalCompare.E2EUI;
 [Trait("Category", "UI")]
 public sealed class HomeUiTests : UiTestBase
 {
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Unauthenticated_Root_ShowsLogin(int width, int height)
     {
@@ -17,12 +17,16 @@ public sealed class HomeUiTests : UiTestBase
         await page.GotoAsync("/");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
 
-        // The auth gate renders the Login view before any page content.
+        // The auth gate sends a signed-out visitor to /login, which wears the Po header like every
+        // page; its card is the one sign-in control, so the header shows no second Sign in there.
         await Assertions.Expect(page.GetByText("Sign in with Microsoft")).ToBeVisibleAsync(
             new() { Timeout = 15_000 });
+        await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/login[?]returnUrl="));
+        await Assertions.Expect(page.Locator(".po-header__title")).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".po-header .po-link-btn")).ToHaveCountAsync(0);
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Login_ThenHome_ShowsHeadingAndDisabledCompare(int width, int height)
     {
@@ -45,7 +49,7 @@ public sealed class HomeUiTests : UiTestBase
         await Assertions.Expect(compare).ToBeDisabledAsync();
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task Home_RendersTheModelGrid(int width, int height)
     {
@@ -55,7 +59,7 @@ public sealed class HomeUiTests : UiTestBase
             new() { Timeout = 20_000 });
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task ModelCards_AreKeyboardOperableAndExposeTheirState(int width, int height)
     {
@@ -74,7 +78,7 @@ public sealed class HomeUiTests : UiTestBase
         await Assertions.Expect(card).ToHaveAttributeAsync("aria-pressed", "false");
     }
 
-    [Theory]
+    [UiTheory]
     [MemberData(nameof(Viewports))]
     public async Task SuggestMatchup_FillsBothSlots_AndSaysWhy(int width, int height)
     {

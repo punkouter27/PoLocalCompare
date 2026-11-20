@@ -21,7 +21,7 @@ public sealed class ModelRegistryTests(AzuriteFixture azurite) : IAsyncLifetime
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
 
-    [Fact]
+    [DockerFact]
     public async Task LocalModel_RoundTripsWebLlmId()
     {
         var name = $"Local {Guid.NewGuid():N}";
@@ -34,7 +34,7 @@ public sealed class ModelRegistryTests(AzuriteFixture azurite) : IAsyncLifetime
         Assert.Equal($"test-webllm-{name.Replace(' ', '-').ToLowerInvariant()}", model.GetProperty("webLlmModelId").GetString());
     }
 
-    [Fact]
+    [DockerFact]
     public async Task DownloadStatus_ReportsLocalWeightsWithoutAServerPath()
     {
         // The route is anonymous. Until 2026-11-17 a downloaded model's status carried the
