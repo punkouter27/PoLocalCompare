@@ -1,7 +1,32 @@
 /* ── Fonts ───────────────────────────────────────────────────────────────────
    Inter (text) and Space Grotesk (headings) are declared by po-tokens.css from the
    self-hosted files in wwwroot/fonts, and nothing else loads a text face: no Google Fonts,
-   no @import here. Monospace is the platform's (--po-font-mono). */
+   no font @import here. Monospace is the platform's (--po-font-mono). */
+
+/* ── Radzen ──────────────────────────────────────────────────────────────────
+   Radzen is the component library (owner decision 2026-11-21, "Radzen wins, convert"): every
+   button is a RadzenButton, every text box a RadzenTextBox / RadzenTextArea, the entrant
+   tick a RadzenCheckBox. Its theme is imported into the `radzen` cascade layer, so every
+   un-layered rule in this app (app.css, po-tokens.css, the scoped .razor.css sheets) beats it
+   whatever the specificity — .po-btn, .po-table and the tokens keep drawing the app. Must stay
+   the first rule in this file (@import). */
+@import url("../_content/Radzen.Blazor/css/material-base.css?v=12.2.0") layer(radzen);
+
+/* A Radzen control that keeps the app's own look carries class "lc-plain" (buttons:
+   ButtonStyle.Base + Variant.Text). This reverts everything Radzen's theme set on it back to
+   the browser's native control (all: revert, zero specificity), so the app's classes style it
+   exactly as they styled the native <button>/<input>/<textarea> before: any class rule wins
+   over :where(). Kept above the box-sizing rule below so that rule still applies. The button's
+   content box steps out of the layout, so .po-btn's flex gap still sees the children. */
+:where(.rz-button.lc-plain, .rz-textbox.lc-plain, .rz-textarea.lc-plain),
+:where(.rz-button.lc-plain)::before {
+    all: revert;
+}
+
+:where(.rz-button.lc-plain > .rz-button-box) {
+    all: revert;
+    display: contents;
+}
 
 /* ── Box sizing ─────────────────────────────────────────────────────────────
    There was NO box-sizing rule in this file except a single local one on
@@ -320,12 +345,12 @@ a:hover {
 }
 
 /* ── Buttons and tables ──────────────────────────────────────────────────────
-   These two primitives replace Radzen's RadzenButton and RadzenDataGrid, which
-   were the library's only use across the whole app. They live here rather than in
-   a .razor.css because five pages need them and scoped CSS is per-component.
-   Styled from the design tokens, so they follow the theme toggle for free.
+   The app's two visual primitives. Every button is a RadzenButton (owner decision
+   2026-11-21) wearing "lc-plain po-btn …": Radzen supplies the control, .po-btn the look.
+   They live here rather than in a .razor.css because five pages need them and scoped CSS
+   is per-component. Styled from the design tokens.
 
-   .po-btn is the ONLY button primitive in the app. Twelve per-surface button
+   .po-btn is the ONLY button look in the app. Twelve per-surface button
    classes (home__btn, arena__action-btn, lab__btn, h2h__btn, …) each
    reimplemented it locally and drifted apart; they were folded in here. A surface
    that needs a tweak adds a layout-only class ALONGSIDE .po-btn (width, margin,

@@ -101,7 +101,7 @@ public partial class Tournament
 
     private const int MinPromptLength = 10;
 
-    private ElementReference _promptBox;
+    private Radzen.Blazor.RadzenTextArea? _promptBox;
 
     // Set by a Start click that had no usable prompt; PromptFlagged drops on its own once the
     // prompt is long enough, so nothing has to remember to clear it.
@@ -372,7 +372,7 @@ public partial class Tournament
         if (!_promptCheck.Validate(_prompt) || !PromptReady)
         {
             _promptNudged = true;
-            await _promptBox.FocusAsync();
+            if (_promptBox is not null) await _promptBox.Element.FocusAsync();
             return;
         }
 

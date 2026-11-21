@@ -74,11 +74,11 @@
                         <span class="navmenu__account-label">Dev persona</span>
                         @foreach (var persona in AccountMenu.DevPersonas)
                         {
-                            <button type="button" class="po-btn po-btn--sm po-btn--secondary"
-                                    @onclick="() => SwitchDevPersona(persona)">@persona</button>
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary"
+                                    Click="() => SwitchDevPersona(persona)">@persona</RadzenButton>
                         }
                     }
-                    <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="LogoutAsync">Sign out</button>
+                    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary" Click="LogoutAsync">Sign out</RadzenButton>
                 </div>
             </details>
         }

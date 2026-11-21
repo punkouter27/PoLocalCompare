@@ -1,8 +1,15 @@
 /* ── MicrosoftSignInButton ────────────────────────────────────────────────────
    The Microsoft mark is trademarked artwork with a mandated presentation — the
-   button background must be white in both themes (CLAUDE.md). */
+   button background must be white in both themes (CLAUDE.md).
+   The button form is a RadzenButton (owner decision 2026-11-21): a child component's element carries no
+   scope attribute, so it sits in a display:contents wrapper and the rules reach it through ::deep. */
 
-.ms-sign-in {
+.ms-sign-in-wrap {
+    display: contents;
+}
+
+.ms-sign-in,
+.ms-sign-in-wrap ::deep .ms-sign-in {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -15,7 +22,9 @@
 }
 
 .ms-sign-in:hover,
-.ms-sign-in:focus-visible {
+.ms-sign-in:focus-visible,
+.ms-sign-in-wrap ::deep .ms-sign-in:hover,
+.ms-sign-in-wrap ::deep .ms-sign-in:focus-visible {
     background: #fff;
     border-color: var(--accent-blue);
     color: #5e5e5e;
@@ -25,13 +34,15 @@
     flex: 0 0 auto;
 }
 
-.ms-sign-in--small {
+.ms-sign-in--small,
+.ms-sign-in-wrap ::deep .ms-sign-in--small {
     padding-inline: var(--space-sm);
     padding-block: var(--space-2xs);
     font-size: var(--text-sm);
 }
 
-.ms-sign-in--large {
+.ms-sign-in--large,
+.ms-sign-in-wrap ::deep .ms-sign-in--large {
     padding-inline: var(--space-md);
     padding-block: var(--space-sm);
     font-size: var(--text-md);

@@ -54,7 +54,7 @@
     }
 }
 
-.catalog__input.catalog__search {
+::deep .catalog__input.catalog__search {
     inline-size: auto;
     min-inline-size: 14rem;
 }
@@ -104,7 +104,7 @@
     color: var(--accent-red);
 }
 
-.catalog__input {
+::deep .catalog__input {
     inline-size: 100%;
     padding: var(--space-xs) var(--space-sm);
     border: 1px solid var(--border);

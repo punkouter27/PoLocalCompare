@@ -73,12 +73,12 @@
                        lands: arriving late, it wrapped this row on a phone and shoved the picker. *@
                     @if (_leftModel is null && _rightModel is null)
                     {
-                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary"
                                 title="Loads a working prompt and two lightweight models"
-                                disabled="@(_models.Count == 0)"
-                                @onclick="LoadStarterDuel">
+                                Disabled="@(_models.Count == 0)"
+                                Click="LoadStarterDuel">
                             <span aria-hidden="true">⚡</span> Load starter duel
-                        </button>
+                        </RadzenButton>
                     }
                     @* Picks the duel the leaderboard learns most from (MatchupPicker); with one
                        slot filled, the best opponent for it. Hidden once both are, like the
@@ -86,12 +86,12 @@
                        free (MatchupPicker runs here) and settling ratings is the app's job. *@
                     @if (_leftModel is null || _rightModel is null)
                     {
-                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary"
                                 title="Picks two closely matched models whose ratings are least settled — the duel that moves the leaderboard most"
-                                disabled="@(_models.Count == 0 || _suggesting)"
-                                @onclick="SuggestMatchupAsync">
+                                Disabled="@(_models.Count == 0 || _suggesting)"
+                                Click="SuggestMatchupAsync">
                             <span aria-hidden="true">🎯</span> @(_leftModel is null && _rightModel is null ? "Suggest matchup" : "Suggest opponent")
-                        </button>
+                        </RadzenButton>
                     }
                     @* The way into /catalog from the page that needs it. The route was reachable
                        only from the user menu, so a model that was not in the list here had no
@@ -119,7 +119,7 @@
             else if (_loadError is not null)
             {
                 <p class="home__error" role="alert">@_loadError</p>
-                <button type="button" class="po-btn po-btn--secondary" @onclick="LoadAsync">Retry</button>
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--secondary" Click="LoadAsync">Retry</RadzenButton>
             }
             else if (_models.Count == 0)
             {
@@ -136,12 +136,12 @@
                 <div class="home__filters" role="group" aria-label="Filter models by type">
                     @foreach (var f in _filters)
                     {
-                        <button type="button"
-                                class="po-btn po-btn--sm po-btn--chip"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                                class="lc-plain po-btn po-btn--sm po-btn--chip"
                                 aria-pressed="@(_modelFilter == f.Key ? "true" : "false")"
-                                @onclick="@(() => _modelFilter = f.Key)">
+                                Click="@(() => _modelFilter = f.Key)">
                             @f.Label (@ModelCountFor(f.Key))
-                        </button>
+                        </RadzenButton>
                     }
                 </div>
                 @* Grouped by type (Remote / Browser / Ollama) to mirror the Model Health panel.
@@ -175,11 +175,11 @@
 
                 @if (UnavailableModels.Any())
                 {
-                    <button type="button" class="po-btn po-btn--sm po-btn--ghost home__unavailable-toggle"
+                    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--ghost home__unavailable-toggle"
                             aria-expanded="@(_showUnavailable ? "true" : "false")"
-                            @onclick="@(() => _showUnavailable = !_showUnavailable)">
+                            Click="@(() => _showUnavailable = !_showUnavailable)">
                         @(_showUnavailable ? "▾" : "▸") @UnavailableModels.Count() model@(UnavailableModels.Count() == 1 ? "" : "s") can't run here
-                    </button>
+                    </RadzenButton>
                     @if (_showUnavailable)
                     {
                         <p class="home__hint home__unavailable-why">@UnavailableReason</p>
@@ -213,10 +213,10 @@
                         <span class="home__slot-name">@(_leftModel?.DisplayName ?? "Empty")</span>
                         @if (_leftModel is not null)
                         {
-                            <button type="button" class="home__slot-clear"
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain home__slot-clear"
                                     aria-label="@($"Clear left slot ({_leftModel.DisplayName})")"
                                     title="Clear this slot"
-                                    @onclick="@(() => ClearSlot(left: true))"><span aria-hidden="true">✕</span></button>
+                                    Click="@(() => ClearSlot(left: true))"><span aria-hidden="true">✕</span></RadzenButton>
                         }
                     </div>
                     <span class="home__slot-vs" aria-hidden="true">vs</span>
@@ -226,10 +226,10 @@
                         <span class="home__slot-name">@(_rightModel?.DisplayName ?? "Empty")</span>
                         @if (_rightModel is not null)
                         {
-                            <button type="button" class="home__slot-clear"
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain home__slot-clear"
                                     aria-label="@($"Clear right slot ({_rightModel.DisplayName})")"
                                     title="Clear this slot"
-                                    @onclick="@(() => ClearSlot(left: false))"><span aria-hidden="true">✕</span></button>
+                                    Click="@(() => ClearSlot(left: false))"><span aria-hidden="true">✕</span></RadzenButton>
                         }
                     </div>
                 </div>
@@ -239,17 +239,17 @@
                         <h2 id="home-prompt-heading" class="po-section-title">Write your prompt</h2>
                     </div>
 
-                    <textarea id="@PromptId"
-                              class="home__textarea @(_promptLongWarning || PromptFlagged ? "home__textarea--warn" : "")"
-                              aria-labelledby="home-prompt-heading"
-                              aria-describedby="home-prompt-error home-prompt-counter home-compare-hint"
-                              aria-invalid="@(_promptCheck.HasError ? "true" : null)"
-                              placeholder="e.g. Build a single-page HTML app that shows today's weather for any city the user types."
-                              rows="5"
-                              maxlength="@PromptRules.MaxPromptLength"
-                              @bind="_prompt"
-                              @bind:event="oninput"
-                              @bind:after="OnPromptEdited"></textarea>
+                    <RadzenTextArea id="@PromptId"
+                                    class="@(_promptLongWarning || PromptFlagged ? "lc-plain home__textarea home__textarea--warn" : "lc-plain home__textarea")"
+                                    aria-labelledby="home-prompt-heading"
+                                    aria-describedby="home-prompt-error home-prompt-counter home-compare-hint"
+                                    aria-invalid="@(_promptCheck.HasError ? "true" : null)"
+                                    Placeholder="e.g. Build a single-page HTML app that shows today's weather for any city the user types."
+                                    Rows="5"
+                                    MaxLength="@PromptRules.MaxPromptLength"
+                                    Immediate="true"
+                                    @bind-Value="_prompt"
+                                    @bind-Value:after="OnPromptEdited" />
                     <PromptError Check="_promptCheck" Id="home-prompt-error" />
                     <div class="home__textarea-meta">
                         <span id="home-prompt-counter"
@@ -270,15 +270,15 @@
                     @if (Prefs.IsOn(Preference.Assistants))
                     {
                     <div class="home__sharpen">
-                        <button type="button" class="po-btn po-btn--sm po-btn--secondary"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary"
                                 title="Rewrites your prompt into a short brief with explicit requirements, so both models and the judge aim at the same thing"
-                                disabled="@(_sharpening || _prompt.Trim().Length < 3)"
-                                @onclick="SharpenPromptAsync">
+                                Disabled="@(_sharpening || _prompt.Trim().Length < 3)"
+                                Click="SharpenPromptAsync">
                             <span aria-hidden="true">✨</span> @(_sharpening ? "Sharpening…" : "Sharpen prompt")
-                        </button>
+                        </RadzenButton>
                         @if (_promptBeforeSharpen is not null)
                         {
-                            <button type="button" class="po-btn po-btn--sm po-btn--ghost" @onclick="UndoSharpen">Undo</button>
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--ghost" Click="UndoSharpen">Undo</RadzenButton>
                         }
                         @* Always mounted — a live region inserted already filled is not announced. *@
                         <span class="po-hint home__sharpen-note" role="status">@_sharpenNote</span>
@@ -294,11 +294,11 @@
                 <section class="home__compare" aria-label="Compare">
                     <div class="home__compare-row">
                         <p id="home-compare-hint" class="po-hint home__compare-copy" role="status">@CompareHint</p>
-                        <button type="button" class="po-btn po-btn--success po-btn--lg"
-                                disabled="@(!CanAttemptCompare)"
-                                @onclick="StartDuelAsync">
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--success po-btn--lg"
+                                Disabled="@(!CanAttemptCompare)"
+                                Click="StartDuelAsync">
                             Compare →
-                        </button>
+                        </RadzenButton>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(_error))
                     {

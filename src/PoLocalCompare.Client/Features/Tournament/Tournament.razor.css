@@ -335,7 +335,7 @@
 /* Matches .home__textarea exactly — the same control, written twice, had drifted on border
    token (--border vs --border-strong), on size (--text-md vs --text-lg) and on focus
    treatment. Same prompt, same box. */
-.tourney__textarea {
+::deep .tourney__textarea {
     width: 100%;
     box-sizing: border-box;
     min-height: 7rem;
@@ -351,18 +351,18 @@
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.tourney__textarea:focus-visible {
+::deep .tourney__textarea:focus-visible {
     outline: 2px solid var(--accent-blue);
     outline-offset: var(--focus-ring-offset);
     box-shadow: var(--focus-ring);
     border-color: var(--accent-cyan);
 }
 
-.tourney__textarea:focus:not(:focus-visible) {
+::deep .tourney__textarea:focus:not(:focus-visible) {
     border-color: var(--accent-cyan);
 }
 
-.tourney__textarea::placeholder {
+::deep .tourney__textarea::placeholder {
     color: var(--text-dim);
 }
 
@@ -384,7 +384,7 @@
     font-weight: var(--weight-semibold);
 }
 
-.tourney__textarea[aria-invalid="true"] {
+::deep .tourney__textarea[aria-invalid="true"] {
     border-color: var(--accent-red);
 }
 
@@ -637,7 +637,7 @@
     background: var(--success-surface);
 }
 
-.tourney__entrant-option:has(input:focus-visible) {
+.tourney__entrant-option:has(.rz-chkbox:focus-visible) {
     outline: var(--focus-ring);
     outline-offset: var(--focus-offset);
 }

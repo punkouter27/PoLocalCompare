@@ -8,16 +8,16 @@
    model page) can present the same control without forking the markup. *@
 
 <div class="arena-vote__row">
-    <button type="button" class="po-btn po-btn--lg po-btn--success arena-vote__btn"
-            disabled="@Disabled"
-            @onclick="@(async () => { _ = AudioService.PlayTickAsync(); await OnVote.InvokeAsync(DuelVerdict.Left); })">
+    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--lg po-btn--success arena-vote__btn"
+            Disabled="@Disabled"
+            Click="@(async () => { _ = AudioService.PlayTickAsync(); await OnVote.InvokeAsync(DuelVerdict.Left); })">
         <span aria-hidden="true">👈</span> Winner: @LeftDisplayName
-    </button>
-    <button type="button" class="po-btn po-btn--lg po-btn--success arena-vote__btn"
-            disabled="@Disabled"
-            @onclick="@(async () => { _ = AudioService.PlayTickAsync(); await OnVote.InvokeAsync(DuelVerdict.Right); })">
+    </RadzenButton>
+    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--lg po-btn--success arena-vote__btn"
+            Disabled="@Disabled"
+            Click="@(async () => { _ = AudioService.PlayTickAsync(); await OnVote.InvokeAsync(DuelVerdict.Right); })">
         Winner: @RightDisplayName <span aria-hidden="true">👉</span>
-    </button>
+    </RadzenButton>
 </div>
 
 @code {

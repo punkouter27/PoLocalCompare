@@ -11,43 +11,43 @@
        between the textarea and the Compare button and were about half the page on both
        viewports — the textarea is the primary input, so the catalogue waits to be asked for. *@
     <div class="prompt-picker__section">
-        <button type="button" class="po-btn po-btn--sm po-btn--secondary prompt-picker__disclosure"
+        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary prompt-picker__disclosure"
                 aria-expanded="@(_libraryOpen ? "true" : "false")"
                 aria-controls="prompt-library"
-                @onclick="@(() => { _ = AudioService.PlayTickAsync(); _libraryOpen = !_libraryOpen; })">
+                Click="@(() => { _ = AudioService.PlayTickAsync(); _libraryOpen = !_libraryOpen; })">
             <span aria-hidden="true">@(_libraryOpen ? "▾" : "▸")</span>
             @(_libraryOpen ? "Hide prompt library" : $"Browse prompt library ({PromptLibrary.All.Count})")
-        </button>
+        </RadzenButton>
 
         @if (_libraryOpen)
         {
         <div id="prompt-library">
 
         <div class="prompt-picker__filters" role="group" aria-label="Filter prompts by category">
-            <button type="button"
-                    class="po-btn po-btn--sm po-btn--chip"
+            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                    class="lc-plain po-btn po-btn--sm po-btn--chip"
                     aria-pressed="@(_category == AllCategories ? "true" : "false")"
-                    @onclick="@(() => { _ = AudioService.PlayTickAsync(); _category = AllCategories; })">
+                    Click="@(() => { _ = AudioService.PlayTickAsync(); _category = AllCategories; })">
                 All (@PromptLibrary.All.Count)
-            </button>
+            </RadzenButton>
             @foreach (var category in PromptLibrary.Categories)
             {
                 var count = PromptLibrary.InCategory(category).Count;
-                <button type="button"
-                        class="po-btn po-btn--sm po-btn--chip"
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                        class="lc-plain po-btn po-btn--sm po-btn--chip"
                         aria-pressed="@(_category == category ? "true" : "false")"
-                        @onclick="@(() => { _ = AudioService.PlayTickAsync(); _category = category; })">
+                        Click="@(() => { _ = AudioService.PlayTickAsync(); _category = category; })">
                     @category (@count)
-                </button>
+                </RadzenButton>
             }
         </div>
 
         <div class="prompt-picker__grid">
             @foreach (var template in PromptLibrary.InCategory(_category))
             {
-                <button type="button"
-                        class="prompt-picker__card @(IsCurrent(template.Text) ? "prompt-picker__card--active" : "")"
-                        @onclick="() => SelectAsync(template.Text)">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                        class="@(IsCurrent(template.Text) ? "lc-plain prompt-picker__card prompt-picker__card--active" : "lc-plain prompt-picker__card")"
+                        Click="() => SelectAsync(template.Text)">
                     <span class="prompt-picker__card-head">
                         <span class="prompt-picker__card-emoji" aria-hidden="true">@template.Emoji</span>
                         <span class="prompt-picker__card-title">@template.Title</span>
@@ -57,7 +57,7 @@
                         }
                     </span>
                     <span class="prompt-picker__card-text">@Excerpt(template.Text)</span>
-                </button>
+                </RadzenButton>
             }
         </div>
         </div>

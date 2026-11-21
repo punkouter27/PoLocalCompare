@@ -40,20 +40,20 @@
            row of their own, offering only outcomes the loaded rows actually contain. The count
            moved up from under the table, where it sat below everything it was counting. *@
         <div class="archive__bar">
-            <input type="search" class="archive__search" placeholder="Search prompt or model…"
-                   aria-label="Search loaded duels by prompt or model name"
-                   value="@_search"
-                   @oninput="OnSearchInput" />
+            <RadzenTextBox type="search" class="lc-plain archive__search" Placeholder="Search prompt or model…"
+                           aria-label="Search loaded duels by prompt or model name"
+                           Value="@_search" Immediate="true"
+                           Change="OnSearchInput" />
             <div class="archive__filters" role="group" aria-label="Filter by outcome">
                 @foreach (var (key, label) in Outcomes)
                 {
                     var count = OutcomeCount(key);
                     if (key != "all" && count == 0) continue;
-                    <button type="button" class="po-btn po-btn--sm po-btn--chip"
+                    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--chip"
                             aria-pressed="@(_outcome == key ? "true" : "false")"
-                            @onclick="@(() => SelectOutcome(key))">
+                            Click="@(() => SelectOutcome(key))">
                         @label <span class="archive__chip-count">@count</span>
-                    </button>
+                    </RadzenButton>
                 }
             </div>
             <span class="archive__count" role="status">@CountSummary</span>
@@ -111,18 +111,18 @@
                         </span>
                     </Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ArchiveRow" Title="Actions" Sortable="false" Width="11.5rem">
+                <RadzenDataGridColumn TItem="ArchiveRow" Title="Actions" Sortable="false" Width="13.5rem">
                     <Template Context="r">
                         @{
                             var d = r.Duel;
                         }
                         <div class="archive__row-actions">
-                            <button type="button"
-                                    class="po-btn po-btn--sm archive__row-btn"
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                                    class="lc-plain po-btn po-btn--sm archive__row-btn"
                                     aria-label="@($"Re-run {d.LeftModelName} vs {d.RightModelName} with the same prompt")"
                                     title="Re-run with the same prompt"
-                                    disabled="@_rerunning"
-                                    @onclick="@(() => RerunAsync(d))"><span aria-hidden="true">⚔</span><span class="archive__row-btn-label" aria-hidden="true">Re-run</span></button>
+                                    Disabled="@_rerunning"
+                                    Click="@(() => RerunAsync(d))"><span aria-hidden="true">⚔</span><span class="archive__row-btn-label" aria-hidden="true">Re-run</span></RadzenButton>
                             <a class="po-btn po-btn--sm archive__row-btn"
                                href="@($"/api/duels/{d.DuelId}/report")"
                                aria-label="Download lab report (HTML)"
@@ -143,9 +143,9 @@
             <div class="archive__pagination">
                 @* Disabled while any list request is in flight: a double-click used to fire two
                    requests from the same cursor and append the same page twice. *@
-                <button type="button" class="po-btn" disabled="@_fetching" @onclick="LoadMoreAsync">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn" Disabled="@_fetching" Click="LoadMoreAsync">
                     @(_fetching ? "Loading…" : "Load More")
-                </button>
+                </RadzenButton>
             </div>
         }
         @if (!string.IsNullOrEmpty(_error))
@@ -225,9 +225,9 @@
                     || r.Duel.PromptSummary.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
         .ToList();
 
-    private void OnSearchInput(ChangeEventArgs e)
+    private void OnSearchInput(string? value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value ?? string.Empty;
         SyncQuery();
     }
 

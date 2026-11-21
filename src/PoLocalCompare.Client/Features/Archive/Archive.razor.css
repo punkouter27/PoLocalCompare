@@ -28,7 +28,7 @@
 /* Layout only — the look is .po-btn .po-btn--sm's. They were a private 32px button with raw
    px sizes and their own hover colour; a square minimum keeps the glyph-only pair from
    reading as two different widths. */
-.archive__row-btn {
+::deep .archive__row-btn {
     flex: 0 0 auto;
     min-width: var(--target-min);
 }
@@ -131,7 +131,7 @@
     margin-inline-start: var(--space-xs);
 }
 
-.archive__search {
+::deep .archive__search {
     flex: 1 1 14rem;
     max-width: 24rem;
     padding: var(--space-xs) var(--space-sm);

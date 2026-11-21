@@ -15,7 +15,7 @@
 
 /* Layout-only, alongside .po-btn: the library opens from here, so it needs to sit clear of
    the textarea above it. */
-.prompt-picker__disclosure {
+::deep .prompt-picker__disclosure {
     margin-top: var(--space-xs);
 }
 
@@ -41,7 +41,7 @@
     gap: var(--space-sm);
 }
 
-.prompt-picker__card {
+::deep .prompt-picker__card {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
@@ -54,17 +54,17 @@
     transition: border-color var(--transition-fast), transform var(--transition-fast);
 }
 
-.prompt-picker__card:hover {
+::deep .prompt-picker__card:hover {
     border-color: var(--accent-blue);
     transform: translateY(-1px);
 }
 
-.prompt-picker__card--active {
+::deep .prompt-picker__card--active {
     border-color: var(--po-accent);
     background: var(--surface-accent);
 }
 
-.prompt-picker__card:focus-visible {
+::deep .prompt-picker__card:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
 }
@@ -104,7 +104,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .prompt-picker__card:hover {
+    ::deep .prompt-picker__card:hover {
         transform: none;
     }
 }

@@ -23,8 +23,9 @@
 }
 else
 {
-    <button type="button" class="ms-sign-in ms-sign-in--@Size.ToString().ToLowerInvariant() @SizeClass()"
-            @onclick="OnClick">
+    <span class="ms-sign-in-wrap">
+    <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="@($"lc-plain ms-sign-in ms-sign-in--{Size.ToString().ToLowerInvariant()} {SizeClass()}")"
+            Click="OnClick">
         <svg class="ms-sign-in__logo" aria-hidden="true" focusable="false"
              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"
              width="@LogoSize" height="@LogoSize">
@@ -34,7 +35,8 @@ else
             <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
         </svg>
         <span>@Label</span>
-    </button>
+    </RadzenButton>
+    </span>
 }
 
 @code {

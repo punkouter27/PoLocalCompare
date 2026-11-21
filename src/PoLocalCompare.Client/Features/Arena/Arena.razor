@@ -38,7 +38,7 @@
                onclick="System.Threading.Tasks.Task RetryLoadAsync()" as JavaScript and the
                "Try again" button — the only recovery on a transient load failure — did
                nothing at all when clicked. *@
-            <button type="button" class="po-btn po-btn--primary" @onclick="RetryLoadAsync" disabled="@_reloading">
+            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--primary" Click="RetryLoadAsync" Disabled="@_reloading">
                 @if (_reloading)
                 {
                     @:Reloading…
@@ -47,7 +47,7 @@
                 {
                     <text><span aria-hidden="true">↻</span> Try again</text>
                 }
-            </button>
+            </RadzenButton>
             <a class="po-btn" href="/"><span aria-hidden="true">⚔</span> Start a new duel</a>
             <a class="po-btn" href="/archive"><span aria-hidden="true">📁</span> Browse the archive</a>
         </PageActions>
@@ -71,9 +71,9 @@
             <span class="arena__prompt-text @(_promptOpen ? "arena__prompt-text--open" : null)">Prompt: <em>@_duel.PromptText</em></span>
             @if (_duel.PromptText.Length > PromptClampChars)
             {
-                <button type="button" class="po-btn po-btn--sm po-btn--ghost arena__prompt-toggle"
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--ghost arena__prompt-toggle"
                         aria-expanded="@(_promptOpen ? "true" : "false")"
-                        @onclick="() => _promptOpen = !_promptOpen">@(_promptOpen ? "less" : "more")</button>
+                        Click="() => _promptOpen = !_promptOpen">@(_promptOpen ? "less" : "more")</RadzenButton>
             }
             @if (!string.IsNullOrWhiteSpace(_duel.OwnerId))
             {
@@ -132,14 +132,14 @@
                     "right" => $"Show {RightDisplayName}",
                     _ => "Show both outputs",
                 };
-                <button type="button"
-                        class="po-btn po-btn--sm po-btn--chip"
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                        class="lc-plain po-btn po-btn--sm po-btn--chip"
                         aria-pressed="@(_mobileFocus == value ? "true" : "false")"
                         aria-label="@fullName"
                         title="@fullName"
-                        @onclick="() => _mobileFocus = value">
+                        Click="() => _mobileFocus = value">
                     @label
-                </button>
+                </RadzenButton>
             }
         </div>
 
@@ -273,9 +273,9 @@
                        meaning almost the same thing. First and primary when it shows. *@
                     @if (failed)
                     {
-                        <button type="button" class="po-btn @(_tournamentId is null ? "po-btn--primary" : "po-btn--warn")"
-                                disabled="@(_retrying || _submitting)"
-                                @onclick="RetryDuelAsync">
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="@(_tournamentId is null ? "lc-plain po-btn po-btn--primary" : "lc-plain po-btn po-btn--warn")"
+                                Disabled="@(_retrying || _submitting)"
+                                Click="RetryDuelAsync">
                             @if (_retrying)
                             {
                                 @:Starting…
@@ -284,7 +284,7 @@
                             {
                                 <text><span aria-hidden="true">🔄</span> Retry duel</text>
                             }
-                        </button>
+                        </RadzenButton>
                     }
                     <a class="po-btn @(_tournamentId is null && !failed ? "po-btn--primary" : "")" href="/"><span aria-hidden="true">⚔</span> New duel</a>
                 }

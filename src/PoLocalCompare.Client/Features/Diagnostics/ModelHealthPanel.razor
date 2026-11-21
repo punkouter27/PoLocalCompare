@@ -18,11 +18,11 @@
     </div>
 
     <div class="mh-actions">
-        <button type="button" class="po-link-btn filled small" id="mh-run">Test all models</button>
-        <button type="button" class="po-link-btn outlined small" id="mh-cancel" disabled>Cancel</button>
-        <button type="button" class="po-link-btn outlined small" id="mh-refresh">Reload list</button>
-        <input class="mh-prompt" id="mh-prompt" aria-label="Test prompt"
-               value="In one sentence, explain what an API is." />
+        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-link-btn filled small" id="mh-run">Test all models</RadzenButton>
+        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-link-btn outlined small" id="mh-cancel" Disabled="true">Cancel</RadzenButton>
+        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-link-btn outlined small" id="mh-refresh">Reload list</RadzenButton>
+        <RadzenTextBox class="lc-plain mh-prompt" id="mh-prompt" aria-label="Test prompt"
+                       Value="In one sentence, explain what an API is." />
     </div>
 
     <div class="mh-table-wrap" tabindex="0" role="region" aria-labelledby="diag-models">

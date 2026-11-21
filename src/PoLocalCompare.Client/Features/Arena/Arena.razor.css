@@ -24,7 +24,7 @@
     line-clamp: unset;
 }
 
-.arena__prompt-toggle {
+::deep .arena__prompt-toggle {
     flex: 0 0 auto;
     padding-inline: var(--space-xs);
 }

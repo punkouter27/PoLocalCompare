@@ -31,14 +31,14 @@
                             {
                                 <p><strong>Inner:</strong> @ex.InnerException.Message</p>
                             }
-                            <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="Recover">Retry</button>
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary" Click="Recover">Retry</RadzenButton>
                         </div>
                     }
                     else
                     {
                         <div class="prod-error-panel">
                             <p>An unexpected error occurred. Please refresh the page or try again later.</p>
-                            <button type="button" class="po-btn po-btn--sm po-btn--secondary" @onclick="Recover">Retry</button>
+                            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--secondary" Click="Recover">Retry</RadzenButton>
                         </div>
                     }
                 </ErrorContent>

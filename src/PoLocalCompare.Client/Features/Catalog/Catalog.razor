@@ -56,27 +56,27 @@
                 <div class="catalog__tabs" role="group" aria-label="Which models to list">
                     @foreach (var tab in Tabs)
                     {
-                        <button type="button"
-                                class="po-btn po-btn--sm po-btn--chip"
+                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                                class="lc-plain po-btn po-btn--sm po-btn--chip"
                                 aria-pressed="@(ActiveTab == tab.Key ? "true" : "false")"
-                                @onclick="@(() => SelectTab(tab.Key))">
+                                Click="@(() => SelectTab(tab.Key))">
                             @tab.Label
-                        </button>
+                        </RadzenButton>
                     }
                 </div>
             }
 
             @if (ActiveTab == CatalogTab.Browser && _discovery.BundleAvailable)
             {
-                <input type="search" class="catalog__input catalog__search" placeholder="Search builds…"
-                       aria-label="Search browser builds by id"
-                       @bind="_search" @bind:event="oninput" @bind:after="RefreshBrowserRows" />
-                <button type="button"
-                        class="po-btn po-btn--sm po-btn--chip"
+                <RadzenTextBox type="search" class="lc-plain catalog__input catalog__search" Placeholder="Search builds…"
+                               aria-label="Search browser builds by id" Immediate="true"
+                               @bind-Value="_search" @bind-Value:after="RefreshBrowserRows" />
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text"
+                        class="lc-plain po-btn po-btn--sm po-btn--chip"
                         aria-pressed="@(_lowResourceOnly ? "true" : "false")"
-                        @onclick="ToggleLowResource">
+                        Click="ToggleLowResource">
                     Low-VRAM builds only
-                </button>
+                </RadzenButton>
                 <span class="po-hint catalog__count">@BrowserCountSummary</span>
             }
         </div>
@@ -192,12 +192,12 @@
                                     <td data-label="Model"><span class="catalog__id">@cached.Id</span></td>
                                     <td data-label="Size"><span class="catalog__num">@FormatMb(cached.Mb)</span></td>
                                     <td class="po-cell--bare">
-                                        <button type="button" class="po-btn po-btn--sm po-btn--warn"
+                                        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--warn"
                                                 aria-label="@($"Delete cached weights for {cached.Id}")"
-                                                disabled="@(_deleting is not null)"
-                                                @onclick="@(() => DeleteWeightsAsync(cached))">
+                                                Disabled="@(_deleting is not null)"
+                                                Click="@(() => DeleteWeightsAsync(cached))">
                                             @(_deleting == cached.Id ? "Deleting…" : "Delete")
-                                        </button>
+                                        </RadzenButton>
                                     </td>
                                 </tr>
                             }
@@ -294,7 +294,7 @@
     private string? _renameError;
 
     private static readonly AddDiscoveredModelRequestValidator AddValidator = new();
-    private ElementReference _renameInput;
+    private RadzenTextBox? _renameInput;
     private bool _focusRename;
 
     private void BeginRename(string id)
@@ -315,14 +315,14 @@
         @<text>
             @if (_renaming == id)
             {
-                <input class="catalog__input" @ref="_renameInput"
-                       aria-label="@($"Display name for {id}")"
-                       aria-invalid="@(_renameError is not null ? "true" : null)"
-                       aria-describedby="@(_renameError is not null ? "catalog-rename-error" : null)"
-                       maxlength="@AddDiscoveredModelRequestValidator.MaxDisplayNameLength"
-                       value="@NameFor(id, suggested)"
-                       @oninput="@(e => { _names[id] = e.Value?.ToString() ?? string.Empty; _renameError = null; })"
-                       @onkeydown="@(e => OnRenameKeyDownAsync(e, kind, id, suggested))" />
+                <RadzenTextBox class="lc-plain catalog__input" @ref="_renameInput"
+                               aria-label="@($"Display name for {id}")"
+                               aria-invalid="@(_renameError is not null ? "true" : null)"
+                               aria-describedby="@(_renameError is not null ? "catalog-rename-error" : null)"
+                               MaxLength="@AddDiscoveredModelRequestValidator.MaxDisplayNameLength"
+                               Value="@NameFor(id, suggested)" Immediate="true"
+                               Change="@(v => { _names[id] = v ?? string.Empty; _renameError = null; })"
+                               @onkeydown="@(e => OnRenameKeyDownAsync(e, kind, id, suggested))" />
                 @if (_renameError is not null)
                 {
                     <span id="catalog-rename-error" class="catalog__field-error">@_renameError</span>
@@ -340,23 +340,23 @@
             @{
                 var unavailableReason = AddUnavailableReason(kind, id);
             }
-            <button type="button" class="po-btn po-btn--sm po-btn--primary"
+            <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--primary"
                     aria-label="@($"Add {id} as {NameFor(id, suggested)}")"
                     title="@unavailableReason"
-                    disabled="@(_adding is not null || unavailableReason is not null)"
-                    @onclick="@(() => AddAsync(kind, id, suggested))">
+                    Disabled="@(_adding is not null || unavailableReason is not null)"
+                    Click="@(() => AddAsync(kind, id, suggested))">
                 @(_adding == id ? "Adding…" : "Add")
-            </button>
+            </RadzenButton>
             @if (_renaming == id)
             {
-                <button type="button" class="po-btn po-btn--sm po-btn--ghost"
-                        @onclick="@(() => _renaming = null)">Cancel</button>
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--ghost"
+                        Click="@(() => _renaming = null)">Cancel</RadzenButton>
             }
             else
             {
-                <button type="button" class="po-btn po-btn--sm po-btn--ghost"
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn po-btn--sm po-btn--ghost"
                         aria-label="@($"Rename {id} before adding")"
-                        @onclick="@(() => BeginRename(id))">Rename</button>
+                        Click="@(() => BeginRename(id))">Rename</RadzenButton>
             }
         </div>;
 
@@ -428,7 +428,7 @@
         if (_focusRename)
         {
             _focusRename = false;
-            try { await _renameInput.FocusAsync(); }
+            try { if (_renameInput is not null) await _renameInput.Element.FocusAsync(); }
             catch (Exception ex) when (ex is JSException or InvalidOperationException) { /* row scrolled out of the virtual window */ }
         }
         if (!firstRender) return;

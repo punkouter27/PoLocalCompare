@@ -17,9 +17,9 @@
          A runtime audit measured 3.9-11.7 s to first heading across the app's routes, and that
          payload is the reason.
 
-         Radzen.Blazor has been removed (for the second time, on 2026-09-26: +3.26 MB, +25.7% of
-         the download, for two grids and one chart). The Archive and Catalog are semantic
-         .po-tables and the model profile's rating curve is inline SVG.
+         Radzen.Blazor is the component library (owner decision 2026-11-21, "Radzen wins,
+         convert"; it had been removed on 2026-09-26 over +3.26 MB / +25.7% of the download).
+         Every button and text box is a Radzen control; read-only data tables stay .po-table.
 
          So the Router's NotFoundPage is the ONLY trimming blocker. A trimmed publish builds and
          boots — the shell mounts, routing works, the nav renders live API data — but the

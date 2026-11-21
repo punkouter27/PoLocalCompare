@@ -231,8 +231,9 @@
     white-space: nowrap;
 }
 
+/* Status text is --text on the soft tint (Po standard): green on the green tint measured 4.32:1. */
 .home__health--ok {
-    color: var(--accent-green);
+    color: var(--text);
     border-color: var(--success-border);
     background: var(--success-surface);
 }
@@ -242,7 +243,7 @@
 }
 
 .home__health--warn {
-    color: var(--accent-yellow);
+    color: var(--text);
     border-color: var(--warn-border);
     background: var(--warn-surface);
 }
@@ -265,7 +266,7 @@
 }
 
 /* ── Unavailable models (held back behind a toggle) ─────────────────────── */
-.home__unavailable-toggle {
+::deep .home__unavailable-toggle {
     margin-top: var(--space-md);
 }
 
@@ -360,7 +361,7 @@
 
 /* The slot's own clear button, pushed to its far edge. Size comes from the global target
    floor on <button> (24px, 44px on touch). */
-.home__slot-clear {
+::deep .home__slot-clear {
     flex: 0 0 auto;
     margin-inline-start: auto;
     padding: 0;
@@ -374,7 +375,7 @@
     cursor: pointer;
 }
 
-.home__slot-clear:hover {
+::deep .home__slot-clear:hover {
     color: var(--text);
     background: var(--surface-2);
 }
@@ -471,7 +472,7 @@
 }
 
 /* ── Textarea + char counter (Finding #6) ───────────────────────────── */
-.home__textarea {
+::deep .home__textarea {
     width: 100%;
     box-sizing: border-box;
     min-height: 8.5rem;
@@ -496,7 +497,7 @@
 
    The cyan border is kept — it is the surface's own affordance and reads on hover-into-focus
    — but it is now additive to the ring rather than a replacement for it. */
-.home__textarea:focus-visible {
+::deep .home__textarea:focus-visible {
     outline: 2px solid var(--accent-blue);
     outline-offset: var(--focus-ring-offset);
     box-shadow: var(--focus-ring);
@@ -504,15 +505,15 @@
 }
 
 /* Pointer focus keeps the quieter treatment, which is what the removed rule was really for. */
-.home__textarea:focus:not(:focus-visible) {
+::deep .home__textarea:focus:not(:focus-visible) {
     border-color: var(--accent-cyan);
 }
 
-.home__textarea--warn {
+::deep .home__textarea--warn {
     border-color: var(--accent-yellow);
 }
 
-.home__textarea::placeholder {
+::deep .home__textarea::placeholder {
     color: var(--text-dim);
 }
 
@@ -606,7 +607,7 @@
         gap: var(--space-2xs);
     }
 
-    .home__filters > .po-btn {
+    .home__filters > ::deep .po-btn {
         min-width: 0;
         padding-inline: var(--space-xs);
         white-space: nowrap;

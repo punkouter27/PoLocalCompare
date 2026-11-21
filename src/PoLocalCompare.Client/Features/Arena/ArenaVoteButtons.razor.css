@@ -29,7 +29,7 @@
 }
 
 /* Layout only — the look is .po-btn's, per the app-wide rule. */
-.arena-vote__btn {
+::deep .arena-vote__btn {
     /* ~180px, from the scale: keeps the two buttons a matched pair for short model names. */
     min-width: calc(var(--space-2xl) * 4);
 }

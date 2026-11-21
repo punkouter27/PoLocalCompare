@@ -14,10 +14,10 @@
             var cls = ActionClass(action);
             @if (action.Disabled)
             {
-                <button type="button" class="@cls" disabled="@action.Disabled"
-                        @onclick="action.OnClick" title="@(action.Title ?? action.Label)">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Radzen.Variant.Text" class="@($"lc-plain {cls}")" Disabled="@action.Disabled"
+                        Click="action.OnClick" title="@(action.Title ?? action.Label)">
                     @action.Label
-                </button>
+                </RadzenButton>
             }
             else if (!string.IsNullOrEmpty(action.Href))
             {
@@ -26,10 +26,10 @@
             }
             else
             {
-                <button type="button" class="@cls" disabled="@action.Disabled"
-                        @onclick="action.OnClick" title="@(action.Title ?? action.Label)">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Radzen.Variant.Text" class="@($"lc-plain {cls}")" Disabled="@action.Disabled"
+                        Click="action.OnClick" title="@(action.Title ?? action.Label)">
                     @action.Label
-                </button>
+                </RadzenButton>
             }
         }
     </div>
