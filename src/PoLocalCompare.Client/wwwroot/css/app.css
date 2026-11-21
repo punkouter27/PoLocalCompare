@@ -1005,11 +1005,17 @@ p a, li a, td a {
    disagreed with each other about both the breakpoint and what a phone should see.
    Every table in the app, the Archive and Catalog included, uses it. */
 /* The stamp (po-tokens.css .po-version) sits above BottomNav where BottomNav shows (signed in), and above
-   Home's Compare bar, which is pinned along the bottom below 1080px. po-tokens.css also pads
-   <main> by the same lift, so the last row of a page clears both. */
+   Home's Compare bar, which is pinned along the bottom below 1080px. Up to 768px the stamp flows
+   after <main> and its bottom margin carries the lift; from 769px it is fixed and `bottom` does. */
 @media (max-width: 640px) {
     :root:has(.bottom-nav) {
         --po-stamp-lift: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 768px) {
+    :root:has(.home__compare) {
+        --po-stamp-lift: calc(6rem + env(safe-area-inset-bottom, 0px));
     }
 }
 

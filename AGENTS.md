@@ -124,6 +124,8 @@ Every command below was run on 2026-11-20 from the repo root (Windows, PowerShel
 | `tests/<App>.Unit`, `.Integration`, `[.E2E…]` | Plus `tests/Shared/` (TestModels.cs, DockerFact.cs) linked into Integration and E2EAPI | One copy of the test seeding and the Docker skip |
 | `/diag`: banner + API / Data / Services | Signed in, a **Model health** panel follows the three sections | A one-prompt smoke test of every registered model; reads the model list, so never shown signed out |
 | Sign-in page shows the header Sign in button | Hidden on `/login` only | The page's own "Sign in with Microsoft" card is the one sign-in control there |
+| Version badge fixed bottom-right | Up to 768px it flows as the last item of `.page`, bottom-right after all content (margin carries `--po-stamp-lift` over BottomNav / Home's Compare bar); fixed from 769px | A fixed badge sat on /diag cards while scrolling on phones (2026-11-21) |
+| /diag lists the services | Table + Blob Storage (data); Foundry, Gemini, Key Vault, Entra ID, Application Insights, Hugging Face Hub, Ollama (services). Only Table, Foundry and Key Vault feed `/health`; the rest are diag-only and read Degraded on failure. Gemini needs `Gemini:ApiKey`, Ollama is probed in Development only, otherwise "Not used in this environment" | Every external service is probed live, without letting an optional one fail the deploy gate |
 
 ### 1. What Is This Project?
 

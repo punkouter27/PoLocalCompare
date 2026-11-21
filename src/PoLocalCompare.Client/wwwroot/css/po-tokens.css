@@ -200,9 +200,18 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
   pointer-events: none;
   opacity: 0.9;
 }
-/* Apps with a bottom nav on phones lift the stamp above it by setting --po-stamp-lift. */
+/* Phones: a fixed badge sits on whatever card scrolls under it, so the stamp leaves the fixed layer
+   and flows as the last item of the .page column, bottom-right, after all content. It still clears
+   a phone bottom nav (or Home's Compare bar) through --po-stamp-lift, set in app.css. */
 @media (max-width: 768px) {
-  .po-version { bottom: calc(max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) + var(--po-stamp-lift, 0px)); }
+  .po-version {
+    position: static;
+    align-self: flex-end;
+    margin:
+      0
+      max(var(--po-space-3), env(safe-area-inset-right, 0px))
+      calc(max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) + var(--po-stamp-lift, 0px));
+  }
 }
 
 /* ── Shell: /diag status cards ── */
@@ -217,12 +226,12 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
   border: 1px solid var(--po-border);
   border-radius: var(--po-radius);
 }
-/* ── Shell: main never runs under the version badge (or under a phone bottom nav, via --po-stamp-lift) ── */
+/* ── Shell: main never runs under the fixed version badge; on phones the stamp flows after main ── */
 main {
   padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px));
 }
 @media (max-width: 768px) {
-  main { padding-bottom: calc(var(--po-space-6) + var(--po-stamp-lift, 0px) + env(safe-area-inset-bottom, 0px)); }
+  main { padding-bottom: var(--po-space-3); }
 }
 
 /* ── Shell: the one Sign in button (and any link that looks like a button), same on every page ── */
