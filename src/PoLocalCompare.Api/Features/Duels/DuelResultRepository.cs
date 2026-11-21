@@ -7,7 +7,7 @@ namespace PoLocalCompare.Api.Features.Duels;
 public sealed class DuelResultRepository : IDuelResultRepository
 {
     private const string TableName = "DuelResults";
-    private const string BlobContainerName = "duel-html-outputs";
+    internal const string BlobContainerName = "duel-html-outputs";
     private const long MaxTablePropertyBytes = 64 * 1024; // 64KB
 
     /// <summary>

@@ -81,7 +81,15 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         var table = checks.Single(c => c.GetProperty("label").GetString() == "Table Storage");
         Assert.Equal("data", table.GetProperty("group").GetString());
         Assert.Equal("Healthy", table.GetProperty("status").GetString());
+        var blob = checks.Single(c => c.GetProperty("label").GetString() == "Blob Storage");
+        Assert.Equal("data", blob.GetProperty("group").GetString());
+        Assert.Equal("Healthy", blob.GetProperty("status").GetString());
         Assert.Equal("service", checks.Single(c => c.GetProperty("label").GetString() == "Azure Key Vault").GetProperty("group").GetString());
+
+        // Every external service the app calls is listed, configured here or not.
+        string[] services = ["Azure AI Foundry", "Google Gemini", "Microsoft Entra ID", "Application Insights", "Hugging Face Hub", "Ollama"];
+        foreach (var label in services)
+            Assert.Equal("service", checks.Single(c => c.GetProperty("label").GetString() == label).GetProperty("group").GetString());
     }
 
     [DockerFact]

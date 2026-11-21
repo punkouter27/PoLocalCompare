@@ -162,23 +162,45 @@ try
         .AddCheck<TableStorageHealthCheck>(
             "azureTableStorage",
             tags: [HealthCheckTags.Dependency])
+        // Below here: /diag only (DiagOnly) and Degraded on failure, so a hiccup in a service the
+        // app can limp along without never fails /health and with it the deploy's health gate.
+        .AddCheck<BlobStorageHealthCheck>(
+            "azureBlobStorage",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly])
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "azureAiFoundry",
             HealthStatus.Unhealthy,
             [HealthCheckTags.Dependency],
-            "AzureAiFoundry:Endpoint", "Azure AI Foundry")
+            "AzureAiFoundry:Endpoint", "Azure AI Foundry", "", false)
+        .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
+            "gemini",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly],
+            "Gemini:Endpoint", "Google Gemini", "Gemini:ApiKey", false)
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "keyVault",
             HealthStatus.Unhealthy,
             [HealthCheckTags.Dependency],
-            "KeyVault:Uri", "Key Vault")
-        // Sign-in provider reachability, for /diag only: an Entra hiccup must not fail /health
-        // and with it the deploy's health gate, since signed-out pages and /diag still work.
+            "KeyVault:Uri", "Key Vault", "", false)
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "entraId",
             HealthStatus.Degraded,
             [HealthCheckTags.DiagOnly],
-            "AzureAd:Authority", "Microsoft Entra ID");
+            "AzureAd:Authority", "Microsoft Entra ID", "", false)
+        .AddCheck<AppInsightsHealthCheck>(
+            "appInsights",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly])
+        .AddCheck<HuggingFaceHubHealthCheck>(
+            "huggingFace",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly])
+        .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
+            "ollama",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly],
+            "Ollama:BaseUrl", "Ollama", "", true);
 
     // RFC 7807 bodies for unhandled exceptions (UseExceptionHandler below), stamped with the
     // request id so a user-reported error can be found in the log.

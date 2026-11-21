@@ -168,7 +168,8 @@ public sealed class NavigationUiTests : UiTestBase
         await Assertions.Expect(banner).Not.ToContainTextAsync("Checking…", new() { Timeout = 30_000 });
         await Assertions.Expect(banner).ToContainTextAsync(new System.Text.RegularExpressions.Regex("^(Everything is working|Working, with [0-9]+ things? degraded|Not working)"));
         await Assertions.Expect(page.Locator("[data-group=api] .po-diag__card")).ToContainTextAsync("ms");
-        await Assertions.Expect(page.Locator("[data-group=data] .po-diag__card")).ToContainTextAsync("Table Storage");
+        await Assertions.Expect(page.Locator("[data-group=data] .po-diag__card[data-check=azureTableStorage]")).ToContainTextAsync("Table Storage");
+        await Assertions.Expect(page.Locator("[data-group=data] .po-diag__card[data-check=azureBlobStorage]")).ToContainTextAsync("Blob Storage");
         await Assertions.Expect(page.Locator("[data-group=service]")).ToContainTextAsync("Azure AI Foundry");
         await Assertions.Expect(page.Locator(".po-header__title")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".po-header .po-link-btn.filled.small")).ToHaveTextAsync("Sign in");

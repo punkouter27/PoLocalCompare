@@ -24,9 +24,14 @@ public static class DiagEndpoints
     private static readonly Dictionary<string, Descriptor> Descriptors = new(StringComparer.Ordinal)
     {
         ["azureTableStorage"] = new("data", "Table Storage", "Stores models, duels, ratings and tournaments."),
+        ["azureBlobStorage"] = new("data", "Blob Storage", "Keeps duel pages too big for a table row."),
         ["azureAiFoundry"] = new("service", "Azure AI Foundry", "Runs the remote models and the AI judge."),
+        ["gemini"] = new("service", "Google Gemini", "Runs the Gemini models and the second-opinion judge."),
         ["keyVault"] = new("service", "Azure Key Vault", "Holds API keys and connection strings for the hosted app."),
         ["entraId"] = new("service", "Microsoft Entra ID", "Signs people in with a Microsoft account."),
+        ["appInsights"] = new("service", "Application Insights", "Collects the app's logs and sign-in events."),
+        ["huggingFace"] = new("service", "Hugging Face Hub", "Download and like counts on the model catalog."),
+        ["ollama"] = new("service", "Ollama", "Runs local models on a developer's own machine."),
     };
 
     /// <summary>The build stamp (UTC yyMMdd) from the one BuildVersion assembly metadata key.</summary>
