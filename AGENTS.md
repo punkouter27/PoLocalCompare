@@ -3,7 +3,14 @@
 Read this before changing anything; CLAUDE.md only points here. The first part is the Po web app
 standard this repo follows; everything after "This repo" is specific to PoLocalCompare.
 
-## Po Web App Standard
+## 1. Standard
+
+> This repo owns every file in it. Nothing here is generated from, synced with, or required to stay identical to
+> another repository. Headers like "SAME FILE IN EVERY PO …", "Generated from po-shared … DO NOT EDIT", and scripts
+> that copy files into or check other repos are forbidden. Only Azure resources in the `PoShared` resource group
+> may be shared.
+
+### Po Web App Standard
 
 This repo is one of several independent Po apps. It follows the conventions below, but it owns every file:
 nothing is generated from, synced with, or required to stay identical to another repository. Change anything
@@ -74,6 +81,36 @@ installs the `maui-android` workload and builds the Android target, so the clien
 
 ### Azure naming
 App Service `app-<repo lowercase>`; per-app resources named `<type>-<repo lowercase>`; shared things only in `PoShared`.
+
+## 2. Concurrent work
+
+> Several sessions (people and agents) commit to this repo, sometimes at the same time.
+> - Before every commit and every push: `git fetch origin && git rebase --autostash origin/master`.
+> - Stage only the files you changed (`git add <paths>`); never `git add -A` / `git add .`; check `git diff --cached`.
+> - Never revert, reformat or overwrite changes you didn't make; keep the owner's recent decisions (e.g. features
+>   removed on purpose stay removed — here: the `/settings` page and its gear, removed 2026-11-19).
+> - Don't commit or sync from the IDE while an agent is working in this folder.
+> - Pushing `master` deploys production; changes to `.github/workflows/*` need a token with the `workflow` scope.
+
+## 3. Verification
+
+Every command below was run on 2026-11-20 from the repo root (Windows, PowerShell or Git Bash).
+
+| What | Command | Needs / notes |
+|---|---|---|
+| Format | `dotnet format PoLocalCompare.slnx --verify-no-changes` | exit 0 = clean |
+| Python lint | `uvx ruff check .` | `ruff.toml`; scripts/*.py |
+| Build | `dotnet build PoLocalCompare.slnx -c Release` | warnings are errors |
+| Unit (99) | `dotnet test tests/PoLocalCompare.Unit -c Release --no-build` | nothing |
+| Integration (50) | `dotnet test tests/PoLocalCompare.Integration -c Release --no-build` | Docker (Testcontainers Azurite); without it every case skips with "Docker is not running…" |
+| E2E API (22) | `dotnet test tests/PoLocalCompare.E2EAPI -c Release --no-build` | Docker; skips the same way |
+| E2E UI (21) | `dotnet test tests/PoLocalCompare.E2EUI -c Release --no-build` (set `HEADLESS=1` to hide the browser) | the app running at `BASE_URL` (default https://localhost:5001) and Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`); skips with the reason when either is missing. Suggest-matchup needs runnable remote models, i.e. Key Vault on |
+| Repo hygiene | `pwsh -NoProfile -File ./scripts/check-clean.ps1` | test budgets, dead CSS, cache-busters |
+| Run locally | `dotnet run --project src/PoLocalCompare.Api --launch-profile https` → https://localhost:5001 (and /diag) | Table/Blob storage: Azurite on 10000/10002 (`docker-compose.yml`), or point `ConnectionStrings__AzureTableStorage` / `ConnectionStrings__AzureBlobStorage` at another Azurite; Key Vault `kv-poshared2` through your `az login` |
+| Deploy | push to `master` → `.github/workflows/deploy.yml` (format, ruff, build, Unit, Integration, publish, deploy) | `*.md`, `docs/**`, `SCREENSHOTS/**` pushes do not deploy |
+| Deploy check | `curl -sI https://app-polocalcompare-win2.azurewebsites.net/health/live` | `X-Commit:` equals the pushed SHA |
+| Live | https://app-polocalcompare-win2.azurewebsites.net and https://app-polocalcompare-win2.azurewebsites.net/diag | /diag banner "Everything is working" |
+| Pinned versions | .NET SDK 10.0.400 (`global.json`, latestFeature roll-forward); Python 3.10+; ruff 0.17 (via `uvx`) | |
 
 ---
 
