@@ -101,14 +101,14 @@ public abstract class UiTestBase : IAsyncLifetime
     protected const string GuestIdentity = "GUEST_E2E_TEST";
 
     /// <summary>Builds the dev-only fake-auth URL that establishes a BFF cookie and lands on <paramref name="path"/>.</summary>
-    protected static string SeedAuthUrl(string path) =>
-        $"/auth/login/fake?user={GuestIdentity}&returnUrl={Uri.EscapeDataString(path)}";
+    protected static string SeedAuthUrl(string path, string user = GuestIdentity) =>
+        $"/auth/login/fake?user={Uri.EscapeDataString(user)}&returnUrl={Uri.EscapeDataString(path)}";
 
-    /// <summary>Signs in as a guest and lands on <paramref name="path"/>.</summary>
-    protected async Task<IPage> SignedInPageAsync(int width, int height, string path = "/", ColorScheme? colorScheme = null)
+    /// <summary>Signs in (as a guest unless <paramref name="user"/> is given) and lands on <paramref name="path"/>.</summary>
+    protected async Task<IPage> SignedInPageAsync(int width, int height, string path = "/", ColorScheme? colorScheme = null, string user = GuestIdentity)
     {
         var page = await NewPageAsync(width, height, colorScheme);
-        await page.GotoAsync(SeedAuthUrl(path));
+        await page.GotoAsync(SeedAuthUrl(path, user));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 45_000 });
         return page;
     }

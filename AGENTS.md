@@ -94,7 +94,7 @@ App Service `app-<repo lowercase>`; per-app resources named `<type>-<repo lowerc
 
 ## 3. Verification
 
-Every command below was run on 2026-11-20 from the repo root (Windows, PowerShell or Git Bash).
+Every command below was run on 2026-11-21 from the repo root (Windows, PowerShell or Git Bash).
 
 | What | Command | Needs / notes |
 |---|---|---|
@@ -104,7 +104,7 @@ Every command below was run on 2026-11-20 from the repo root (Windows, PowerShel
 | Unit (99) | `dotnet test tests/PoLocalCompare.Unit -c Release --no-build` | nothing |
 | Integration (50) | `dotnet test tests/PoLocalCompare.Integration -c Release --no-build` | Docker (Testcontainers Azurite); without it every case skips with "Docker is not running…" |
 | E2E API (22) | `dotnet test tests/PoLocalCompare.E2EAPI -c Release --no-build` | Docker; skips the same way |
-| E2E UI (21) | `dotnet test tests/PoLocalCompare.E2EUI -c Release --no-build` (set `HEADLESS=1` to hide the browser) | the app running at `BASE_URL` (default https://localhost:5001) and Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`); skips with the reason when either is missing. Suggest-matchup needs runnable remote models, i.e. Key Vault on |
+| E2E UI (21) | `pwsh -NoProfile -File ./scripts/run-e2eui.ps1` (`-Headed` to watch) | Runs against the **Release publish output** (what deploys): publishes `src/PoLocalCompare.Api -c Release -p:WasmApplicationEnvironmentName=Development` (.NET 10 bakes the client environment at publish; a plain publish boots as Production with no guest sign-in), starts Azurite (Docker) and the published app on https://localhost:5001, runs the tier headless, stops both. Needs Docker, nothing on 5001, Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`). Suggest-matchup needs runnable remote models, i.e. Key Vault through `az login` |
 | Repo hygiene | `pwsh -NoProfile -File ./scripts/check-clean.ps1` | test budgets, dead CSS, cache-busters |
 | Run locally | `dotnet run --project src/PoLocalCompare.Api --launch-profile https` → https://localhost:5001 (and /diag) | Table/Blob storage: Azurite on 10000/10002 (`docker-compose.yml`), or point `ConnectionStrings__AzureTableStorage` / `ConnectionStrings__AzureBlobStorage` at another Azurite; Key Vault `kv-poshared2` through your `az login` |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, ruff, build, Unit, Integration, publish, deploy) | `*.md`, `docs/**`, `SCREENSHOTS/**` pushes do not deploy |
@@ -125,7 +125,9 @@ Every command below was run on 2026-11-20 from the repo root (Windows, PowerShel
 | `/diag`: banner + API / Data / Services | Signed in, a **Model health** panel follows the three sections | A one-prompt smoke test of every registered model; reads the model list, so never shown signed out |
 | Sign-in page shows the header Sign in button | Hidden on `/login` only | The page's own "Sign in with Microsoft" card is the one sign-in control there |
 | Version badge fixed bottom-right | Up to 768px it flows as the last item of `.page`, bottom-right after all content (margin carries `--po-stamp-lift` over BottomNav / Home's Compare bar); fixed from 769px | A fixed badge sat on /diag cards while scrolling on phones (2026-11-21) |
-| /diag lists the services | Table + Blob Storage (data); Foundry, Gemini, Key Vault, Entra ID, Application Insights, Hugging Face Hub, Ollama (services). Only Table, Foundry and Key Vault feed `/health`; the rest are diag-only and read Degraded on failure. Gemini needs `Gemini:ApiKey`, Ollama is probed in Development only, otherwise "Not used in this environment" | Every external service is probed live, without letting an optional one fail the deploy gate |
+| /diag lists the services | Table + Blob Storage (data); Foundry, Gemini, Key Vault, Entra ID, Application Insights, Hugging Face Hub, Ollama (services). Only Table, Foundry and Key Vault feed `/health`; the rest are diag-only and read Degraded on failure. Gemini needs `Gemini:ApiKey`, Ollama is probed in Development only; a service switched off here on purpose reads **Off** (neutral grey pill, "Not used in this environment.", never counted as degraded). The API row is measured (server: time to answer the request; the page: the browser's round trip) | Every external service is probed live, without letting an optional one fail the deploy gate |
+| Status values | `Healthy` / `Degraded` / `Unhealthy`, plus `Off` | Production can honestly say "Everything is working" while Ollama is unused there |
+| Component library | Radzen.Blazor 12.2.0 (`Directory.Packages.props`) for every control; exceptions listed under "Layout and styling" below | Owner decision 2026-11-21, reversing the earlier "no component library" rule |
 
 ### 1. What Is This Project?
 
@@ -456,7 +458,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-11-20): **99 unit / 50 integration / 22 E2E-API / 21 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-11-21): **99 unit / 50 integration / 22 E2E-API / 21 E2E-UI**,
 all passing, and `scripts/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 
@@ -476,8 +478,10 @@ dotnet test tests/PoLocalCompare.E2EUI         # Playwright (needs the running a
 ```
 
 - Integration / E2E-API tests run in a **non-Production** host so the `X-Fake-User` guest bypass works.
-- E2E-UI needs a running app and `playwright install`; it runs **headed** by default (`HEADLESS=1` to
-  suppress) across a 390×844 mobile and 1440×900 desktop viewport, and is **not** run in CI.
+- E2E-UI runs against the Release publish output through `scripts/run-e2eui.ps1` (publishes, starts
+  Azurite and the published app, runs headless, stops both); by hand it needs a running app and
+  `playwright install`, and runs **headed** by default (`HEADLESS=1` to suppress), across a 390×844
+  mobile and 1440×900 desktop viewport. It is **not** run in CI.
 - CI (deploy.yml) runs the format check, ruff, the build and the **Unit and Integration** tiers before it
   publishes, so a red suite blocks the deploy. E2E-API runs locally (also through `scripts/ci-checks.ps1`);
   E2E-UI is local only (no GPU on the runner). Without Docker, Integration and E2E-API skip with one
@@ -711,6 +715,7 @@ dotnet test tests/PoLocalCompare.Unit          # pure logic, no Docker
 dotnet test tests/PoLocalCompare.Integration   # Testcontainers Azurite
 dotnet test tests/PoLocalCompare.E2EAPI        # API journeys
 dotnet test tests/PoLocalCompare.E2EUI         # Playwright (app must be running)
+pwsh -NoProfile -File ./scripts/run-e2eui.ps1   # the same tier against the Release publish (starts app + Azurite itself)
 dotnet test tests/PoLocalCompare.Unit --filter FullyQualifiedName~EloCalculatorTests
 ```
 
@@ -951,8 +956,22 @@ changing something a rule protects. A rule with no obvious reason usually has an
   take the short labels "Bracket"/"Ranks"; below 640px they leave the header for `BottomNav`.
   `--nav-height` is `--po-header-h`; the stamp sits above BottomNav through `--po-stamp-lift`.
 - **Status tints are the `--*-surface` / `--*-border` tokens, never an `rgba()` literal.**
-- **There is no component library — `.po-btn` and `.po-table` are the primitives.** Radzen has
-  been added and removed twice. **`.po-btn--chip` is the only filter chip** (with `aria-pressed`).
+- **Radzen is the component library (owner decision 2026-11-21: "Radzen wins, convert").** This
+  reverses the earlier rule "there is no component library — Radzen has been added and removed
+  twice". Every button is a `RadzenButton`, every text box a `RadzenTextBox` / `RadzenTextArea`, the
+  tournament entrant tick a `RadzenCheckBox`, the Archive a `RadzenDataGrid`, confirms go through
+  Radzen's `DialogService` (never `confirm()`). No raw `<button>`, `<input>`, `<textarea>` or
+  `<select>` in a `.razor` file. A control that keeps the app's look is
+  `ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn …"`: Radzen's theme
+  is imported into the `radzen` cascade layer (top of `app.css`), and `:where(.lc-plain)` reverts its
+  styling to the native control, so `.po-btn` / `.po-link-btn` and the scoped rules draw it exactly
+  as before. A scoped `.razor.css` rule for a class on a Radzen control is written
+  `::deep .class` (the child component's element carries no scope attribute). E2E hooks are the
+  same classes as before. **Allowed exceptions (the only ones):** read-only data tables stay
+  semantic `<table class="po-table">` (Catalog's three lists, Leaderboard, the model profile's kill
+  list, the Tournament standings, /diag's Model health table); native file inputs for resumable
+  uploads and native `<audio>`/`<video>` (none in this app today). Links styled as buttons stay
+  `<a class="po-btn">`. **`.po-btn--chip` is the only filter chip** (with `aria-pressed`).
 - **Every page title is `<PageHeader>`, and the four title hooks carry no styling.**
 - **Wide tables become cards below 640px** (`.po-table--cards`). The Archive and the profile's
   kill list override it to one or two unlabelled lines; the Archive's grid places cells explicitly.

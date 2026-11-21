@@ -48,13 +48,14 @@ $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.De
 | Unit | `tests/PoLocalCompare.Unit` | 99 | nothing | yes |
 | Integration | `tests/PoLocalCompare.Integration` | 50 | Docker (Testcontainers Azurite); skips without it | yes |
 | E2E API | `tests/PoLocalCompare.E2EAPI` | 22 | Docker; skips without it | no |
-| E2E UI | `tests/PoLocalCompare.E2EUI` | 21 | the running app (`BASE_URL`, default https://localhost:5001) and Playwright Chromium; skips without them | no |
+| E2E UI | `tests/PoLocalCompare.E2EUI` | 21 | `scripts/run-e2eui.ps1` publishes Release, starts Azurite + the published app and runs it headless; by hand: the running app (`BASE_URL`, default https://localhost:5001) and Playwright Chromium; skips without them | no |
 
 ```powershell
 dotnet test tests/PoLocalCompare.Unit
 dotnet test tests/PoLocalCompare.Integration
 dotnet test tests/PoLocalCompare.E2EAPI
 dotnet test tests/PoLocalCompare.E2EUI      # app running first; HEADLESS=1 to hide the browser
+pwsh -NoProfile -File ./scripts/run-e2eui.ps1   # same tier against the Release publish (what deploys)
 pwsh scripts/ci-checks.ps1                  # check-clean, model catalog, ruff, Integration, E2EAPI
 ```
 

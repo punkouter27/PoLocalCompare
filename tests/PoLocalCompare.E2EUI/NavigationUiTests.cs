@@ -23,7 +23,8 @@ public sealed class NavigationUiTests : UiTestBase
         // than its own label, the label spills out of the box, and the next item paints on top
         // of it. Nothing else in the suite looks at geometry, so this is the only place that can
         // catch it.
-        var page = await SignedInPageAsync(width, height);
+        const string signedInEmail = "e2e.judge@example.com";
+        var page = await SignedInPageAsync(width, height, user: signedInEmail);
 
         // The Po shell (po-tokens.css): the app name upper-left, the signed-in identity
         // upper-right, at every width. No settings gear since /settings was removed (2026-11-19).
@@ -36,6 +37,10 @@ public sealed class NavigationUiTests : UiTestBase
 
         var email = page.Locator(".po-header__email");
         await Assertions.Expect(email).ToBeVisibleAsync();
+        // The test sign-in's address, exactly, in the header's top-right corner.
+        await Assertions.Expect(email).ToHaveTextAsync(signedInEmail);
+        var emailBox = await email.BoundingBoxAsync();
+        Assert.True(emailBox!.Y < 56 && emailBox.X + emailBox.Width > width / 2.0, "The signed-in email should sit top right.");
         await Assertions.Expect(page.Locator(".po-header__settings")).ToHaveCountAsync(0);
 
         // The email is the account menu: opening it shows Sign out, inside the viewport.
