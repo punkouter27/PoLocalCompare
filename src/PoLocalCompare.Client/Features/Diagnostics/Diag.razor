@@ -12,7 +12,7 @@
 <div class="po-diag" data-testid="diag">
     <div class="po-diag__head">
         <h1>System status</h1>
-        <button type="button" class="po-link-btn outlined small" disabled="@_loading" @onclick="LoadAsync">@(_loading ? "Checking…" : "Check again")</button>
+        <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-link-btn outlined small" Disabled="@_loading" Click="LoadAsync">@(_loading ? "Checking…" : "Check again")</RadzenButton>
     </div>
 
     @if (_error is not null)
@@ -133,6 +133,7 @@
     {
         "Healthy" => "ok",
         "Degraded" => "warn",
+        "Off" => "off",
         _ => "bad",
     };
 

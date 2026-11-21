@@ -57,10 +57,13 @@ public static class DiagEndpoints
         var started = Stopwatch.GetTimestamp();
         var report = await healthChecks.CheckHealthAsync(ct);
 
+        // The API row is this request, measured: the time the API took to answer it, checks included
+        // (the /diag page replaces it with the round trip the browser saw).
+        var apiMs = Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1);
         var checks = new List<DiagCheckDto>
         {
             new("api", "api", "PoLocalCompare API", "Healthy",
-                "Answers every page, duel and leaderboard request the app makes.", "Answering.", 0, null),
+                "Answers every page, duel and leaderboard request the app makes.", "Answered this request.", apiMs, null),
         };
 
         foreach (var (name, entry) in report.Entries)
@@ -71,15 +74,17 @@ public static class DiagEndpoints
                 ? l
                 : Math.Round(entry.Duration.TotalMilliseconds, 1);
 
+            // A service switched off here on purpose (no key, Development-only) is "Off": neutral, never
+            // counted as Degraded or Unhealthy, so production can honestly read "Everything is working".
             checks.Add(new DiagCheckDto(
                 name,
                 descriptor.Group,
                 descriptor.Label,
-                entry.Status.ToString(),
+                notConfigured ? "Off" : entry.Status.ToString(),
                 descriptor.Purpose,
                 Detail(entry.Status, notConfigured),
                 latency,
-                entry.Status == HealthStatus.Healthy ? null : entry.Exception?.GetType().Name ?? "It did not answer as expected."));
+                notConfigured || entry.Status == HealthStatus.Healthy ? null : entry.Exception?.GetType().Name ?? "It did not answer as expected."));
         }
 
         var worst = checks.Any(c => c.Status == "Unhealthy") ? "Unhealthy"

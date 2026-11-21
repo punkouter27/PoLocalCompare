@@ -8,6 +8,7 @@ using Azure.Identity;
 using Polly;
 using PoLocalCompare.Api;
 using PoLocalCompare.Api.Auth;
+using PoLocalCompare.Shared.DTOs;
 using PoLocalCompare.Shared.Validation;
 using Scalar.AspNetCore;
 using PoLocalCompare.Api.Platform;
@@ -291,7 +292,12 @@ try
 
     // ─── Application use cases (Phase 3 + 4 + 6) ────────────────────────────
     builder.Services.AddApplicationServices();
-    builder.Services.AddValidatorsFromAssemblyContaining<RefinePromptRequestValidator>();
+    // Validators by type, not assembly scanning: an explicit registration keeps each validator's
+    // constructor visible to the trimmer and lists every request rule in one place.
+    builder.Services.AddSingleton<IValidator<RefinePromptRequest>, RefinePromptRequestValidator>();
+    builder.Services.AddSingleton<IValidator<CommenceDuelRequest>, CommenceDuelRequestValidator>();
+    builder.Services.AddSingleton<IValidator<CreateTournamentRequest>, CreateTournamentRequestValidator>();
+    builder.Services.AddSingleton<IValidator<AddDiscoveredModelRequest>, AddDiscoveredModelRequestValidator>();
 
     // ─── Background task queue for reliable duel execution ──────────────────
     // Nothing resolves the concrete BackgroundTaskQueue, so the interface registration and the

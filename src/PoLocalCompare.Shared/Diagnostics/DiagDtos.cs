@@ -21,11 +21,12 @@ public sealed record DiagReportDto(
 /// <param name="Name">Stable machine id (e.g. "api", "table-storage").</param>
 /// <param name="Group">"api", "data" or "service": the section it is shown in.</param>
 /// <param name="Label">What the page calls it.</param>
-/// <param name="Status">"Healthy", "Degraded" or "Unhealthy".</param>
+/// <param name="Status">"Healthy", "Degraded", "Unhealthy", or "Off" for a service switched off here on purpose
+/// (neutral: it never makes the report Degraded or Unhealthy).</param>
 /// <param name="Purpose">What the app uses it for, in one line.</param>
 /// <param name="Detail">How it is, in one line.</param>
 /// <param name="LatencyMs">How long the check took.</param>
-/// <param name="Problem">What is wrong, in plain words, when it is not Healthy (an exception's type at most).</param>
+/// <param name="Problem">What is wrong, in plain words, when it is Degraded or Unhealthy (an exception's type at most).</param>
 public sealed record DiagCheckDto(
     string Name,
     string Group,

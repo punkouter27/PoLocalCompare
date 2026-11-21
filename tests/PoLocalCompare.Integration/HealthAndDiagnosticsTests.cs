@@ -11,7 +11,7 @@ namespace PoLocalCompare.Integration;
 [Collection("Integration")]
 public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLifetime
 {
-    private static readonly string[] Statuses = ["Healthy", "Degraded", "Unhealthy"];
+    private static readonly string[] Statuses = ["Healthy", "Degraded", "Unhealthy", "Off"];
     private static readonly string[] Groups = ["api", "data", "service"];
 
     private IntegrationHost _host = null!;
@@ -84,7 +84,14 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         var blob = checks.Single(c => c.GetProperty("label").GetString() == "Blob Storage");
         Assert.Equal("data", blob.GetProperty("group").GetString());
         Assert.Equal("Healthy", blob.GetProperty("status").GetString());
-        Assert.Equal("service", checks.Single(c => c.GetProperty("label").GetString() == "Azure Key Vault").GetProperty("group").GetString());
+        var vault = checks.Single(c => c.GetProperty("label").GetString() == "Azure Key Vault");
+        Assert.Equal("service", vault.GetProperty("group").GetString());
+        // No vault configured in this host: switched off on purpose reads "Off" (neutral), not Healthy, and
+        // does not drag the overall status down.
+        Assert.Equal("Off", vault.GetProperty("status").GetString());
+        Assert.NotEqual("Off", body.GetProperty("status").GetString());
+        // The API row is measured, not a constant.
+        Assert.True(checks[0].GetProperty("latencyMs").GetDouble() > 0);
 
         // Every external service the app calls is listed, configured here or not.
         string[] services = ["Azure AI Foundry", "Google Gemini", "Microsoft Entra ID", "Application Insights", "Hugging Face Hub", "Ollama"];

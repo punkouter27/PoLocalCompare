@@ -23,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="NUlid" />
     <PackageReference Include="Scalar.AspNetCore" />

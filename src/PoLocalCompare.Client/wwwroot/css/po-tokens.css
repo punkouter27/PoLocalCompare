@@ -276,6 +276,8 @@ main {
 .po-badge--ok { background: var(--po-success-soft); border-color: var(--po-success); }
 .po-badge--warn { background: var(--po-warning-soft); border-color: var(--po-warning); }
 .po-badge--bad { background: var(--po-danger-soft); border-color: var(--po-danger); }
+/* "Off": a service switched off here on purpose. Neutral on purpose: not a warning, not a failure. */
+.po-badge--off { background: var(--po-surface-2); border-color: var(--po-border); border-style: dashed; }
 
 /* ── /diag: "System status" — banner, then API, Data, Services; one card per check ── */
 .po-diag__head { display: flex; align-items: center; justify-content: space-between; gap: var(--po-space-3); flex-wrap: wrap; }
