@@ -94,6 +94,13 @@ App Service `app-<repo lowercase>`; per-app resources named `<type>-<repo lowerc
 
 ## 3. Verification
 
+One command sequence verifies the repo (build, Unit, then `ci-checks.ps1`: hygiene, catalog, ruff, Integration,
+E2E API; then the browser tier on the Release publish):
+
+```powershell
+dotnet build PoLocalCompare.slnx -c Release && dotnet test tests/PoLocalCompare.Unit -c Release --no-build && pwsh -NoProfile -File ./scripts/ci-checks.ps1 && pwsh -NoProfile -File ./scripts/run-e2eui.ps1
+```
+
 Every command below was run on 2026-11-21 from the repo root (Windows, PowerShell or Git Bash).
 
 | What | Command | Needs / notes |
@@ -116,18 +123,22 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 
 ## This repo — PoLocalCompare
 
-### Deviations from the standard
+### Deliberate deviations
 
-| Standard | Here | Why |
-|---|---|---|
-| App Service `app-polocalcompare` | `app-polocalcompare-win2` (repo variable `AZURE_WEBAPP_NAME`); Bicep names it `app-polocalcompare-<suffix>` | Renaming needs a new App Service; not done (no new resources without an explicit request) |
-| `tests/<App>.Unit`, `.Integration`, `[.E2E…]` | Plus `tests/Shared/` (TestModels.cs, DockerFact.cs) linked into Integration and E2EAPI | One copy of the test seeding and the Docker skip |
-| `/diag`: banner + API / Data / Services | Signed in, a **Model health** panel follows the three sections | A one-prompt smoke test of every registered model; reads the model list, so never shown signed out |
-| Sign-in page shows the header Sign in button | Hidden on `/login` only | The page's own "Sign in with Microsoft" card is the one sign-in control there |
-| Version badge fixed bottom-right | Up to 768px it flows as the last item of `.page`, bottom-right after all content (margin carries `--po-stamp-lift` over BottomNav / Home's Compare bar); fixed from 769px | A fixed badge sat on /diag cards while scrolling on phones (2026-11-21) |
-| /diag lists the services | Table + Blob Storage (data); Foundry, Gemini, Key Vault, Entra ID, Application Insights, Hugging Face Hub, Ollama (services). Only Table, Foundry and Key Vault feed `/health`; the rest are diag-only and read Degraded on failure. Gemini needs `Gemini:ApiKey`, Ollama is probed in Development only; a service switched off here on purpose reads **Off** (neutral grey pill, "Not used in this environment.", never counted as degraded). The API row is measured (server: time to answer the request; the page: the browser's round trip) | Every external service is probed live, without letting an optional one fail the deploy gate |
-| Status values | `Healthy` / `Degraded` / `Unhealthy`, plus `Off` | Production can honestly say "Everything is working" while Ollama is unused there |
-| Component library | Radzen.Blazor 12.2.0 (`Directory.Packages.props`) for every control; exceptions listed under "Layout and styling" below | Owner decision 2026-11-21, reversing the earlier "no component library" rule |
+| Deviation | Why | Commit sha / date | How to undo |
+|---|---|---|---|
+| App Service `app-polocalcompare-win2` (repo variable `AZURE_WEBAPP_NAME`), not `app-polocalcompare` | renaming needs a new App Service | 2026-11-07 (checked with `az`) | owner-approved recreate |
+| `tests/Shared/` (TestModels.cs, DockerFact.cs) linked into Integration and E2EAPI | one copy of the test seeding and the Docker skip | — | copy the files into each tier |
+| /diag: signed in, a **Model health** panel follows API / Data / Services | one-prompt smoke test of every model; reads the model list, so never shown signed out | `30cb2cb` 2026-11-20 | remove the panel from `Diag.razor` |
+| Header Sign in button hidden on `/login` only | the page's own "Sign in with Microsoft" card is the one sign-in control | `30cb2cb` 2026-11-20 | show it again in the header |
+| Version badge: up to 768px it flows as the last item of `.page` (bottom-right, after content); fixed from 769px | a fixed badge sat on /diag cards on phones (overrides the older fixed-badge rule) | `44ad02b` 2026-11-21 | `git revert 44ad02b` |
+| /diag services: Table + Blob (data); Foundry, Gemini, Key Vault, Entra ID, App Insights, Hugging Face, Ollama. Only Table, Foundry and Key Vault feed `/health`. A service switched off on purpose (Ollama outside Development) shows **Off**, a neutral grey pill, never degraded | every service probed live without an optional one failing the deploy gate | `14c1d97`, `a6afde0` 2026-11-21 | `DiagEndpoints.cs` Off status |
+| Radzen.Blazor 12.2.0 for every control; exceptions: read-only `<table class="po-table">` data tables (see "Layout and styling") | owner decision "Radzen wins, convert" (Profile A), reversing the old "no component library" rule | `c61e24d` 2026-11-21 | — (owner rule) |
+| Client keeps `PublishTrimmed=false`, so the browser tier runs on the untrimmed Release publish (what deploys) | Router `NotFoundPage` blocks trimming (owner note in `PoLocalCompare.Client.csproj`) | — | fix the trim issue, then turn trimming on |
+| `run-e2eui.ps1` publishes with `-p:WasmApplicationEnvironmentName=Development` | .NET 10 bakes the client environment at publish; Production has no guest sign-in | `731523a` 2026-11-21 | drop the flag (tests then need a real account) |
+
+**Hosting:** App Service F1 (Free, `asp-PoLocalCompare-f1`): 165 MB of data out per day, 60 CPU-minutes per day.
+Never run test suites against the live site; live checks = at most 6 page loads + /diag + X-Commit.
 
 ### 1. What Is This Project?
 
