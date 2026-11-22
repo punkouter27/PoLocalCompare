@@ -137,7 +137,8 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 | Client keeps `PublishTrimmed=false`, so the browser tier runs on the untrimmed Release publish (what deploys) | Router `NotFoundPage` blocks trimming (owner note in `PoLocalCompare.Client.csproj`) | — | fix the trim issue, then turn trimming on |
 | `run-e2eui.ps1` publishes with `-p:WasmApplicationEnvironmentName=Development` | .NET 10 bakes the client environment at publish; Production has no guest sign-in | `731523a` 2026-11-21 | drop the flag (tests then need a real account) |
 
-**Hosting:** App Service F1 (Free, `asp-PoLocalCompare-f1`): 165 MB of data out per day, 60 CPU-minutes per day.
+**Hosting:** App Service F1 (Free, Windows, `asp-PoLocalCompare-f1`): 60 CPU-minutes and a data-out quota per day
+(Azure reported 2.4 GB on 2026-11-22; over it the site stops until 00:00 UTC).
 Never run test suites against the live site; live checks = at most 6 page loads + /diag + X-Commit.
 
 ### 1. What Is This Project?
