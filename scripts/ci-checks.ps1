@@ -13,7 +13,7 @@
     1. Repo hygiene: scripts/check-clean.ps1 (test budgets, dead/unused CSS, cache-busters, motion gate).
     2. Browser-model catalog: scripts/plan-webllm-artifacts.py exits non-zero when ModelSeeder.cs
        and web-llm.js's prebuiltAppConfig disagree. Needs the LFS file from step 0.
-    3. Python lint: ruff (ruff.toml) over scripts/*.py, through uvx.
+    3. Python lint and format: ruff check + ruff format --check (ruff.toml) over scripts/*.py, through uvx.
     4. Integration and E2EAPI tiers. Both spin Azurite through Testcontainers, so they need Docker;
        without it they skip with one message. E2EUI stays local: it needs a running app and Chromium.
 #>
@@ -57,6 +57,7 @@ else {
 Invoke-Step 'Browser-model catalog agrees' { & $python scripts/plan-webllm-artifacts.py }
 
 Invoke-Step 'Python lint (ruff)' { uvx ruff check . }
+Invoke-Step 'Python format (ruff)' { uvx ruff format --check . }
 
 foreach ($suite in 'Integration', 'E2EAPI') {
     Invoke-Step "$suite tests" { dotnet test "tests/PoLocalCompare.$suite" -c Release --no-build --logger "trx;LogFileName=$suite.trx" }

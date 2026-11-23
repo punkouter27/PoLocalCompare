@@ -1,4 +1,5 @@
 @using PoLocalCompare.Shared.Validation
+@inject FluentValidation.IValidator<PromptForm> Validator
 @* The inline error under a prompt box. ValidationMessage re-renders itself whenever the
    EditContext's validation state changes, so the parent never has to push messages down. *@
 <CascadingValue Value="Check.Context" IsFixed="true">
@@ -9,8 +10,6 @@
 </CascadingValue>
 
 @code {
-    private static readonly PromptFormValidator Validator = new();
-
     [Parameter, EditorRequired] public PromptCheck Check { get; set; } = default!;
 
     /// <summary>Referenced by the textarea's aria-describedby.</summary>

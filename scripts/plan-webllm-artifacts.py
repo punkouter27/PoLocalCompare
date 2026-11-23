@@ -25,7 +25,7 @@ for mid in ids:
     if not hits:
         missing.append(mid)
         continue
-    window = "\n".join(lines[max(0, hits[0] - 4):hits[0] + 12])
+    window = "\n".join(lines[max(0, hits[0] - 4) : hits[0] + 12])
     repo = re.search(r'model:\s*"https://huggingface\.co/([^"]+)"', window)
     lib = re.search(r'model_lib:\s*modelLibURLPrefix\s*\+\s*modelVersion\s*\+\s*"/?([^"]+)"', window, re.S)
     if not repo or not lib:

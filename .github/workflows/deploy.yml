@@ -61,7 +61,7 @@ jobs:
 
       - name: Lint Python (ruff)
         if: hashFiles('ruff.toml') != ''
-        run: pipx run ruff check .
+        run: pipx run ruff check . && pipx run ruff format --check .
 
       - name: Build
         run: dotnet build *.slnx -c Release

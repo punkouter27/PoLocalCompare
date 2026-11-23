@@ -195,6 +195,40 @@ public sealed class NavigationUiTests : UiTestBase
     }
 
     [UiFact]
+    public async Task RadzenCss_LoadsOnceBeforeTheAppCss()
+    {
+        // Radzen's theme loads exactly once, ahead of every app stylesheet, inside the `radzen`
+        // cascade layer (so any app rule beats it), and nothing injects a second copy into <body>.
+        var page = await NewPageAsync(1440, 900);
+        await page.GotoAsync("/diag");
+        await Assertions.Expect(page.Locator("h1")).ToHaveTextAsync("System status", new() { Timeout = 30_000 });
+
+        var sheets = await page.EvaluateAsync<string[]>(
+            """
+            () => {
+                const out = [];
+                const walk = (sheet, where) => {
+                    out.push(where + '|' + (sheet.href || 'inline') + '|' + (sheet.ownerRule?.layerName ?? ''));
+                    for (const rule of sheet.cssRules) if (rule.styleSheet) walk(rule.styleSheet, where);
+                };
+                for (const s of document.styleSheets) walk(s, s.ownerNode.closest('head') ? 'head' : 'body');
+                return out;
+            }
+            """);
+
+        var radzen = sheets.Where(s => s.Contains("Radzen.Blazor/css/", StringComparison.Ordinal)).ToArray();
+        Assert.True(radzen.Length == 1, "Radzen CSS should load once: " + string.Join(" ; ", sheets));
+        Assert.StartsWith("head|", radzen[0], StringComparison.Ordinal);
+        Assert.EndsWith("|radzen", radzen[0], StringComparison.Ordinal);
+
+        int IndexOf(string file) => Array.FindIndex(sheets, s => s.Contains(file, StringComparison.Ordinal));
+        var radzenAt = Array.IndexOf(sheets, radzen[0]);
+        Assert.True(radzenAt < IndexOf("css/po-tokens.css"), "Radzen must load before po-tokens.css: " + string.Join(" ; ", sheets));
+        Assert.True(radzenAt < IndexOf("css/app.css"), "Radzen must load before app.css: " + string.Join(" ; ", sheets));
+        Assert.True(radzenAt < IndexOf("PoLocalCompare.Client.styles.css"), "Radzen must load before the scoped CSS: " + string.Join(" ; ", sheets));
+    }
+
+    [UiFact]
     public async Task UnknownRoute_RendersTheNotFoundPage()
     {
         // Viewport-independent: this is Router.NotFoundPage resolving at all, which is also the

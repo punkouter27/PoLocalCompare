@@ -35,6 +35,9 @@ try
     builder.Services.AddRadzenComponents();
     builder.Services.AddScoped<DialogNotificationHelper>();
 
+    // ─── Validators by type (no assembly scanning): the prompt box's inline errors ──
+    builder.Services.AddScoped<FluentValidation.IValidator<PoLocalCompare.Shared.Validation.PromptForm>, PoLocalCompare.Shared.Validation.PromptFormValidator>();
+
     // ─── DuelApiClient (T098) ────────────────────────────────────────────────────
     builder.Services.AddScoped<DuelApiClient>();
 

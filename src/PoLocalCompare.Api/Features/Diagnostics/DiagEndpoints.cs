@@ -41,7 +41,7 @@ public static class DiagEndpoints
 
     public static IEndpointRouteBuilder MapDiagEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/diag", async (HealthCheckService healthChecks, IWebHostEnvironment env, CancellationToken ct) =>
+        app.MapGet("/api/diag", async (CachedHealthReport healthChecks, IWebHostEnvironment env, CancellationToken ct) =>
                 Results.Ok(await BuildAsync(healthChecks, env, ct)))
             .WithName("Diagnostics")
             .WithTags("Health")
@@ -52,10 +52,14 @@ public static class DiagEndpoints
         return app;
     }
 
-    public static async Task<DiagReportDto> BuildAsync(HealthCheckService healthChecks, IWebHostEnvironment env, CancellationToken ct)
+    /// <remarks>
+    /// The checks come from <see cref="CachedHealthReport"/> (60 s, shared with /health): <c>CheckedAt</c> and
+    /// <c>CheckedMs</c> are when the probes last ran and how long they took, not this request.
+    /// </remarks>
+    public static async Task<DiagReportDto> BuildAsync(CachedHealthReport healthChecks, IWebHostEnvironment env, CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
-        var report = await healthChecks.CheckHealthAsync(ct);
+        var (report, checkedAt) = await healthChecks.GetAsync(ct);
 
         // The API row is this request, measured: the time the API took to answer it, checks included
         // (the /diag page replaces it with the round trip the browser saw).
@@ -95,8 +99,8 @@ public static class DiagEndpoints
             worst,
             env.EnvironmentName,
             BuildVersion,
-            DateTimeOffset.UtcNow,
-            Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1),
+            checkedAt,
+            Math.Round(report.TotalDuration.TotalMilliseconds, 1),
             [.. checks]);
     }
 

@@ -24,6 +24,17 @@ public sealed class HomeUiTests : UiTestBase
         await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/login[?]returnUrl="));
         await Assertions.Expect(page.Locator(".po-header__title")).ToBeVisibleAsync();
         await Assertions.Expect(page.Locator(".po-header .po-link-btn")).ToHaveCountAsync(0);
+
+        // Po standard sign-in page: the title (the page's one h1) and exactly one button, nothing else.
+        await Assertions.Expect(page.Locator("main h1")).ToHaveCountAsync(1);
+        await Assertions.Expect(page.Locator("main h1")).ToContainTextAsync("PoLocalCompare");
+        await Assertions.Expect(page.Locator("main button, main a, main input")).ToHaveCountAsync(1);
+        await Assertions.Expect(page.Locator("main").GetByRole(AriaRole.Button)).ToHaveTextAsync("Sign in with Microsoft");
+
+        // Signed out, no navigation: neither the header links nor the phone bottom nav.
+        await Assertions.Expect(page.Locator(".navmenu__nav")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator(".bottom-nav")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator("nav")).ToHaveCountAsync(0);
     }
 
     [UiTheory]
