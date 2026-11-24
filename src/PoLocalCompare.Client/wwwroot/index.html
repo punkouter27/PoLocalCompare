@@ -14,12 +14,15 @@
     <!-- po-tokens.css first (Po web standard): the design tokens, the self-hosted Inter and
          Space Grotesk faces, and the shell (header, Sign in button, stamp, /diag cards). Everything after it
          aliases those tokens. Inter is preloaded because the first paint needs it. -->
+    <!-- Radzen's theme first, once, before any app CSS, in the `radzen` cascade layer: every app rule
+         (unlayered) beats it whatever the specificity. Bump ?v= with the Radzen.Blazor version. -->
+    <style>@import url("_content/Radzen.Blazor/css/material-base.css?v=12.2.0") layer(radzen);</style>
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/po-tokens.css?v=4" />
     <link rel="stylesheet" href="css/po-motion.css?v=1" />
-    <link rel="stylesheet" href="css/app.css?v=35" />
+    <link rel="stylesheet" href="css/app.css?v=36" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="PoLocalCompare.Client.styles.css?v=54" rel="stylesheet" />
+    <link href="PoLocalCompare.Client.styles.css?v=55" rel="stylesheet" />
     <!-- Loaded in <head>, before first paint: the optional extras stamp <html data-fx>. -->
     <script src="js/prefs.js?v=7"></script>
     <!-- Tab with nothing focused opens /po-dev.html, the developer window (Po web standard). -->

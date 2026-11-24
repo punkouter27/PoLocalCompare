@@ -158,7 +158,9 @@ try
 
     // ─── Health checks (standards §3) ────────────────────────────────────────
     // /health composes these; /api/diag (the /diag "System status" page) projects the same
-    // report, so the two can never disagree about what is up.
+    // report, so the two can never disagree about what is up. Both read it through CachedHealthReport,
+    // so the probes run at most once a minute however often /health or /diag is hit.
+    builder.Services.AddSingleton(sp => new CachedHealthReport(sp.GetRequiredService<HealthCheckService>(), TimeProvider.System));
     builder.Services.AddHealthChecks()
         .AddCheck<TableStorageHealthCheck>(
             "azureTableStorage",
@@ -289,10 +291,10 @@ try
     builder.Services.AddApplicationServices();
     // Validators by type, not assembly scanning: an explicit registration keeps each validator's
     // constructor visible to the trimmer and lists every request rule in one place.
-    builder.Services.AddSingleton<IValidator<RefinePromptRequest>, RefinePromptRequestValidator>();
-    builder.Services.AddSingleton<IValidator<CommenceDuelRequest>, CommenceDuelRequestValidator>();
-    builder.Services.AddSingleton<IValidator<CreateTournamentRequest>, CreateTournamentRequestValidator>();
-    builder.Services.AddSingleton<IValidator<AddDiscoveredModelRequest>, AddDiscoveredModelRequestValidator>();
+    builder.Services.AddScoped<IValidator<RefinePromptRequest>, RefinePromptRequestValidator>();
+    builder.Services.AddScoped<IValidator<CommenceDuelRequest>, CommenceDuelRequestValidator>();
+    builder.Services.AddScoped<IValidator<CreateTournamentRequest>, CreateTournamentRequestValidator>();
+    builder.Services.AddScoped<IValidator<AddDiscoveredModelRequest>, AddDiscoveredModelRequestValidator>();
 
     // ─── Background task queue for reliable duel execution ──────────────────
     // Nothing resolves the concrete BackgroundTaskQueue, so the interface registration and the

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using PoLocalCompare.Shared.Enums;
 
@@ -15,13 +14,18 @@ public static class HealthEndpoints
 {
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
     {
-        // Backed by the standard health-check pipeline (services.AddHealthChecks). The JSON
-        // shape is preserved from the hand-rolled version this replaced, so existing probes
+        // Backed by the standard health-check pipeline (services.AddHealthChecks), read through
+        // CachedHealthReport: the same 60 s report /api/diag shows, minus the DiagOnly checks. The
+        // JSON shape is preserved from the hand-rolled version this replaced, so existing probes
         // and the /diag page keep working.
-        app.MapHealthChecks("/health", new HealthCheckOptions
+        app.MapGet("/health", async (CachedHealthReport healthChecks, HttpContext context) =>
         {
-            Predicate = check => !check.Tags.Contains(HealthCheckTags.DiagOnly),
-            ResponseWriter = WriteHealthResponseAsync,
+            var (report, _) = await healthChecks.GetAsync(context.RequestAborted);
+            var gate = report.Entries
+                .Where(e => !e.Value.Tags.Contains(HealthCheckTags.DiagOnly))
+                .ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
+            context.Response.Headers.CacheControl = "no-store, no-cache";
+            await WriteHealthResponseAsync(context, new HealthReport(gate, report.TotalDuration));
         })
         .WithName("Health")
         .WithTags("Health")

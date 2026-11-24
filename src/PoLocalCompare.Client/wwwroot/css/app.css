@@ -6,11 +6,11 @@
 /* ── Radzen ──────────────────────────────────────────────────────────────────
    Radzen is the component library (owner decision 2026-11-21, "Radzen wins, convert"): every
    button is a RadzenButton, every text box a RadzenTextBox / RadzenTextArea, the entrant
-   tick a RadzenCheckBox. Its theme is imported into the `radzen` cascade layer, so every
-   un-layered rule in this app (app.css, po-tokens.css, the scoped .razor.css sheets) beats it
-   whatever the specificity — .po-btn, .po-table and the tokens keep drawing the app. Must stay
-   the first rule in this file (@import). */
-@import url("../_content/Radzen.Blazor/css/material-base.css?v=12.2.0") layer(radzen);
+   tick a RadzenCheckBox. Its theme is loaded once, first in index.html's <head> (before
+   po-tokens.css and this file), into the `radzen` cascade layer, so every un-layered rule in
+   this app (app.css, po-tokens.css, the scoped .razor.css sheets) beats it whatever the
+   specificity — .po-btn, .po-table and the tokens keep drawing the app. E2EUI
+   RadzenCss_LoadsOnceBeforeTheAppCss guards the order. */
 
 /* A Radzen control that keeps the app's own look carries class "lc-plain" (buttons:
    ButtonStyle.Base + Variant.Text). This reverts everything Radzen's theme set on it back to

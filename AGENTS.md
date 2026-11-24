@@ -64,6 +64,8 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   "Working, with N things degraded" / "Not working: …"), then three sections in this order: **API**, **Data**,
   **Services**; each row = label, purpose, status pill, latency ms, problem/detail text. Every external dependency
   the app really calls appears as a check. Anonymous, nothing secret in the payload.
+- Here: `/health` and `/api/diag` read ONE cached report (`CachedHealthReport`, 60 s TTL, concurrent callers share a
+  run), so the probes run at most once a minute; `CheckedAt`/`CheckedMs` are when the probes last ran and how long.
 
 ### Workflow (`.github/workflows/deploy.yml`, the only one)
 push to master → format check → build (Release, warnings as errors) → Unit tests → Integration tests (Testcontainers /
@@ -106,12 +108,12 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 | What | Command | Needs / notes |
 |---|---|---|
 | Format | `dotnet format PoLocalCompare.slnx --verify-no-changes` | exit 0 = clean |
-| Python lint | `uvx ruff check .` | `ruff.toml`; scripts/*.py |
+| Python lint + format | `uvx ruff check . && uvx ruff format --check .` | `ruff.toml`; scripts/*.py (CI and ci-checks.ps1 run both) |
 | Build | `dotnet build PoLocalCompare.slnx -c Release` | warnings are errors |
-| Unit (99) | `dotnet test tests/PoLocalCompare.Unit -c Release --no-build` | nothing |
+| Unit (100) | `dotnet test tests/PoLocalCompare.Unit -c Release --no-build` | nothing |
 | Integration (50) | `dotnet test tests/PoLocalCompare.Integration -c Release --no-build` | Docker (Testcontainers Azurite); without it every case skips with "Docker is not running…" |
 | E2E API (22) | `dotnet test tests/PoLocalCompare.E2EAPI -c Release --no-build` | Docker; skips the same way |
-| E2E UI (21) | `pwsh -NoProfile -File ./scripts/run-e2eui.ps1` (`-Headed` to watch) | Runs against the **Release publish output** (what deploys): publishes `src/PoLocalCompare.Api -c Release -p:WasmApplicationEnvironmentName=Development` (.NET 10 bakes the client environment at publish; a plain publish boots as Production with no guest sign-in), starts Azurite (Docker) and the published app on https://localhost:5001, runs the tier headless, stops both. Needs Docker, nothing on 5001, Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`). Suggest-matchup needs runnable remote models, i.e. Key Vault through `az login` |
+| E2E UI (22) | `pwsh -NoProfile -File ./scripts/run-e2eui.ps1` (`-Headed` to watch) | Runs against the **Release publish output** (what deploys): publishes `src/PoLocalCompare.Api -c Release -p:WasmApplicationEnvironmentName=Development` (.NET 10 bakes the client environment at publish; a plain publish boots as Production with no guest sign-in), starts Azurite (Docker) and the published app on https://localhost:5001, runs the tier headless, stops both. Needs Docker, nothing on 5001, Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`). Suggest-matchup needs runnable remote models, i.e. Key Vault through `az login` |
 | Repo hygiene | `pwsh -NoProfile -File ./scripts/check-clean.ps1` | test budgets, dead CSS, cache-busters |
 | Run locally | `dotnet run --project src/PoLocalCompare.Api --launch-profile https` → https://localhost:5001 (and /diag) | Table/Blob storage: Azurite on 10000/10002 (`docker-compose.yml`), or point `ConnectionStrings__AzureTableStorage` / `ConnectionStrings__AzureBlobStorage` at another Azurite; Key Vault `kv-poshared2` through your `az login` |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, ruff, build, Unit, Integration, publish, deploy) | `*.md`, `docs/**`, `SCREENSHOTS/**` pushes do not deploy |
@@ -334,7 +336,9 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
   with `<AuthorizeRouteView>` (`@attribute [Authorize]` in `_Imports.razor`) and sends a signed-out
   visitor to `/login?returnUrl=…` (`RedirectToLogin`). `/login` and `/diag` are the anonymous pages.
   So the user **must** sign in before the home page.
-- **Dev:** Microsoft OAuth **and** "Continue as Guest". **Prod:** Microsoft OAuth only (guest hidden).
+- **/login** is the title (its one `h1`) and exactly one button, Sign in with Microsoft, in every environment.
+  **Dev:** sign in as a guest through the URL `/auth/login/fake?returnUrl=/` (`?user=` picks the identity), then
+  switch dev personas from the account menu. **Prod:** Microsoft OAuth only (`/auth/login/fake` does not exist).
   **Test:** the `FakeAuthHandler` maps `X-Fake-User` / `X-Fake-Roles` headers to a principal — registered
   only outside Production (throws if constructed in Production).
 - API endpoint groups and SignalR hubs are protected with `.RequireAuthorization()`; `/health`, `/health/live`,
@@ -468,7 +472,7 @@ app purely over HTTP.
 | E2E UI | `tests/PoLocalCompare.E2EUI` | Playwright, headed Chrome, mobile + desktop viewports |
 
 **Ratio contract (100 / 50 / 25 / 25).** Unit is the baseline; integration ≈ 50% of unit, each
-E2E tier ≈ 25%. Current (2026-11-21): **99 unit / 50 integration / 22 E2E-API / 21 E2E-UI**,
+E2E tier ≈ 25%. Current (2026-11-23): **100 unit / 50 integration / 22 E2E-API / 22 E2E-UI**,
 all passing, and `scripts/check-clean.ps1` fails the build if a tier goes over. Counts are test *cases*, so a `[Theory]`
 contributes one per `InlineData`, and E2E-UI counts methods × 2 viewports.
 
@@ -645,7 +649,7 @@ When asked to make changes to this codebase:
 21. **Deployment build version:** Display the deployment build version in the app's bottom-right
     corner as `YYMMDD`, generated automatically from the current date or Git commit date. Already
     wired: `Directory.Build.props` writes `BuildVersion` (the UTC date of the HEAD commit) into both
-    assemblies and `BuildVersion.razor` renders it as `<span class="po-version">vYYMMDD</span>`;
+    assemblies and `BuildVersion.razor` renders it as `<footer class="po-version">vYYMMDD</footer>` (a landmark, so axe "region" passes);
     /api/diag and /health/live report the same value.
 22. **Consolidate into shared components:** Before adding markup or logic, look for an existing
     component to reuse or extend, and when two surfaces repeat the same UI or behaviour, pull it
@@ -973,7 +977,8 @@ changing something a rule protects. A rule with no obvious reason usually has an
   Radzen's `DialogService` (never `confirm()`). No raw `<button>`, `<input>`, `<textarea>` or
   `<select>` in a `.razor` file. A control that keeps the app's look is
   `ButtonStyle="ButtonStyle.Base" Variant="Variant.Text" class="lc-plain po-btn …"`: Radzen's theme
-  is imported into the `radzen` cascade layer (top of `app.css`), and `:where(.lc-plain)` reverts its
+  is imported once into the `radzen` cascade layer, by the first `<style>` in `index.html`'s `<head>`
+  (before `po-tokens.css`/`app.css`; E2EUI `RadzenCss_LoadsOnceBeforeTheAppCss` guards it), and `:where(.lc-plain)` reverts its
   styling to the native control, so `.po-btn` / `.po-link-btn` and the scoped rules draw it exactly
   as before. A scoped `.razor.css` rule for a class on a Radzen control is written
   `::deep .class` (the child component's element carries no scope attribute). E2E hooks are the

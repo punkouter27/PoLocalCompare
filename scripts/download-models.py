@@ -50,9 +50,16 @@ IGNORE = {".gitattributes", "README.md", "ndarray-cache-b16.json"}
 
 # Connection setup is the unreliable part, so retry hard and resume in place.
 CURL = [
-    "curl.exe", "-sSL", "--ssl-no-revoke",
-    "--retry", "20", "--retry-all-errors", "--retry-delay", "1",
-    "--connect-timeout", "20",
+    "curl.exe",
+    "-sSL",
+    "--ssl-no-revoke",
+    "--retry",
+    "20",
+    "--retry-all-errors",
+    "--retry-delay",
+    "1",
+    "--connect-timeout",
+    "20",
 ]
 PARALLEL = 4
 
@@ -83,7 +90,9 @@ def plan() -> tuple[list[dict], str]:
     """Ask plan-webllm-artifacts.py which models and libraries are in scope."""
     proc = subprocess.run(
         [sys.executable, str(Path(__file__).with_name("plan-webllm-artifacts.py"))],
-        cwd=str(ROOT), capture_output=True, text=True,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
         env={**os.environ, "GITHUB_OUTPUT": ""},
     )
     sys.stderr.write(proc.stderr)
@@ -92,9 +101,9 @@ def plan() -> tuple[list[dict], str]:
     entries = lib_base = None
     for line in proc.stdout.splitlines():
         if line.startswith("matrix="):
-            entries = json.loads(line[len("matrix="):])
+            entries = json.loads(line[len("matrix=") :])
         elif line.startswith("lib_base="):
-            lib_base = line[len("lib_base="):]
+            lib_base = line[len("lib_base=") :]
     if entries is None or lib_base is None:
         sys.exit("planner did not emit matrix/lib_base")
     return entries, lib_base
@@ -106,11 +115,13 @@ def list_repo_files(repo: str) -> list[dict]:
     for e in tree:
         if e.get("type") != "file" or Path(e["path"]).name in IGNORE:
             continue
-        files.append({
-            "path": e["path"],
-            "size": e.get("size", 0),
-            "sha": (e.get("lfs") or {}).get("oid"),
-        })
+        files.append(
+            {
+                "path": e["path"],
+                "size": e.get("size", 0),
+                "sha": (e.get("lfs") or {}).get("oid"),
+            }
+        )
     if not files:
         raise RuntimeError(f"no files listed for {repo}")
     return files

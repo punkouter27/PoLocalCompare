@@ -25,21 +25,12 @@
     box-shadow: var(--po-shadow);
 }
 
-.login__divider {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    gap: var(--space-smd);
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-}
-
-.login__divider::before,
-.login__divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--surface-2);
+/* The page's h1 wraps the BrandMark; it keeps the mark's own size and spacing. */
+.login__title {
+    margin: 0;
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────

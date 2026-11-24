@@ -181,3 +181,21 @@
         flex: 0 0 auto;
     }
 }
+
+/* Radzen's reflow grid hides every header cell below 769px (thead th { display: none }), which leaves
+   an empty header row (axe aria-required-children). Keep the cells and clip the header instead, the
+   same way .po-table--cards does, so screen readers still get the column names. */
+@media (max-width: 768px) {
+    .archive ::deep .rz-datatable-reflow thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .archive ::deep .rz-datatable-reflow thead th {
+        display: table-cell;
+    }
+}
