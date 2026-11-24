@@ -25,16 +25,21 @@ public sealed class RenderCoalescer : IDisposable
 
     private readonly Func<Task> _render;
     private readonly TimeSpan _interval;
+    private readonly TimeProvider _time;
     private readonly CancellationTokenSource _cts = new();
 
     /// <summary>0 = no render scheduled, 1 = one is already pending.</summary>
     private int _pending;
     private bool _disposed;
 
-    public RenderCoalescer(Func<Task> render, TimeSpan? interval = null)
+    /// <param name="time">The clock the interval is measured on. Production passes nothing and
+    /// gets the system clock; the Unit tier passes a fake clock so "one render per burst" is
+    /// proven by moving time explicitly rather than by sleeping and hoping the timer fired.</param>
+    public RenderCoalescer(Func<Task> render, TimeSpan? interval = null, TimeProvider? time = null)
     {
         _render = render ?? throw new ArgumentNullException(nameof(render));
         _interval = interval ?? DefaultInterval;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -56,7 +61,7 @@ public sealed class RenderCoalescer : IDisposable
     {
         try
         {
-            await Task.Delay(_interval, _cts.Token).ConfigureAwait(false);
+            await Task.Delay(_interval, _time, _cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
