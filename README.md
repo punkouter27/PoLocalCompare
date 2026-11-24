@@ -71,4 +71,4 @@ A push to `master` runs [.github/workflows/deploy.yml](.github/workflows/deploy.
 |---|---|
 | [AGENTS.md](AGENTS.md) | The Po web standard this repo follows, its deviations, and the architecture, config keys, deployment, testing and working rules |
 | [scripts/README.md](scripts/README.md) | What each script does |
-| [SCREENSHOTS/](SCREENSHOTS/) | Annotated before/after pages (`YYMMDD-feature.html` + one PNG) for each UI change (AGENTS.md §12 rule 18) |
+| [SCREENSHOTS/](SCREENSHOTS/) | Annotated before/after pages (`YYMMDD-feature.html` + one PNG) for each UI change (AGENTS.md §12 rule 18); made by `pwsh -NoProfile -File ./scripts/screenshots.ps1 -Feature <name>` |

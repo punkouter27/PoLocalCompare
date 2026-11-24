@@ -114,6 +114,7 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 | Integration (50) | `dotnet test tests/PoLocalCompare.Integration -c Release --no-build` | Docker (Testcontainers Azurite); without it every case skips with "Docker is not running…" |
 | E2E API (22) | `dotnet test tests/PoLocalCompare.E2EAPI -c Release --no-build` | Docker; skips the same way |
 | E2E UI (22) | `pwsh -NoProfile -File ./scripts/run-e2eui.ps1` (`-Headed` to watch) | Runs against the **Release publish output** (what deploys): publishes `src/PoLocalCompare.Api -c Release -p:WasmApplicationEnvironmentName=Development` (.NET 10 bakes the client environment at publish; a plain publish boots as Production with no guest sign-in), starts Azurite (Docker) and the published app on https://localhost:5001, runs the tier headless, stops both. Needs Docker, nothing on 5001, Playwright Chromium (`pwsh tests/PoLocalCompare.E2EUI/bin/Release/net10.0/playwright.ps1 install chromium`). Suggest-matchup needs runnable remote models, i.e. Key Vault through `az login` |
+| Before/after page (rule 18) | `pwsh -NoProfile -File ./scripts/screenshots.ps1 -Feature <name> [-Before <ref>\|-BeforeDir <pngs>] [-After <ref>] [-Screens 'home=in:/','diag=out:/diag'] [-Notes '...']` | publishes `-Before` (default `HEAD~1`, temp worktree) and `-After` (default the working tree) like run-e2eui.ps1, runs each on https://localhost:5011, shoots 1366x768 + 390x844 (signed-in screens via the dev guest door), boxes changed pixels in red, writes `SCREENSHOTS/<yyMMdd>-<name>.html` + the single `.png` (≤300 KB). Never the live site. Docker, Playwright Chromium, `az login` |
 | Repo hygiene | `pwsh -NoProfile -File ./scripts/check-clean.ps1` | test budgets, dead CSS, cache-busters |
 | Run locally | `dotnet run --project src/PoLocalCompare.Api --launch-profile https` → https://localhost:5001 (and /diag) | Table/Blob storage: Azurite on 10000/10002 (`docker-compose.yml`), or point `ConnectionStrings__AzureTableStorage` / `ConnectionStrings__AzureBlobStorage` at another Azurite; Key Vault `kv-poshared2` through your `az login` |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, ruff, build, Unit, Integration, publish, deploy) | `*.md`, `docs/**`, `SCREENSHOTS/**` pushes do not deploy |
@@ -636,7 +637,8 @@ When asked to make changes to this codebase:
 18. **UI changes get a before/after screenshot:** Take an annotated screenshot showing the old and
     new UI with the changes marked up, save it as `SCREENSHOTS/YYMMDD-feature-name.html`, and give
     the valid full path. Also render the before and after, with the notes, into a **single PNG**
-    beside it (`SCREENSHOTS/YYMMDD-feature-name.png`) and give that path too. (Files before
+    beside it (`SCREENSHOTS/YYMMDD-feature-name.png`) and give that path too
+    (`scripts/screenshots.ps1 -Feature feature-name` makes both; section 3). (Files before
     2026-10-26 use `YYYY-MM-DD-`; they are not renamed.)
 19. **Three-tier change summary:** For code changes over 20 lines, append a TL;DR of exactly three
     lines, one sentence each: "Toddler" for the core intuition, "Child" for what the app actually

@@ -123,6 +123,23 @@ has a ~130-byte pointer file there and this script will not find any models.
 
 ---
 
+### `screenshots.ps1`
+
+**Purpose:** the before/after page every UI change ships with (AGENTS.md §12 rule 18), in one command.
+
+**Usage:**
+```powershell
+pwsh -NoProfile -File scripts/screenshots.ps1 -Feature models-pill -Notes 'The models-ready pill reads 4.5:1.'
+# -Before <ref> (default HEAD~1) or -BeforeDir <folder of PNGs>; -After <ref> (default the working tree);
+# -Screens 'home=in:/','diag=out:/diag' to narrow it
+```
+
+**What it does:** publishes both sides Release (like `run-e2eui.ps1`), runs each on https://localhost:5011,
+shoots 1366x768 and 390x844 (signed-in screens through the dev guest door), boxes the changed pixels in red, and
+writes `SCREENSHOTS/<yyMMdd>-<feature>.html` plus the single PNG beside it. Local only; never the live site.
+
+---
+
 > **A note on the deleted browser-model probers.** This folder used to carry
 > `test-browser-models.ps1` and `test-browser-models.cjs`, which drove a headless browser against a
 > running app to prove WebGPU inference worked per model. They were removed on 2026-09-10: `/diag`'s
