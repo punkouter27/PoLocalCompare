@@ -11,8 +11,8 @@ namespace PoLocalCompare.Api.Common.Inference;
 /// provisioned: the per-deployment route, or the model-inference route with the model named in
 /// the body. Nothing says which in advance, so the call is "try the first, and on a 404 try
 /// the second". That sequence was written out separately in the judge, the availability probe
-/// and the prompt sharpener, and each copy had to learn Gemini (one route, Bearer auth) on its
-/// own. <see cref="FoundryInferenceProxy"/> keeps its own version on purpose: it streams, it
+/// and the prompt sharpener, and each copy had to learn every routing change on its own.
+/// <see cref="FoundryInferenceProxy"/> keeps its own version on purpose: it streams, it
 /// retries, and it remembers which route a deployment answered on — none of which a
 /// one-shot call wants.
 /// </remarks>
@@ -23,7 +23,7 @@ public static class FoundryChatClient
 
     /// <param name="bodyFor">
     /// The JSON body for a route; the argument is whether the route needs the model named in
-    /// the body (the model-inference route and Gemini do, the deployment route does not).
+    /// the body (the model-inference route does, the deployment route does not).
     /// </param>
     /// <param name="perSendTimeout">A ceiling on each send, for callers that must not wait on a slow deployment.</param>
     public static async Task<Reply> PostAsync(
@@ -35,12 +35,6 @@ public static class FoundryChatClient
         CancellationToken cancellationToken,
         TimeSpan? perSendTimeout = null)
     {
-        if (FoundryChatRequest.IsGemini(deployment))
-        {
-            return await SendAsync(http, FoundryChatRequest.GeminiUrl(endpoint), deployment, apiKey,
-                bodyFor(true), usedFallback: false, perSendTimeout, cancellationToken);
-        }
-
         var deploymentUrl = FoundryChatRequest.DeploymentUrl(endpoint, deployment);
         var first = await SendAsync(http, deploymentUrl, deployment, apiKey,
             bodyFor(false), usedFallback: false, perSendTimeout, cancellationToken);
@@ -85,7 +79,7 @@ public static class FoundryChatClient
         bool usedFallback, TimeSpan? timeout, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
-        FoundryChatRequest.AddAuth(request, deployment, apiKey);
+        FoundryChatRequest.AddAuth(request, apiKey);
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

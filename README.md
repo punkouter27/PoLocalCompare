@@ -31,7 +31,7 @@ $env:AzureAiFoundry__ApiKey = "<key>"   # enable remote duels (or appsettings.De
 
 ## How the AI parts work
 
-- **Contestants** run on Azure AI Foundry, Google's Gemini endpoint (with `Gemini:ApiKey`), a local Ollama, or the browser (WebGPU). A deployment whose *name* reads classic but whose model reasons is detected from its first 400 and switched to the reasoning request shape; costs are priced by the model the provider reports serving, not the deployment name. `/diag` flags a deployment that serves a different model than it is named for.
+- **Contestants** run on Azure AI Foundry, a local Ollama, or the browser (WebGPU). A deployment whose *name* reads classic but whose model reasons is detected from its first 400 and switched to the reasoning request shape; costs are priced by the model the provider reports serving, not the deployment name. `/diag` flags a deployment that serves a different model than it is named for.
 - **The judge** (`AiJudge:*`) reads both orderings — the second by `AiJudge:CrossCheckDeployment`, a model from another family — and scores both pages against one checklist written per prompt. A split is re-asked on `AiJudge:EscalationDeployment`, then `AiJudge:TiebreakDeployment`, and only a split at the top is a Tie.
 - **Spend** is capped daily by `Limits:DailySpendCapUsd`, counting contestants, the judge, and the `SpendLedger` table (prompt refine, scouting reports).
 - **Compare** can suggest the matchup the leaderboard learns most from, and each **model profile** carries a scouting report written from the judge's notes (`GET /api/leaderboard/{id}/scouting-report`). Suggest matchup is always there; the scouting report and Sharpen prompt are paid, so they are off (fixed in `prefs.js`).

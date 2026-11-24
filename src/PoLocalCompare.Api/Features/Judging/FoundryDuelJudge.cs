@@ -249,8 +249,7 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
     {
         if (string.IsNullOrWhiteSpace(deployment)) return null;
         deployment = deployment.Trim();
-        // A gemini-* judge goes to Google's endpoint — see FoundryChatRequest.IsGemini.
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration, deployment);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration);
         return string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey)
             ? null
             : new JudgeSeat(endpoint, apiKey, deployment);
@@ -710,9 +709,9 @@ public sealed partial class FoundryDuelJudge : IDuelJudge
             deployment, messages, isTiebreak ? TiebreakTokenBudget : ReplyTokenBudget, 0.0, stream: false, includeModelField);
         body["response_format"] = withRubric ? RubricResponseFormat : JudgeResponseFormat;
         // Build pins every reasoning model to its floor. A tie-break exists to look harder, so it
-        // lifts that — but only for families known to accept the value (not xAI or Gemini).
+        // lifts that — but only for families known to accept the value (not xAI).
         if (isTiebreak && body.ContainsKey("reasoning_effort")
-            && !FoundryChatRequest.IsGrokReasoning(deployment) && !FoundryChatRequest.IsGemini(deployment))
+            && !FoundryChatRequest.IsGrokReasoning(deployment))
             body["reasoning_effort"] = TiebreakEffort;
         return body;
     }

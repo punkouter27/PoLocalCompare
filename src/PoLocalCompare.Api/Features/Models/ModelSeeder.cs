@@ -111,6 +111,19 @@ public static class ModelSeeder
         new Model(ModelId.From("01SEED000000000000000000E"), "DeepSeek V4 Flash", ModelType.Remote, apiEndpointRef: "DeepSeek-V4-Flash"),
         new Model(ModelId.From("01SEED000000000000000000G"), "Grok 4.6",          ModelType.Remote, apiEndpointRef: "grok-4.6"),
 
+        // Added 2026-11-23, re-adding two of the 2026-11-07 retirees under new ids now that each
+        // has its own row on the Azure price sheet (Global, short context): azure-openai for
+        // GPT-6.1 Sol, ai-foundry-models/grok for Grok 4.7. Kimi K3.1 Pro (no published row) and
+        // DeepSeek V4.1 Flash 1017 (only the undated V4.1 Flash is listed) stay out until theirs is.
+        new Model(ModelId.From("01SEED0000000000000000025"), "GPT-6.1 Sol",       ModelType.Remote, apiEndpointRef: "gpt-6.1-sol", inputTokenPricePerMillion: 2.00m, outputTokenPricePerMillion: 10.00m),
+        new Model(ModelId.From("01SEED0000000000000000026"), "Grok 4.7",          ModelType.Remote, apiEndpointRef: "grok-4.7",    inputTokenPricePerMillion: 2.00m, outputTokenPricePerMillion: 6.00m),
+
+        // Added 2026-11-23: the DeepSeek ladder (V4 Flash → V4.1 Flash → V4 Pro), priced from
+        // ai-foundry-models/deepseek (Global). V4.1 Flash is the undated 2026-09-10 version — the
+        // -1017 snapshot has no price row of its own.
+        new Model(ModelId.From("01SEED0000000000000000027"), "DeepSeek V4.1 Flash", ModelType.Remote, apiEndpointRef: "DeepSeek-V4.1-Flash", inputTokenPricePerMillion: 0.30m, outputTokenPricePerMillion: 1.20m),
+        new Model(ModelId.From("01SEED0000000000000000028"), "DeepSeek V4 Pro",     ModelType.Remote, apiEndpointRef: "DeepSeek-V4-Pro",     inputTokenPricePerMillion: 1.74m, outputTokenPricePerMillion: 3.48m),
+
         // GPT-5.4 Pro was the intended flagship and is NOT seeded, though the deployment exists.
         // Pro-tier models are Responses-API only: POST /openai/deployments/gpt-5.4-pro/chat/completions
         // returns {"error":{"message":"The requested operation is unsupported."}} on every
@@ -148,6 +161,9 @@ public static class ModelSeeder
     /// <c>Limits:DailySpendCapUsd</c>, so it is a way around the cap, not just a blank cost
     /// column. Their deployments still exist in po-aiservices-shared2; re-adding one needs a new
     /// id and an exact price-book entry first.
+    ///
+    /// 011, 012 (Gemini 2.5 / 3.5 Flash-Lite), 2026-11-23: Google's endpoint was removed with
+    /// them — the key was answering 402 Payment Required on every call.
     /// </remarks>
     public static readonly IReadOnlySet<ModelId> RetiredIds = new HashSet<ModelId>
     {
@@ -155,6 +171,8 @@ public static class ModelSeeder
         ModelId.From("01SEED0000000000000000007"),
         ModelId.From("01SEED0000000000000000008"),
         ModelId.From("01SEED000000000000000000C"),
+        ModelId.From("01SEED0000000000000000011"),
+        ModelId.From("01SEED0000000000000000012"),
         ModelId.From("01SEED0000000000000000017"),
         ModelId.From("01SEED0000000000000000018"),
         ModelId.From("01SEED0000000000000000019"),
@@ -164,19 +182,6 @@ public static class ModelSeeder
         ModelId.From("01SEED0000000000000000023"),
         ModelId.From("01SEED0000000000000000024"),
     };
-
-    /// <summary>
-    /// Google models over the Gemini API's OpenAI-compatible endpoint (see
-    /// <c>FoundryChatRequest.IsGemini</c>). Seeded only when <c>Gemini:ApiKey</c> is configured,
-    /// so a machine without a key gets no permanently-failing entries. 2.5 Flash-Lite is the
-    /// cheapest multimodal model on any provider here and can run with thinking off; 3.5
-    /// Flash-Lite is its successor, which cannot. Added 2026-09-26.
-    /// </summary>
-    private static readonly List<Model> GeminiModels =
-    [
-        new Model(ModelId.From("01SEED0000000000000000011"), "Gemini 2.5 Flash-Lite", ModelType.Remote, apiEndpointRef: "gemini-2.5-flash-lite", inputTokenPricePerMillion: 0.10m, outputTokenPricePerMillion: 0.40m),
-        new Model(ModelId.From("01SEED0000000000000000012"), "Gemini 3.5 Flash-Lite", ModelType.Remote, apiEndpointRef: "gemini-3.5-flash-lite", inputTokenPricePerMillion: 0.30m, outputTokenPricePerMillion: 2.50m),
-    ];
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -191,8 +196,6 @@ public static class ModelSeeder
         var modelsToSeed = environment.IsDevelopment()
             ? DefaultModels
             : DefaultModels.Where(m => m.ModelType != ModelType.LocalService).ToList();
-        if (!string.IsNullOrWhiteSpace(services.GetRequiredService<IConfiguration>()["Gemini:ApiKey"]))
-            modelsToSeed = [.. modelsToSeed, .. GeminiModels];
 
         var existing = (await repo.GetAllAsync()).ToList();
 

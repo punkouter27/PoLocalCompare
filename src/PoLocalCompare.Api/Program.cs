@@ -173,22 +173,17 @@ try
             "azureAiFoundry",
             HealthStatus.Unhealthy,
             [HealthCheckTags.Dependency],
-            "AzureAiFoundry:Endpoint", "Azure AI Foundry", "", false)
-        .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
-            "gemini",
-            HealthStatus.Degraded,
-            [HealthCheckTags.DiagOnly],
-            "Gemini:Endpoint", "Google Gemini", "Gemini:ApiKey", false)
+            "AzureAiFoundry:Endpoint", "Azure AI Foundry", false)
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "keyVault",
             HealthStatus.Unhealthy,
             [HealthCheckTags.Dependency],
-            "KeyVault:Uri", "Key Vault", "", false)
+            "KeyVault:Uri", "Key Vault", false)
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "entraId",
             HealthStatus.Degraded,
             [HealthCheckTags.DiagOnly],
-            "AzureAd:Authority", "Microsoft Entra ID", "", false)
+            "AzureAd:Authority", "Microsoft Entra ID", false)
         .AddCheck<AppInsightsHealthCheck>(
             "appInsights",
             HealthStatus.Degraded,
@@ -201,7 +196,7 @@ try
             "ollama",
             HealthStatus.Degraded,
             [HealthCheckTags.DiagOnly],
-            "Ollama:BaseUrl", "Ollama", "", true);
+            "Ollama:BaseUrl", "Ollama", true);
 
     // RFC 7807 bodies for unhandled exceptions (UseExceptionHandler below), stamped with the
     // request id so a user-reported error can be found in the log.

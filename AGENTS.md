@@ -132,7 +132,7 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 | /diag: signed in, a **Model health** panel follows API / Data / Services | one-prompt smoke test of every model; reads the model list, so never shown signed out | `30cb2cb` 2026-11-20 | remove the panel from `Diag.razor` |
 | Header Sign in button hidden on `/login` only | the page's own "Sign in with Microsoft" card is the one sign-in control | `30cb2cb` 2026-11-20 | show it again in the header |
 | Version badge: up to 768px it flows as the last item of `.page` (bottom-right, after content); fixed from 769px | a fixed badge sat on /diag cards on phones (overrides the older fixed-badge rule) | `44ad02b` 2026-11-21 | `git revert 44ad02b` |
-| /diag services: Table + Blob (data); Foundry, Gemini, Key Vault, Entra ID, App Insights, Hugging Face, Ollama. Only Table, Foundry and Key Vault feed `/health`. A service switched off on purpose (Ollama outside Development) shows **Off**, a neutral grey pill, never degraded | every service probed live without an optional one failing the deploy gate | `14c1d97`, `a6afde0` 2026-11-21 | `DiagEndpoints.cs` Off status |
+| /diag services: Table + Blob (data); Foundry, Key Vault, Entra ID, App Insights, Hugging Face, Ollama. Only Table, Foundry and Key Vault feed `/health`. A service switched off on purpose (Ollama outside Development) shows **Off**, a neutral grey pill, never degraded | every service probed live without an optional one failing the deploy gate | `14c1d97`, `a6afde0` 2026-11-21 | `DiagEndpoints.cs` Off status |
 | Radzen.Blazor 12.2.0 for every control; exceptions: read-only `<table class="po-table">` data tables (see "Layout and styling") | owner decision "Radzen wins, convert" (Profile A), reversing the old "no component library" rule | `c61e24d` 2026-11-21 | — (owner rule) |
 | Client keeps `PublishTrimmed=false`, so the browser tier runs on the untrimmed Release publish (what deploys) | Router `NotFoundPage` blocks trimming (owner note in `PoLocalCompare.Client.csproj`) | — | fix the trim issue, then turn trimming on |
 | `run-e2eui.ps1` publishes with `-p:WasmApplicationEnvironmentName=Development` | .NET 10 bakes the client environment at publish; Production has no guest sign-in | `731523a` 2026-11-21 | drop the flag (tests then need a real account) |
@@ -307,7 +307,7 @@ Dynamic switching is automatic based on `ASPNETCORE_ENVIRONMENT`.
 ### 4.3 AI Model Categories
 | Category | When Available | Notes |
 |---|---|---|
-| **Remote** | Always (Azure AI Foundry) | Requires `AzureAiFoundry:ApiKey` or Managed Identity. A `gemini-*` `ApiEndpointRef` routes to Google's OpenAI-compatible endpoint instead (`Gemini:ApiKey`); Gemini models seed only when that key is set |
+| **Remote** | Always (Azure AI Foundry) | Requires `AzureAiFoundry:ApiKey` or Managed Identity. Google's Gemini endpoint was removed 2026-11-23 (its key answered 402) |
 | **Browser** | When browser has WebGPU | WebLLM, runs in WASM, first-run download |
 | **Ollama** | Only when running locally | `http://localhost:11434`, checked at runtime |
 
@@ -393,15 +393,13 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
 | `AiJudge:TiebreakDeployment` | `appsettings.json` | — (`gpt-5-mini` since 2026-11-07 — the `gpt-5.4` deployment it used to name served gpt-5-mini until then, and now serves the pricier real gpt-5.4; re-judges a split in both orders at medium effort; empty = off; must accept images when vision is on) |
 | `AiJudge:VisionEnabled` | `appsettings.json` | — (false; true in Development — needs headless Chromium) |
 | `AiJudge:TextOnlyDeployment` | `appsettings.json` | — (`gpt-4.1-nano`; used, and stamped as `JudgeModel`, whenever vision is off. In po-aiservices-shared2 this deployment SERVES gpt-5.4-mini — see HISTORY 2026-10-26) |
-| `AiJudge:CrossCheckDeployment` | `appsettings.json` | — (`gemini-3.5-flash-lite`; reads the second ordering so a verdict survives a change of judge family; empty, no key, or a failed call = the primary reads it; must accept images when vision is on) |
+| `AiJudge:CrossCheckDeployment` | `appsettings.json` | — (empty since 2026-11-23, when Gemini was removed; reads the second ordering so a verdict survives a change of judge family; empty or a failed call = the primary reads it; must accept images when vision is on) |
 | `AiJudge:EscalationDeployment` | `appsettings.json` | — (`gpt-5.4-mini`; first re-ask of a split, both orders at floor effort, before `TiebreakDeployment`; empty = skip) |
 | `AiJudge:RubricEnabled` | `appsettings.json` | — (true; one checklist per prompt, cached a day, that every judge call scores against) |
 | `AiJudge:MaxOutputChars` | `appsettings.json` | — (**40,000** per side on the source-only path; was 12,000) |
 | `Tournaments:MaxConcurrentMatches` | `appsettings.json` | — (**4**; clamped 1–8; was a hard-coded 2 until 2026-11-07). Matches a tournament runs at once — each is a duel calling two models, so lower it first if the Foundry quota returns 429s |
 | `Limits:DuelStartsPerMinute` | `appsettings.json` | — (**10**; 120 in Development, 0 in the test hosts; 0 = off). Fixed window per signed-in user on `POST /api/duels` and `POST /api/tournaments` |
 | `Limits:DailySpendCapUsd` | `appsettings.json` | — (**5**; 0 = off). Compared with today's (UTC) contestant `ApiCostUsd` + `JudgeCostUsd` + the `SpendLedger` table (prompt refine, scouting reports); once reached, Remote duels and all tournaments get a 429 and no new scouting report is written |
-| `Gemini:ApiKey` | Key Vault (`PoLocalCompare--Gemini--ApiKey`, copied from PoFightJudge's on 2026-10-26) | `Gemini__ApiKey` env var. Optional — without it no Gemini models are seeded and the judge has no cross-check |
-| `Gemini:Endpoint` | `appsettings.json` | — (`https://generativelanguage.googleapis.com/v1beta/openai`) |
 
 ---
 
@@ -856,12 +854,12 @@ changing something a rule protects. A rule with no obvious reason usually has an
 - **Cost is `TokenCost.Compute`** (`TokenCost.OfCompletion` for one-shot calls). xAI reports
   reasoning tokens outside `completion_tokens` (`ReportsReasoningSeparately`).
 - **Non-streaming Foundry calls go through `FoundryChatClient.PostAsync`** (the two-route
-  fallback, Gemini included). `FoundryInferenceProxy` keeps its own streaming version.
+  fallback). `FoundryInferenceProxy` keeps its own streaming version.
 - **The model catalog is spread across three files that must agree:** `ModelSeeder.cs`,
   `prebuiltAppConfig` in `web-llm.js`, and `scripts/plan-webllm-artifacts.py` (run it after any
   catalog edit). Retired seed ids are never reused, and are listed in `ModelSeeder.RetiredIds`:
   their rows (ELO, duels) stay, but the picker, catalog and tournament draw leave them out. Ollama
-  seeds in Development only; Gemini only with `Gemini:ApiKey`. `DefaultPriceBook` matches the
+  seeds in Development only. `DefaultPriceBook` matches the
   longest key. **Before seeding a Foundry deployment, call it once and read the `model` it
   reports** — on 2026-11-07 three seeded "nano" names and `gpt-5.4` served other models, and
   `gpt-5.5` was not deployed at all. **A remote model is seeded only with a clear price** — an

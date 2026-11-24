@@ -29,6 +29,7 @@ public static class DefaultPriceBook
     private static readonly (string Suffix, Rate Rate)[] Table =
     [
         // OpenAI
+        ("gpt-6.1-sol",        new Rate(2.00m,  10.00m)), // 2026-11-23, Global short context
         ("gpt-5.5",            new Rate(5.00m,  40.00m)),
         ("gpt-5.4",            new Rate(2.50m,  15.00m)),
         ("gpt-5.4-mini",       new Rate(0.75m,   4.50m)),
@@ -55,16 +56,15 @@ public static class DefaultPriceBook
         ("grok-4",             new Rate(3.00m,  15.00m)),
         ("grok-4-6",           new Rate(2.00m,  10.00m)),
         ("grok-4.6",           new Rate(2.00m,  10.00m)), // the seeded deployment name uses a dot
+        ("grok-4.7",           new Rate(2.00m,   6.00m)), // 2026-11-23, Global
 
         // Moonshot
         ("kimi-k2",            new Rate(0.60m,   2.50m)),
 
-        // Google (Gemini API paid tier, text, from ai.google.dev/gemini-api/docs/pricing, 2026-09-26)
-        ("gemini-2.5-flash-lite", new Rate(0.10m, 0.40m)),
-        ("gemini-3.5-flash-lite", new Rate(0.30m, 2.50m)),
-
         // DeepSeek
         ("deepseek-v4",        new Rate(0.14m,   0.28m)),
+        ("deepseek-v4-pro",    new Rate(1.74m,   3.48m)), // 2026-11-23, Global
+        ("deepseek-v4.1-flash",new Rate(0.30m,   1.20m)), // 2026-11-23, Global
     ];
 
     /// <summary>

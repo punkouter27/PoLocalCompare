@@ -51,22 +51,17 @@ public sealed class FoundryInferenceProxy(
         var sw = Stopwatch.StartNew();
 
         var deploymentName = model.ApiEndpointRef;
-        var gemini = FoundryChatRequest.IsGemini(deploymentName);
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration, deploymentName);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(_configuration);
 
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(deploymentName))
         {
             result.IsFailure = true;
-            result.FailureReason = gemini
-                ? "Gemini configuration is incomplete (Gemini:ApiKey missing)."
-                : "Azure AI Foundry configuration is incomplete (Endpoint, ApiKey, or ApiEndpointRef missing).";
+            result.FailureReason = "Azure AI Foundry configuration is incomplete (Endpoint, ApiKey, or ApiEndpointRef missing).";
             return result;
         }
 
-        // Gemini has one route, with the model in the body; pointing both "routes" at it keeps
-        // the Foundry two-endpoint discovery below unchanged (a 404 just retries the same URL).
-        var deploymentUrl = gemini ? FoundryChatRequest.GeminiUrl(endpoint) : FoundryChatRequest.DeploymentUrl(endpoint, deploymentName);
-        var modelInferenceUrl = gemini ? deploymentUrl : FoundryChatRequest.ModelInferenceUrl(endpoint);
+        var deploymentUrl = FoundryChatRequest.DeploymentUrl(endpoint, deploymentName);
+        var modelInferenceUrl = FoundryChatRequest.ModelInferenceUrl(endpoint);
 
         // Reasoning tokens are drawn from max_completion_tokens before visible output, so a
         // reasoning model still needs headroom above the classic budget — but far less of it
@@ -90,7 +85,7 @@ public sealed class FoundryInferenceProxy(
         // model-inference route, the model name) spliced in per call.
         var deploymentJson = FoundryChatRequest.GetCachedBody(
             deploymentName, InferencePrompt.System, promptFull, maxTokens, GenerationTemperature,
-            stream: true, includeModelField: gemini);
+            stream: true, includeModelField: false);
 
         var modelInferenceJson = FoundryChatRequest.GetCachedBody(
             deploymentName, InferencePrompt.System, promptFull, maxTokens, GenerationTemperature,
@@ -109,7 +104,7 @@ public sealed class FoundryInferenceProxy(
             {
                 attempt++;
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);
-                FoundryChatRequest.AddAuth(request, deploymentName, apiKey);
+                FoundryChatRequest.AddAuth(request, apiKey);
                 request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response;

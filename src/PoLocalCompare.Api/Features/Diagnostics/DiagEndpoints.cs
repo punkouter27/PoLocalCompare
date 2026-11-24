@@ -26,7 +26,6 @@ public static class DiagEndpoints
         ["azureTableStorage"] = new("data", "Table Storage", "Stores models, duels, ratings and tournaments."),
         ["azureBlobStorage"] = new("data", "Blob Storage", "Keeps duel pages too big for a table row."),
         ["azureAiFoundry"] = new("service", "Azure AI Foundry", "Runs the remote models and the AI judge."),
-        ["gemini"] = new("service", "Google Gemini", "Runs the Gemini models and the second-opinion judge."),
         ["keyVault"] = new("service", "Azure Key Vault", "Holds API keys and connection strings for the hosted app."),
         ["entraId"] = new("service", "Microsoft Entra ID", "Signs people in with a Microsoft account."),
         ["appInsights"] = new("service", "Application Insights", "Collects the app's logs and sign-in events."),

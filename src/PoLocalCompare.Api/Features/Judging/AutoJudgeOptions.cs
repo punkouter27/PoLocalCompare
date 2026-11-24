@@ -76,11 +76,10 @@ public sealed class AutoJudgeOptions
     /// </summary>
     /// <remarks>
     /// Added 2026-10-26 against self-preference: an OpenAI judge was scoring a mostly-OpenAI
-    /// catalog, and nothing corrected for a judge preferring its own house style. Gemini 3.5
-    /// Flash-Lite ($0.30/$2.50) reads images and costs well under what the OpenAI judge
-    /// deployments actually serve (gpt-5.4-mini, $0.75/$4.50 — see
-    /// <c>FoundryChatRequest.TryLearnShape</c>), so it lowers the cost of every verdict.
-    /// 2.5 Flash-Lite is cheaper still but closed to new Gemini projects.
+    /// catalog, and nothing corrected for a judge preferring its own house style. It was Gemini
+    /// 3.5 Flash-Lite until 2026-11-23, when Google's endpoint was removed (its key had been
+    /// answering 402 Payment Required, so every verdict already fell back to the primary). It is
+    /// empty until a non-OpenAI Foundry deployment is picked for it.
     /// </remarks>
     public string? CrossCheckDeployment { get; set; }
 

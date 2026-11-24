@@ -100,7 +100,7 @@ public sealed class JudgeRubricProvider(
     private async Task<(string[] Items, double? Cost)?> GenerateAsync(
         string deployment, string promptFull, CancellationToken cancellationToken)
     {
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration, deployment);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration);
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey)) return null;
 
         object[] messages =

@@ -98,10 +98,6 @@ public sealed class BlobStorageHealthCheck(BlobServiceClient client) : IHealthCh
 /// endpoint reports Healthy with a "NotConfigured" note rather than Unhealthy — the app runs
 /// without Foundry (mock mode, Ollama-only), so absence is a configuration state, not a fault.
 /// </summary>
-/// <param name="requiredKey">
-/// When non-empty, the service is only in use while this key has a value (Gemini needs its API
-/// key; its endpoint has a default) — otherwise it reports NotConfigured.
-/// </param>
 /// <param name="developmentOnly">The service is only called in Development (Ollama on localhost).</param>
 public sealed class ConfiguredEndpointHealthCheck(
     IHttpClientFactory httpClientFactory,
@@ -109,7 +105,6 @@ public sealed class ConfiguredEndpointHealthCheck(
     IHostEnvironment environment,
     string configurationKey,
     string displayName,
-    string requiredKey,
     bool developmentOnly) : IHealthCheck
 {
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
@@ -117,7 +112,6 @@ public sealed class ConfiguredEndpointHealthCheck(
     private readonly IHostEnvironment _environment = environment;
     private readonly string _configurationKey = configurationKey;
     private readonly string _displayName = displayName;
-    private readonly string _requiredKey = requiredKey;
     private readonly bool _developmentOnly = developmentOnly;
 
     public Task<HealthCheckResult> CheckHealthAsync(
@@ -126,7 +120,6 @@ public sealed class ConfiguredEndpointHealthCheck(
     {
         var endpoint = _configuration[_configurationKey];
         var inUse = !string.IsNullOrWhiteSpace(endpoint)
-            && (_requiredKey.Length == 0 || !string.IsNullOrWhiteSpace(_configuration[_requiredKey]))
             && (!_developmentOnly || _environment.IsDevelopment());
 
         return inUse

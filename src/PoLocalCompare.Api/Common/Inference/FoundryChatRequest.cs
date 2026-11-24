@@ -25,14 +25,16 @@ public static class FoundryChatRequest
     /// and failed every duel with "'reasoning_effort' does not support 'minimal' with this model.
     /// Supported values are: 'none', 'low', 'medium', 'high', and 'xhigh'" — which a tournament
     /// shows as its opponent winning by walkover. The original GPT-5 and the 5.4 family accept
-    /// <c>minimal</c>; GPT-5.5 replaced it with <c>none</c>; the o-series never had either.
+    /// <c>minimal</c>; GPT-5.5 replaced it with <c>none</c>; the o-series never had either, and
+    /// neither does GPT-6.1 Sol (2026-11-23: "Supported values are: 'low', 'medium', 'high', and 'xhigh'").
     /// A new GPT-5 deployment that 400s on this field needs its prefix added here.
     /// </remarks>
     public static string ReasoningEffortFor(string deploymentName)
     {
         var n = deploymentName.ToLowerInvariant();
         if (n.StartsWith("gpt-5.5", StringComparison.Ordinal)) return "none";
-        if (n.StartsWith("o1", StringComparison.Ordinal) || n.StartsWith("o3", StringComparison.Ordinal) || n.StartsWith("o4", StringComparison.Ordinal)) return "low";
+        if (n.StartsWith("gpt-6", StringComparison.Ordinal)
+            || n.StartsWith("o1", StringComparison.Ordinal) || n.StartsWith("o3", StringComparison.Ordinal) || n.StartsWith("o4", StringComparison.Ordinal)) return "low";
         return "minimal";
     }
 
@@ -142,35 +144,13 @@ public static class FoundryChatRequest
         return body;
     }
 
-    /// <summary>Google's OpenAI-compatible Gemini endpoint, used when <c>Gemini:Endpoint</c> is unset.</summary>
-    public const string GeminiDefaultEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai";
+    /// <summary>Foundry authenticates with an <c>api-key</c> header.</summary>
+    public static void AddAuth(HttpRequestMessage request, string apiKey) =>
+        request.Headers.Add("api-key", apiKey);
 
-    /// <summary>
-    /// A <c>gemini-*</c> model reference is served by Google's OpenAI-compatible endpoint
-    /// (<c>Gemini:Endpoint</c> / <c>Gemini:ApiKey</c>) instead of Foundry. Same SSE shape, same
-    /// body builder — only the URL and the auth header differ, so it rides the Remote proxy
-    /// rather than getting a ModelType and a proxy of its own.
-    /// </summary>
-    public static bool IsGemini(string? modelRef) =>
-        modelRef is not null && modelRef.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>The single Gemini chat route; the model is named in the body.</summary>
-    public static string GeminiUrl(string endpoint) => $"{endpoint}/chat/completions";
-
-    /// <summary>Foundry takes an <c>api-key</c> header; Google's endpoint takes a Bearer token.</summary>
-    public static void AddAuth(HttpRequestMessage request, string modelRef, string apiKey)
-    {
-        if (IsGemini(modelRef))
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-        else
-            request.Headers.Add("api-key", apiKey);
-    }
-
-    /// <summary>Endpoint and key for a model reference, from whichever provider serves it.</summary>
-    public static (string? Endpoint, string? ApiKey) ResolveProvider(IConfiguration configuration, string? modelRef) =>
-        IsGemini(modelRef)
-            ? ((configuration["Gemini:Endpoint"] ?? GeminiDefaultEndpoint).TrimEnd('/'), configuration["Gemini:ApiKey"])
-            : (configuration["AzureAiFoundry:Endpoint"]?.TrimEnd('/'), configuration["AzureAiFoundry:ApiKey"]);
+    /// <summary>The Foundry endpoint and key. Google's Gemini endpoint was removed 2026-11-23.</summary>
+    public static (string? Endpoint, string? ApiKey) ResolveProvider(IConfiguration configuration) =>
+        (configuration["AzureAiFoundry:Endpoint"]?.TrimEnd('/'), configuration["AzureAiFoundry:ApiKey"]);
 
     /// <summary>
     /// xAI's reasoning Grok deployments — every <c>grok-*</c> that is not explicitly a
@@ -203,6 +183,7 @@ public static class FoundryChatRequest
         if (string.IsNullOrWhiteSpace(deploymentName)) return false;
         var n = deploymentName.ToLowerInvariant();
         return n.StartsWith("gpt-5", StringComparison.Ordinal)
+            || n.StartsWith("gpt-6", StringComparison.Ordinal)
             || n.StartsWith("o1", StringComparison.Ordinal)
             || n.StartsWith("o3", StringComparison.Ordinal)
             || n.StartsWith("o4", StringComparison.Ordinal)
@@ -308,9 +289,7 @@ public static class FoundryChatRequest
             || n.StartsWith("phi-", StringComparison.Ordinal)
             || n.StartsWith("llama-", StringComparison.Ordinal)
             || n.StartsWith("llama_", StringComparison.Ordinal)
-            || n.StartsWith("grok-", StringComparison.Ordinal)
-            // Google documents stream_options.include_usage on its OpenAI-compatible endpoint.
-            || n.StartsWith("gemini-", StringComparison.Ordinal);
+            || n.StartsWith("grok-", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -377,16 +356,6 @@ public static class FoundryChatRequest
         {
             // The lowest effort xAI's reasoning models accept. See IsGrokReasoning.
             body["reasoning_effort"] = "low";
-        }
-
-        if (IsGemini(deploymentName))
-        {
-            // Gemini thinks by default, for the same waste the GPT-5 note above describes.
-            // Google's compatibility layer accepts "none" on 2.5 models only; 3.x cannot turn
-            // thinking off and takes "minimal" as its floor.
-            body["reasoning_effort"] = deploymentName.StartsWith("gemini-2.5", StringComparison.OrdinalIgnoreCase)
-                ? "none"
-                : "minimal";
         }
 
         return body;

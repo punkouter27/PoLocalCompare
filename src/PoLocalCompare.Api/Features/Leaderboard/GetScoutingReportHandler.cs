@@ -119,7 +119,7 @@ public sealed class GetScoutingReportHandler(
         Model model, List<(EloRecord Row, Duel Duel)> analysed, CancellationToken cancellationToken)
     {
         var deployment = judgeOptions.Value.EffectiveDeployment(visionEnabled: false);
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration, deployment);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration);
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey)) return null;
 
         var notes = new StringBuilder($"MODEL: {model.DisplayName}\n");

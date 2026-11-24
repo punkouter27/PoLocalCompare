@@ -136,10 +136,9 @@ public sealed class GetModelAvailabilityHandler(
             return Unavailable(model, "ApiEndpointRef is empty.");
 
         var deploymentName = model.ApiEndpointRef;
-        var gemini = FoundryChatRequest.IsGemini(deploymentName);
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(foundry.Configuration, deploymentName);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(foundry.Configuration);
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey))
-            return Unavailable(model, gemini ? "Gemini API key is missing." : "AzureAiFoundry endpoint or API key is missing.");
+            return Unavailable(model, "AzureAiFoundry endpoint or API key is missing.");
 
         try
         {
@@ -167,9 +166,6 @@ public sealed class GetModelAvailabilityHandler(
                     ? Available(model)
                     : new() { ModelId = model.ModelId, IsAvailable = true, ServedModelMismatch = served };
             }
-
-            if (gemini)
-                return Unavailable(model, $"Gemini endpoint unavailable (HTTP {(int)deploymentStatus}).");
 
             // The deployment route 404'd and the model-inference route did not answer either;
             // which one a resource exposes depends on how the model was provisioned.

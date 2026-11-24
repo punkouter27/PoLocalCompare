@@ -62,7 +62,7 @@ public sealed class RefinePromptHandler(
     public async Task<string?> HandleAsync(string prompt, CancellationToken cancellationToken)
     {
         var deployment = Deployment;
-        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration, deployment);
+        var (endpoint, apiKey) = FoundryChatRequest.ResolveProvider(configuration);
         if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(deployment))
             return null;
 

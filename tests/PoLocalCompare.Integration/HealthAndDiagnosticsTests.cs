@@ -94,7 +94,7 @@ public sealed class HealthAndDiagnosticsTests(AzuriteFixture azurite) : IAsyncLi
         Assert.True(checks[0].GetProperty("latencyMs").GetDouble() > 0);
 
         // Every external service the app calls is listed, configured here or not.
-        string[] services = ["Azure AI Foundry", "Google Gemini", "Microsoft Entra ID", "Application Insights", "Hugging Face Hub", "Ollama"];
+        string[] services = ["Azure AI Foundry", "Microsoft Entra ID", "Application Insights", "Hugging Face Hub", "Ollama"];
         foreach (var label in services)
             Assert.Equal("service", checks.Single(c => c.GetProperty("label").GetString() == label).GetProperty("group").GetString());
     }
