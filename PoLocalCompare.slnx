@@ -3,6 +3,8 @@
     <Project Path="src/PoLocalCompare.Api/PoLocalCompare.Api.csproj" />
     <Project Path="src/PoLocalCompare.Shared/PoLocalCompare.Shared.csproj" />
     <Project Path="src/PoLocalCompare.Client/PoLocalCompare.Client.csproj" />
+    <Project Path="src/PoLocalCompare.Rendering/PoLocalCompare.Rendering.csproj" />
+    <Project Path="src/PoLocalCompare.RenderService/PoLocalCompare.RenderService.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PoLocalCompare.Unit/PoLocalCompare.Unit.csproj" />

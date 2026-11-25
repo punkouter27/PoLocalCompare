@@ -1,0 +1,10 @@
+# Allow-list: the build context is the repo root, which also holds GBs of browser-model assets.
+*
+!global.json
+!Directory.Build.props
+!Directory.Packages.props
+!.editorconfig
+!src/PoLocalCompare.Rendering/
+!src/PoLocalCompare.RenderService/
+**/bin/
+**/obj/

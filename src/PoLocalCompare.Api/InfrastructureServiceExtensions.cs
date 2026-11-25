@@ -1,6 +1,7 @@
 using Azure.Data.Tables;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Polly;
 
 namespace PoLocalCompare.Api;
@@ -78,6 +79,16 @@ public static class InfrastructureServiceExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(60);
         }).AddResilienceHandler("foundry-judge", AddStreamingRetry);
+
+        // The judge's screenshots: PoLocalCompare.RenderService when Rendering:ServiceUrl is set
+        // (Production — F1 cannot run a browser), local Chromium otherwise. No retry handler: a
+        // render that fails falls back to source-only judging, and the facade's own CTS bounds it.
+        services.Configure<RenderingOptions>(configuration.GetSection(RenderingOptions.SectionName));
+        services.AddHttpClient(HtmlScreenshotRenderer.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.TryAddSingleton(TimeProvider.System);
+        // Singletons: the local one owns a Chromium process, launched lazily on first use and reused.
+        services.AddSingleton<PlaywrightHtmlRenderer>();
+        services.AddSingleton<HtmlScreenshotRenderer>();
 
         // Remote inference proxies — keyed by ModelType name so DuelExecutionService can resolve
         // the right one. Mock mode REPLACES this pair rather than adding a second registration

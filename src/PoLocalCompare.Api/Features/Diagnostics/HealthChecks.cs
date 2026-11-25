@@ -165,6 +165,34 @@ public sealed class HuggingFaceHubHealthCheck(IHttpClientFactory httpClientFacto
             httpClientFactory, "https://huggingface.co/api/models?author=mlc-ai&limit=1", "Hugging Face Hub", context, cancellationToken);
 }
 
+/// <summary>
+/// The vision judge's render container. Passive on purpose: it reports how the last real render
+/// went instead of calling the service, because the container scales to zero and a probe on every
+/// /health or /diag refresh would keep it — and its bill — awake around the clock.
+/// </summary>
+public sealed class RenderServiceHealthCheck(HtmlScreenshotRenderer renderer) : IHealthCheck
+{
+    public Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (!renderer.IsRemote)
+            return Task.FromResult(HttpReachability.NotConfigured("Render service"));
+
+        return Task.FromResult(renderer.LastRemoteOutcome switch
+        {
+            null => HealthCheckResult.Healthy("No render yet since the app started.",
+                new Dictionary<string, object> { ["latencyMs"] = 0L }),
+            { Ok: true } => HealthCheckResult.Healthy("The last render worked.",
+                new Dictionary<string, object> { ["latencyMs"] = 0L }),
+            { } failed => new HealthCheckResult(
+                context.Registration?.FailureStatus ?? HealthStatus.Degraded,
+                $"The last render failed ({failed.Detail}); the judge read source code instead.",
+                data: new Dictionary<string, object> { ["latencyMs"] = 0L }),
+        });
+    }
+}
+
 /// <summary>One short GET: any HTTP answer proves DNS, TLS and routing to the service work.</summary>
 internal static class HttpReachability
 {

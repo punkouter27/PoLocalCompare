@@ -138,6 +138,7 @@ Every command below was run on 2026-11-21 from the repo root (Windows, PowerShel
 | /diag services: Table + Blob (data); Foundry, Key Vault, Entra ID, App Insights, Hugging Face, Ollama. Only Table, Foundry and Key Vault feed `/health`. A service switched off on purpose (Ollama outside Development) shows **Off**, a neutral grey pill, never degraded | every service probed live without an optional one failing the deploy gate | `14c1d97`, `a6afde0` 2026-11-21 | `DiagEndpoints.cs` Off status |
 | Radzen.Blazor 12.2.0 for every control; exceptions: read-only `<table class="po-table">` data tables (see "Layout and styling") | owner decision "Radzen wins, convert" (Profile A), reversing the old "no component library" rule | `c61e24d` 2026-11-21 | — (owner rule) |
 | Client keeps `PublishTrimmed=false`, so the browser tier runs on the untrimmed Release publish (what deploys) | Router `NotFoundPage` blocks trimming (owner note in `PoLocalCompare.Client.csproj`) | — | fix the trim issue, then turn trimming on |
+| `src/PoLocalCompare.Rendering` + `src/PoLocalCompare.RenderService`, and a Container App (`cae-polocalcompare` / `ca-polocalcompare-render`, `infra/modules/renderer.bicep`, image on public `ghcr.io/punkouter27/polocalcompare-render`) outside the F1 plan, deployed by `scripts/deploy-renderer.ps1` rather than deploy.yml | the vision judge needs headless Chromium and F1 cannot run one; a source-only judge picked a flat card captioned with the subject's name over a real 3D head (2026-11-24). Scales to zero, so it normally stays inside the Container Apps free grant | 2026-11-24 | set `Rendering:ServiceUrl` empty and `AiJudge:VisionEnabled` false, delete `ca-polocalcompare-render` |
 | `run-e2eui.ps1` publishes with `-p:WasmApplicationEnvironmentName=Development` | .NET 10 bakes the client environment at publish; Production has no guest sign-in | `731523a` 2026-11-21 | drop the flag (tests then need a real account) |
 
 **Hosting:** App Service F1 (Free, Windows, `asp-PoLocalCompare-f1`): 60 CPU-minutes and a data-out quota per day
@@ -396,7 +397,10 @@ client holds **no tokens** — the session lives in an encrypted `HttpOnly`, `Sa
 | `AiJudge:DelaySeconds` | `appsettings.json` | — (**10**; code default also 10) |
 | `AiJudge:Deployment` | `appsettings.json` | — (`gpt-5.4-mini`; must accept image input when vision judging is on) |
 | `AiJudge:TiebreakDeployment` | `appsettings.json` | — (`gpt-5-mini` since 2026-11-07 — the `gpt-5.4` deployment it used to name served gpt-5-mini until then, and now serves the pricier real gpt-5.4; re-judges a split in both orders at medium effort; empty = off; must accept images when vision is on) |
-| `AiJudge:VisionEnabled` | `appsettings.json` | — (false; true in Development — needs headless Chromium) |
+| `AiJudge:VisionEnabled` | `appsettings.json` | — (true in Development; in Production set true by `scripts/deploy-renderer.ps1` once the render service is up. Switches the primary judge from `TextOnlyDeployment` to `Deployment`) |
+| `Rendering:ServiceUrl` | `appsettings.json` (written by `scripts/deploy-renderer.ps1`) | — (empty = render with local Chromium: development only, F1 cannot launch a browser) |
+| `Rendering:ApiKey` | Key Vault `PoLocalCompare--Rendering--ApiKey` | env `Rendering__ApiKey` locally (the compose renderer uses `local-render-key-change-me`) |
+| `Rendering:TimeoutSeconds` | `appsettings.json` | — (60; one remote render, sized for a scale-from-zero cold start) |
 | `AiJudge:TextOnlyDeployment` | `appsettings.json` | — (`gpt-4.1-nano`; used, and stamped as `JudgeModel`, whenever vision is off. In po-aiservices-shared2 this deployment SERVES gpt-5.4-mini — see HISTORY 2026-10-26) |
 | `AiJudge:CrossCheckDeployment` | `appsettings.json` | — (empty since 2026-11-23, when Gemini was removed; reads the second ordering so a verdict survives a change of judge family; empty or a failed call = the primary reads it; must accept images when vision is on) |
 | `AiJudge:EscalationDeployment` | `appsettings.json` | — (`gpt-5.4-mini`; first re-ask of a split, both orders at floor effort, before `TiebreakDeployment`; empty = skip) |
@@ -524,6 +528,15 @@ pwsh scripts/provision-azure.ps1
   It reads repo variables `AZURE_WEBAPP_NAME` and `AZURE_RESOURCE_GROUP`. Bicep is applied by hand
   (`pwsh scripts/provision-azure.ps1`), never by a deploy.
 
+- **Render service (vision judge screenshots):** `pwsh scripts/deploy-renderer.ps1`, by hand, never
+  deploy.yml. Builds `src/PoLocalCompare.RenderService/Dockerfile` (context: repo root, allow-list in
+  `Dockerfile.dockerignore`), pushes `ghcr.io/punkouter27/polocalcompare-render:<sha>` (must stay a public
+  package: Container Apps pulls it anonymously), reads/creates `PoLocalCompare--Rendering--ApiKey` in the
+  vault, applies `infra/modules/renderer.bicep` to `PoLocalCompare` (Consumption environment
+  `cae-polocalcompare`, app `ca-polocalcompare-render`: 1 vCPU / 2 GiB, 0-1 replicas, 120 s cooldown, logs to
+  `PoShared-LogAnalytics`) and writes `Rendering:ServiceUrl` + `AiJudge:VisionEnabled=true` into
+  `appsettings.json` for you to commit. The Api calls `GET /health` when a duel starts (warm-up) and
+  `POST /render` (header `X-Render-Key`) per page; `/diag` reports the last real render and never probes.
 - **Subscription:** "Azure subscription 1" (punkouter27@gmail.com). The App Service deployed to is
   `app-polocalcompare-win2` (repo variable `AZURE_WEBAPP_NAME`); the standard name would be
   `app-polocalcompare` (see Deviations).

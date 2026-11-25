@@ -10,5 +10,19 @@ services:
       - azurite-data:/data
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data
 
+  # The vision judge's render service, as it runs in Production. Optional: without it the Api
+  # renders with local Chromium. Start it with `docker compose --profile renderer up -d renderer`
+  # and set Rendering__ServiceUrl=http://localhost:8090, Rendering__ApiKey=local-render-key-change-me.
+  renderer:
+    profiles: [renderer]
+    build:
+      context: .
+      dockerfile: src/PoLocalCompare.RenderService/Dockerfile
+    container_name: polocalcompare-renderer
+    ports:
+      - "8090:8080"
+    environment:
+      Render__ApiKey: local-render-key-change-me
+
 volumes:
   azurite-data:

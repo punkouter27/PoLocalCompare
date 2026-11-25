@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <!-- The vision judge's Playwright driver is a ~77 MB Node binary. Vision judging is off in
-         Production (AiJudge:VisionEnabled), so a Release publish ships no driver at all; the
-         renderer degrades to source-only judging if it is ever asked. -->
+    <!-- The vision judge's Playwright driver is a ~77 MB Node binary, and the Free (F1) App Service
+         cannot launch a browser anyway: in Production the judge's screenshots come from
+         PoLocalCompare.RenderService (Rendering:ServiceUrl), so a Release publish ships no driver.
+         Local rendering is for development, where Chromium is installed for the E2E-UI tier. -->
     <PlaywrightPlatform Condition="'$(Configuration)' == 'Release'">none</PlaywrightPlatform>
   </PropertyGroup>
 
@@ -12,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\PoLocalCompare.Shared\PoLocalCompare.Shared.csproj" />
     <ProjectReference Include="..\PoLocalCompare.Client\PoLocalCompare.Client.csproj" />
+    <!-- Headless-Chromium capture for the vision judge (Common/Rendering), shared with RenderService. -->
+    <ProjectReference Include="..\PoLocalCompare.Rendering\PoLocalCompare.Rendering.csproj" />
   </ItemGroup>
 
   <!-- SseChatStreamReader is internal on purpose (a helper the proxies own, not a service),
@@ -34,10 +37,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.ApplicationInsights" />
-    <!-- Headless Chromium for the vision judge (Common/Rendering). Feature-flagged off by
-         default: the Free-tier App Service has no browser and no room for one, so this is a
-         local/self-hosted capability, not a deploy dependency. -->
-    <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Azure.Data.Tables" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Security.KeyVault.Secrets" />

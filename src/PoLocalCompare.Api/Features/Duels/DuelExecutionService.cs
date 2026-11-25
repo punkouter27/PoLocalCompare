@@ -142,6 +142,11 @@ public sealed class DuelExecutionService
                 return;
             }
 
+            // The vision judge's render container scales to zero; wake it now so its cold start
+            // runs alongside the models' generation rather than in front of the verdict.
+            if (_configuration.GetValue<bool>($"{AutoJudgeOptions.SectionName}:VisionEnabled"))
+                services.GetRequiredService<HtmlScreenshotRenderer>().WarmUp();
+
             // Watchdog — was a hardcoded 900 s while appsettings shipped Duel:TimeLimitSeconds =
             // 300 that nothing read, so the two numbers disagreed with each other and with every
             // DTO that echoed one or the other. One knob now rules them all: the config value,

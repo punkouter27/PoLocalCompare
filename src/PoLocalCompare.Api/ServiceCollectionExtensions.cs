@@ -30,8 +30,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DuelRecoverySweeper>();
         services.AddHostedService<TournamentResumeService>();
         services.AddScoped<CreateTournamentHandler>();
-        // Singleton: it owns a Chromium process, launched lazily on first use and reused.
-        services.AddSingleton<HtmlScreenshotRenderer>();
         // Singleton like DuelExecutionService, and for the same reason: it is queued from a
         // request but outlives it, so it resolves its own scope per step rather than capturing
         // the request's. Registered once — it was previously registered twice, which is a

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The vision judge's headless-Chromium capture, in one place for both hosts that run it:
+       the Api (local development, where Chromium is installed for the E2E-UI tier) and
+       PoLocalCompare.RenderService (the container the F1-hosted Api calls in Production, because
+       the Free-tier App Service cannot run a browser). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- No ~77 MB Node driver in a Release build: the Api's publish (the F1 package) would carry it
+         through this reference. The RenderService image passes -p:PlaywrightPlatform=linux-x64. -->
+    <PlaywrightPlatform Condition="'$(Configuration)' == 'Release' and '$(PlaywrightPlatform)' == ''">none</PlaywrightPlatform>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+
+</Project>

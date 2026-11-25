@@ -31,6 +31,7 @@ public static class DiagEndpoints
         ["appInsights"] = new("service", "Application Insights", "Collects the app's logs and sign-in events."),
         ["huggingFace"] = new("service", "Hugging Face Hub", "Download and like counts on the model catalog."),
         ["ollama"] = new("service", "Ollama", "Runs local models on a developer's own machine."),
+        ["renderService"] = new("service", "Render service", "Screenshots each page so the AI judge sees what it draws."),
     };
 
     /// <summary>The build stamp (UTC yyMMdd) from the one BuildVersion assembly metadata key.</summary>

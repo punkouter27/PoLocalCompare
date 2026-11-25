@@ -194,6 +194,10 @@ try
             "huggingFace",
             HealthStatus.Degraded,
             [HealthCheckTags.DiagOnly])
+        .AddCheck<RenderServiceHealthCheck>(
+            "renderService",
+            HealthStatus.Degraded,
+            [HealthCheckTags.DiagOnly])
         .AddTypeActivatedCheck<ConfiguredEndpointHealthCheck>(
             "ollama",
             HealthStatus.Degraded,

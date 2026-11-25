@@ -6,6 +6,7 @@ global using PoLocalCompare.Api.Common.Inference;
 global using PoLocalCompare.Api.Common.KeyVault;
 global using PoLocalCompare.Api.Common.Persistence;
 global using PoLocalCompare.Api.Common.Rendering;
+global using PoLocalCompare.Rendering;
 global using PoLocalCompare.Api.Features.Archive;
 global using PoLocalCompare.Api.Features.Diagnostics;
 global using PoLocalCompare.Api.Features.Duels;

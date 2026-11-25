@@ -66,7 +66,7 @@ public class FoundryDuelJudgeTests
             new HttpClient(),
             new ConfigurationBuilder().Build(),
             Options.Create(new AutoJudgeOptions { MaxOutputChars = 40_000 }),
-            new HtmlScreenshotRenderer(NullLogger<HtmlScreenshotRenderer>.Instance),
+            null!, // DocumentBlock with no evidence never renders
             null!,
             NullLogger<FoundryDuelJudge>.Instance);
 
